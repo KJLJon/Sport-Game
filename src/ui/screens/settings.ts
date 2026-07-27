@@ -15,6 +15,8 @@ interface SettingsSection {
   readonly id: string;
   readonly title: string;
   readonly summary: string;
+  /** Sections without a route yet arrive with the features they configure. */
+  readonly path?: string;
 }
 
 const SECTIONS: readonly SettingsSection[] = [
@@ -22,7 +24,12 @@ const SECTIONS: readonly SettingsSection[] = [
   { id: 'display', title: 'Display & accessibility', summary: 'Theme, UI scale, reduced motion.' },
   { id: 'audio', title: 'Audio & haptics', summary: 'Music, effects, vibration.' },
   { id: 'data', title: 'Data & backup', summary: 'Export, import, storage usage.' },
-  { id: 'updates', title: 'App & updates', summary: 'Version, offline readiness, repair.' },
+  {
+    id: 'updates',
+    title: 'App & updates',
+    summary: 'Version, offline readiness, repair.',
+    path: '/settings/app',
+  },
   { id: 'about', title: 'About', summary: 'What this is, and what it never sends anywhere.' },
 ];
 
@@ -41,7 +48,16 @@ export function settingsScreen(): Screen {
 
         const title = doc.createElement('h2');
         title.className = 'settings-list__title';
-        title.textContent = section.title;
+
+        if (section.path === undefined) {
+          title.textContent = section.title;
+        } else {
+          const link = doc.createElement('a');
+          link.className = 'settings-list__link';
+          link.href = `#${section.path}`;
+          link.textContent = section.title;
+          title.appendChild(link);
+        }
 
         const summary = doc.createElement('p');
         summary.className = 'settings-list__summary';

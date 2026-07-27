@@ -12,14 +12,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-0.8 — Update application: banner, safe-point auto-update, single-reload guard, forced update
+- **Task:** T-0.12 — Storage persistence request, quota/usage display, denial warning
 - **Status:** todo (next up)
 - **Started:** —
 - **Branch commit:** —
 - **Done so far:** —
-- **Next step:** `11` §4 — post `SKIP_WAITING`, wait for `controllerchange`, reload exactly once
-  behind a one-shot guard. Safe points: home screen, no match, no unsaved editor, idle ≥5 s.
-  "Later" is remembered for 24 h. Below `minSupportedVersion` the banner is non-dismissable.
+- **Next step:** `11` §7 — request `navigator.storage.persist()` on first write and again after
+  milestones, display grant state and `estimate()` in Settings, warn plainly on denial. Then
+  T-0.13, the migration runner with a pre-migration snapshot and rollback.
 - **Files touched:** —
 - **Blockers:** Awaiting the user's answers to [`08-open-questions.md`](./08-open-questions.md);
   working assumptions are recorded there, so none of them block Phase 0.
@@ -38,7 +38,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
-| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 8 | `in_progress` | — |
+| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 11 | `in_progress` | — |
 | 1 | Engine core | 13 | 0 | `todo` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
@@ -67,9 +67,9 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-0.5 | Web app manifest generated with base-path `id`/`scope`/`start_url`, full icon set incl. maskable | M | `done` | | `tests/unit/tools/manifest.test.ts` | `auto` + icons eyeballed at 192 px, both variants | `id`/`scope`/`start_url` are all the base path, so the install is a distinct app from any sibling PWA on the account. Icons are rasterised at build by `tools/png.ts` — a ~90-line PNG encoder — rather than adding an image dependency or committing binaries; 12 sizes plus maskable 192/512, 34 kB total. A `404.html` copy of `index.html` answers deep links, since Pages has no rewrites. The dev server serves the same manifest and icons the build emits. |
 | T-0.6 | Service worker: per-class cache strategies (`11` §2), atomic precache install, versioned caches, activate cleanup | L | `done` | | `tests/unit/pwa/strategies.test.ts`, `tests/unit/tools/precache.test.ts` | `auto` + headless Chromium: registers, precaches 20 entries, cold-loads a deep hash route with the server refusing connections | The `11` §2 table lives in pure functions in `strategies.ts` so every row is asserted without a SW environment. `sw.js` is built by a second Vite pass with the precache manifest injected from the emitted asset list; emitted unhashed at the base root, since its directory is what scopes it. **Bug found in verification:** navigation preload *rejects* rather than resolving `undefined` when offline, which failed the whole navigation — the exact offline cold-start `11` exists to prevent. Now caught. Also dropped `frame-ancestors` from the CSP meta: it is header-only and browsers log an error. |
 | T-0.7 | `version.json` emission + all five update-detection triggers (`11` §3) | M | `done` | | `tests/unit/pwa/{version,update-detector}.test.ts` | `auto` — each of the five triggers asserted separately | `version.json` is emitted at build and served `no-store` in dev and in the build. All five triggers wired: launch, foreground (throttled to 60 s), 15-minute poll, explicit check, and the version poll. The fifth is the one that matters — a deployed build that differs while nothing is waiting is reported as `stuck`, which is what lets T-0.10 offer Repair instead of the app silently doing nothing. `back online` is wired as a free sixth chance. |
-| T-0.8 | Update application: waiting-worker banner, safe-point auto-update, single-reload guard, `minSupportedVersion` force | L | `todo` | | | | |
-| T-0.9 | Offline integrity self-check and self-heal; offline-readiness UI; "download everything for offline" | L | `todo` | | | | |
-| T-0.10 | Repair flow — caches and SW only, IndexedDB untouched (INV-13); "check for update now"; version display | M | `todo` | | | | |
+| T-0.8 | Update application: waiting-worker banner, safe-point auto-update, single-reload guard, `minSupportedVersion` force | L | `done` | | `tests/unit/pwa/update-application.test.ts` | `auto` | The whole of `11` §4 is one pure `decide()` function, so the policy is testable without a worker. Safe points: quiet screen, no match, no unsaved editor, no ceremony, idle ≥5 s. The reload guard is persisted, so a worker that keeps re-waiting cannot loop the app across reloads. A forced update outranks the snooze *and* the mid-match rule — it is reserved for builds that cannot load saves safely, so waiting is the more dangerous option. |
+| T-0.9 | Offline integrity self-check and self-heal; offline-readiness UI; "download everything for offline" | L | `done` | | `tests/unit/pwa/update-application.test.ts` (integrity block) | `auto` | Only the worker holds the precache manifest, so the page asks for it over `postMessage`. Missing non-critical entries heal silently when online and produce an honest notice when offline; a missing shell or entry chunk escalates straight to Repair. Check runs in an idle callback so it never costs launch time. |
+| T-0.10 | Repair flow — caches and SW only, IndexedDB untouched (INV-13); "check for update now"; version display | M | `done` | | `tests/invariants/inv-13-repair-preserves-data.test.ts` | `auto` | Settings → App & updates shows running version, build, build date, and last check, so "am I on the new one?" is always answerable. INV-13 is asserted three ways: behaviourally against real IndexedDB, structurally (the module imports no IndexedDB code at all), and textually against the copy the UI must show. |
 | T-0.11 | `ScopedStorage`: namespaced IndexedDB, localStorage, and Cache Storage behind one module (INV-3) | M | `done` | | `tests/unit/storage/{scope,prefs,caches}.test.ts`, `tests/integration/storage/idb.test.ts`, `tests/invariants/inv-03-namespaced-storage.test.ts` | `auto` | **Taken out of numeric order** — T-0.5/T-0.6 need the cache-name helpers. `scope.ts` is the only place a storage name is built. Prefs degrade to an in-memory store rather than throwing in Safari private mode. Cache deletion always filters on the namespace, so a sibling PWA on the same origin survives Repair (PWA-15). The INV-3 test checks the source as text, so an inline lint disable can't hide a violation. Vitest now runs under `base: '/test-scope/'`, so anything hardcoding the real repo name fails in CI. |
 | T-0.12 | Storage persistence request, quota/usage display, denial warning + backup prompt | S | `todo` | | | | |
 | T-0.13 | Schema versioning + migration runner with pre-migration snapshot and rollback | M | `todo` | | | | |

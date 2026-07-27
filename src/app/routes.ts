@@ -80,6 +80,14 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
       load: async () => (await import('../ui/screens/settings.ts')).settingsScreen(),
     },
   },
+  {
+    pattern: '/settings/app',
+    value: {
+      id: 'settings-app',
+      title: 'App & updates',
+      load: async () => (await import('../ui/screens/app-updates.ts')).appUpdatesScreen(),
+    },
+  },
   // Dev-only. `import.meta.env.DEV` is statically false in a production build, so the branch and
   // the dynamic import behind it are both tree-shaken away.
   ...(import.meta.env.DEV

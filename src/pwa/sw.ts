@@ -90,6 +90,12 @@ sw.addEventListener('message', (event) => {
     return;
   }
 
+  if (type === 'GET_PRECACHE') {
+    // The page needs the manifest to run the integrity check (`11` §5.2); only the worker has it.
+    event.source?.postMessage({ type: 'PRECACHE', urls: PRECACHE_URLS });
+    return;
+  }
+
   if (type === 'PRECACHE_URLS') {
     // `11` §5.3 — "Download everything for offline", and the heal path for evicted entries.
     const urls = (data as { urls?: unknown }).urls;

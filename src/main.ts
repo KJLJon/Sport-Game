@@ -16,7 +16,7 @@ import { Router } from './app/router.ts';
 import { AppShell } from './app/shell.ts';
 import { ROUTES, TABS } from './app/routes.ts';
 import type { ScreenDefinition } from './app/screen.ts';
-import { registerServiceWorker } from './pwa/register.ts';
+import { bootPwa, pwaRuntime } from './pwa/boot.ts';
 
 const root = document.querySelector<HTMLDivElement>('#app');
 
@@ -29,6 +29,21 @@ const router = new Router<ScreenDefinition>({ routes: ROUTES, fallbackPath: '/' 
 const shell = new AppShell({ root, router, tabs: TABS, window });
 shell.start();
 
-// Registration is deliberately after the shell is up: offline support must never delay first
-// paint, and a failed registration must never stop the app from running (`11` §3).
-void registerServiceWorker();
+// Deliberately after the shell is up: offline support must never delay first paint, and a failed
+// registration must never stop the app from running (`11` §3).
+void bootPwa({ bannerHost: shell.bannerHost });
+
+// The update controller needs to know where the player is, so it never reloads mid-flow (`11` §4).
+router.subscribe((match) => {
+  pwaRuntime()?.activity.update({
+    path: match?.location.path ?? '/',
+    // Bare chrome means a Live match or a full-screen arcade game — never interrupt either.
+    inMatch: match?.route.chrome === 'bare',
+  });
+  pwaRuntime()?.controller.reconsider();
+});
+
+// Idle time is part of the safe-point test, so the shell has to know when input last happened.
+for (const type of ['pointerdown', 'keydown'] as const) {
+  window.addEventListener(type, () => pwaRuntime()?.activity.touch(Date.now()), { passive: true });
+}

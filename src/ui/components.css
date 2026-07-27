@@ -625,3 +625,82 @@
   color: var(--text-lo);
   font-size: var(--text-14);
 }
+
+/* ── Panels and key/value rows (Settings) ─────────────────────────────────── */
+
+.stack {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-12);
+  justify-items: start;
+  padding: var(--space-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.panel--danger {
+  border-color: var(--danger);
+}
+
+.panel__title {
+  margin: 0;
+  font-size: var(--text-16);
+}
+
+.panel__note {
+  margin: 0;
+  max-width: 56ch;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.panel__note--strong {
+  color: var(--text-hi);
+}
+
+.panel .switch,
+.panel .kv-row {
+  width: 100%;
+}
+
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-16);
+  font-size: var(--text-14);
+}
+
+.kv-row__label {
+  color: var(--text-lo);
+}
+
+.kv-row__value {
+  font-variant-numeric: var(--font-numeric);
+}
+
+.settings-list__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.settings-list__link::after {
+  /* Whole-row target: `10` §3.2 requires 44 px, and a text link alone is not that. */
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.settings-list__item {
+  position: relative;
+}
+
+.settings-list__link:focus-visible::after {
+  outline: 2px solid var(--info);
+  outline-offset: -2px;
+  border-radius: var(--radius-12);
+}
