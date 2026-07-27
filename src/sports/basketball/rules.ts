@@ -13,10 +13,13 @@
  * into a replay or across the P2P wire.
  *
  * **Clock compression.** A quarter is three real minutes showing twelve game minutes (`06` §3.1), a
- * 4× compression. Every duration in the game — the shot clock, the eight-second count, the
- * three-in-the-key count — is authored in *game* seconds, the number the player sees on the HUD, and
- * converted to simulation steps in one place. That way "24" is 24 on the HUD and the arithmetic
- * that makes it six real seconds lives here rather than being sprinkled through the sport.
+ * 4× compression. Every duration is authored in *game* seconds — the number the player sees on the
+ * HUD — and converted to simulation steps in one place. That way "24" is 24 on the HUD and the
+ * arithmetic that makes it six real seconds lives here rather than being sprinkled through the sport.
+ *
+ * The compression is why there is no eight-second backcourt count: two real seconds to cover
+ * fourteen real metres is not a rule, it is a guaranteed turnover. `06` §3.1 asks for the backcourt
+ * violation, which is the over-and-back rule, and that is what `checkBackcourt` implements.
  *
  * Nothing in this file emits events itself; every function returns them for the module's `step()` to
  * order against the match clock's own. Same reason the `SportModule` seam works that way (INV-9).
@@ -54,11 +57,9 @@ export const TIMING = {
   shotClockGameSeconds: 24,
   /** The shorter reset after an offensive rebound. */
   offensiveReboundGameSeconds: 14,
-  /** Time to advance the ball past the centre line. */
-  backcourtGameSeconds: 8,
   /** Time to release an inbound pass. */
   inboundGameSeconds: 5,
-  /** Time an offensive player may stand in the key. */
+  /** Time an offensive player may stand in the key (T-2.7). */
   paintGameSeconds: 3,
 } as const;
 
@@ -85,7 +86,6 @@ export const BASKETBALL_RULES: MatchRules = {
 
 const SHOT_CLOCK_STEPS = gameSecondsToSteps(TIMING.shotClockGameSeconds);
 const OFFENSIVE_REBOUND_STEPS = gameSecondsToSteps(TIMING.offensiveReboundGameSeconds);
-const BACKCOURT_STEPS = gameSecondsToSteps(TIMING.backcourtGameSeconds);
 const INBOUND_STEPS = gameSecondsToSteps(TIMING.inboundGameSeconds);
 
 /** Why play is stopped and how it starts again. */
@@ -100,7 +100,6 @@ export type RestartKindName = (typeof RestartKind)[keyof typeof RestartKind];
 export const BasketballEvent = {
   SHOT_CLOCK_VIOLATION: 'basketball.violation.shotClock',
   BACKCOURT_VIOLATION: 'basketball.violation.backcourt',
-  EIGHT_SECOND_VIOLATION: 'basketball.violation.eightSecond',
   INBOUND_VIOLATION: 'basketball.violation.inbound',
   OUT_OF_BOUNDS: 'basketball.outOfBounds',
   RESTART: 'basketball.restart',
@@ -132,8 +131,6 @@ export interface RulesState {
   shotClock: number;
   /** False during a restart and while the ball is loose after a made basket. */
   shotClockRunning: boolean;
-  /** Steps left to cross the centre line, or `-1` when the count does not apply. */
-  backcourtClock: number;
   /** True once the offence has established the frontcourt this possession. */
   frontcourt: boolean;
   /** Pending restart, or `null` while the ball is live. */
@@ -156,7 +153,6 @@ export function createRulesState(arrow: CourtSide = 0): RulesState {
     arrow,
     shotClock: SHOT_CLOCK_STEPS,
     shotClockRunning: false,
-    backcourtClock: -1,
     frontcourt: false,
     restart: null,
     restartReady: false,
@@ -225,10 +221,7 @@ export function grantPossession(
   state.shotClock = resetSteps(reset, state.shotClock);
   state.shotClockRunning = true;
 
-  if (changed) {
-    state.frontcourt = isInFrontcourt(ballX, CENTRE_Y, side);
-    state.backcourtClock = state.frontcourt ? -1 : BACKCOURT_STEPS;
-  }
+  if (changed) state.frontcourt = isInFrontcourt(ballX, CENTRE_Y, side);
 
   const events: SportEvent[] = [];
   if (changed) {
@@ -257,8 +250,10 @@ export function registerTouch(state: RulesState, side: Side): void {
 /**
  * Advances every count that runs while the ball is live, and returns whatever they caused.
  *
- * Order matters and is the real rule: the shot clock is checked before the backcourt count, because
- * a possession that runs out of shot clock is over regardless of where the ball is.
+ * There is deliberately no eight-second backcourt count. At 4× clock compression it would give a
+ * ball-handler two real seconds to cover fourteen real metres, which is not a rule so much as a
+ * guaranteed turnover — and `06` §3.1 asks only for the backcourt violation, which is the
+ * over-and-back rule in `checkBackcourt`.
  */
 export function tickClocks(state: RulesState, ballX: number, step: number): SportEvent[] {
   if (state.restart !== null) return tickRestart(state, step);
@@ -280,24 +275,8 @@ export function tickClocks(state: RulesState, ballX: number, step: number): Spor
     }
   }
 
-  if (!state.frontcourt) {
-    if (isInFrontcourt(ballX, CENTRE_Y, offence)) {
-      state.frontcourt = true;
-      state.backcourtClock = -1;
-    } else if (state.backcourtClock > 0) {
-      state.backcourtClock--;
-      if (state.backcourtClock === 0) {
-        return violation(
-          state,
-          offence,
-          step,
-          BasketballEvent.EIGHT_SECOND_VIOLATION,
-          'eight seconds',
-          ballX,
-        );
-      }
-    }
-  }
+  // Crossing the centre line arms the over-and-back rule for the rest of the possession.
+  if (!state.frontcourt && isInFrontcourt(ballX, CENTRE_Y, offence)) state.frontcourt = true;
 
   return [];
 }
@@ -413,7 +392,6 @@ export function onBasketMade(state: RulesState, scoringSide: Side, step: number)
 /** The opening tip, and the start of every subsequent period. */
 export function onPeriodStart(state: RulesState, period: number, step: number): SportEvent[] {
   state.frontcourt = false;
-  state.backcourtClock = -1;
   state.shotClock = SHOT_CLOCK_STEPS;
   state.shotClockRunning = false;
   state.lastTouch = -1;
@@ -460,7 +438,6 @@ export function awardRestart(state: RulesState, restart: Restart, step: number):
   state.shotClockRunning = false;
   state.shotClock = SHOT_CLOCK_STEPS;
   state.frontcourt = false;
-  state.backcourtClock = -1;
 
   return [
     sportEvent(step, restart.side, BasketballEvent.RESTART, {
@@ -511,7 +488,6 @@ export function completeRestart(state: RulesState, step: number, ballX: number):
   }
 
   state.frontcourt = isInFrontcourt(ballX, CENTRE_Y, restart.side);
-  state.backcourtClock = state.frontcourt ? -1 : BACKCOURT_STEPS;
   state.shotClockRunning = true;
   state.possession = restart.side;
 

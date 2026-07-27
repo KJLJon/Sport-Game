@@ -20,7 +20,7 @@
  */
 import { createRng, type Rng } from '../../engine/rng.ts';
 import type { InputFrame } from '../../engine/input/types.ts';
-import { Button, isHeld } from '../../engine/input/types.ts';
+import { Button, isHeld, wasPressed, wasReleased } from '../../engine/input/types.ts';
 import { EventKind, event, type SportEvent } from '../../engine/match/events.ts';
 import { NO_ENTITY, type EntityId, type World } from '../../engine/world.ts';
 import {
@@ -34,7 +34,22 @@ import {
 } from '../../engine/physics/ball.ts';
 import { integrate, movementProfile, type MovementProfile } from '../../engine/physics/movement.ts';
 import { resolveCollisions } from '../../engine/physics/collision.ts';
-import { arrive, seek } from '../../engine/physics/steering.ts';
+import { arrive } from '../../engine/physics/steering.ts';
+import {
+  ShotMovement,
+  caromOffRim,
+  contestLevel,
+  dropThroughNet,
+  isOverheld,
+  releaseQuality,
+  shotInputAt,
+  startShot,
+  takeShot,
+  type ShooterRatings,
+  type ShotInFlight,
+  type ShotMeter,
+  type ShotMovementName,
+} from './shooting.ts';
 import type {
   ActionIntent,
   MatchSetup,
@@ -51,6 +66,8 @@ import {
   attackedBasket,
   basketballCourt,
   mirrorX,
+  shotDistance,
+  shotZone,
   type Side as CourtSide,
 } from './court.ts';
 import { courtKey, drawCourt } from './court-render.ts';
@@ -66,8 +83,10 @@ import {
   createRulesState,
   grantPossession,
   markRestartReady,
+  onBasketMade,
   onPeriodStart,
   registerTouch,
+  shotClockSeconds,
   tickClocks,
   type RulesState,
 } from './rules.ts';
@@ -101,6 +120,17 @@ export interface BasketballState extends SportState {
   readonly sides: Map<EntityId, CourtSide>;
   /** Index into `roles.roles`, per athlete. */
   readonly roleIndex: Map<EntityId, number>;
+  /** Shooting ratings, per athlete. Real athletes replace these at T-3.17. */
+  readonly ratings: Map<EntityId, ShooterRatings>;
+  /** The shot being charged, if any — at most one, since only the carrier can shoot. */
+  meter: ShotMeter | null;
+  /** Who is charging it, and the hold a CPU shooter is aiming for. */
+  shooter: EntityId;
+  cpuRelease: number;
+  /** The ball's current flight, or `null`. */
+  shot: ShotInFlight | null;
+  /** True between a miss and whoever collects it — what makes the next catch a rebound. */
+  reboundLive: boolean;
   readonly playerSide: 0 | 1 | -1;
   controlled: EntityId;
   step: number;
@@ -154,6 +184,15 @@ const ai: SportAiAdapter = {
 /** Steps an inbounder is given to walk to the spot before the ball is put in play. */
 const RESTART_SETUP_STEPS = 30;
 
+/** Shot-clock seconds below which a shooter is hurrying. */
+const LATE_CLOCK_SECONDS = 6;
+
+/** Steps of hold that make a perfect release — mirrored from `SHOOTING.idealHoldSteps`. */
+const SHOT_IDEAL_HOLD = 30;
+
+/** Where a perimeter ball-handler stops rather than driving — comfortably behind the arc. */
+const PULL_UP_DISTANCE = 7.9;
+
 export const basketball: SportModule<BasketballState> = {
   id: 'basketball',
   meta: { displayName: 'Basketball', squadSize: 5, periodName: 'Quarter' },
@@ -170,6 +209,7 @@ export const basketball: SportModule<BasketballState> = {
     const profiles = new Map<EntityId, MovementProfile>();
     const sides = new Map<EntityId, CourtSide>();
     const roleIndex = new Map<EntityId, number>();
+    const ratings = new Map<EntityId, ShooterRatings>();
 
     // Rosters come from their own fork, so adding a draw elsewhere cannot change who is fast.
     const rosterRng = rng.fork('roster');
@@ -195,6 +235,7 @@ export const basketball: SportModule<BasketballState> = {
         profiles.set(id, movementProfile({ speed: rating, acceleration: rating, agility: rating }));
         sides.set(id, side);
         roleIndex.set(id, index);
+        ratings.set(id, rollRatings(rosterRng, index));
       }
     }
 
@@ -220,6 +261,12 @@ export const basketball: SportModule<BasketballState> = {
       profiles,
       sides,
       roleIndex,
+      ratings,
+      meter: null,
+      shooter: NO_ENTITY,
+      cpuRelease: 0,
+      shot: null,
+      reboundLive: false,
       playerSide: setup.playerSide,
       controlled,
       step: 0,
@@ -252,8 +299,11 @@ export const basketball: SportModule<BasketballState> = {
     world.reindex();
 
     events.push(...advanceRestart(state, world, rng));
+    events.push(...driveShooting(state, world, inputs, rng));
+    events.push(...resolveFlight(state, world, rng));
 
-    if (ball.carrier === NO_ENTITY) {
+    // A ball in flight is nobody's to catch — that is what makes a shot a shot.
+    if (ball.carrier === NO_ENTITY && state.shot === null) {
       events.push(...collectLooseBall(state, world));
     }
 
@@ -307,6 +357,197 @@ export const basketball: SportModule<BasketballState> = {
   },
 };
 
+/**
+ * Charges and releases shots.
+ *
+ * The player and the CPU go through the same meter: the player's release is their thumb, the CPU's
+ * is a seeded target hold. One code path means the CPU cannot get a shot the player cannot take,
+ * which is the difficulty invariant (INV-1) expressed as code rather than as a promise.
+ */
+function driveShooting(
+  state: BasketballState,
+  world: World,
+  inputs: ReadonlyMap<EntityId, InputFrame>,
+  rng: Rng,
+): SportEvent[] {
+  const ball = state.ballState;
+  const carrier = ball.carrier;
+
+  // A shot cannot survive losing the ball.
+  if (state.meter !== null && state.shooter !== carrier) {
+    state.meter = null;
+    state.shooter = NO_ENTITY;
+  }
+  if (carrier === NO_ENTITY || state.rules.restart !== null) return [];
+
+  const side = state.sides.get(carrier);
+  const ratings = state.ratings.get(carrier);
+  if (side === undefined || ratings === undefined) return [];
+
+  const x = world.x[carrier] as number;
+  const y = world.y[carrier] as number;
+  const input = inputs.get(carrier);
+
+  if (state.meter === null) {
+    const start =
+      input !== undefined
+        ? wasPressed(input, Button.A)
+        : cpuWantsToShoot(state, world, carrier, side, rng);
+    if (!start) return [];
+
+    state.meter = startShot(ratings, shotZone(x, y, side), movementOf(world, carrier, side));
+    state.shooter = carrier;
+    // The CPU aims for the middle of its own window, missing by a seeded amount.
+    state.cpuRelease = Math.round(SHOT_IDEAL_HOLD + rng.float(-1, 1) * state.meter.window * 0.8);
+    return [];
+  }
+
+  state.meter.charge++;
+
+  const letGo =
+    input !== undefined
+      ? wasReleased(input, Button.A) || isOverheld(state.meter)
+      : state.meter.charge >= state.cpuRelease || isOverheld(state.meter);
+  if (!letGo) return [];
+
+  const quality = releaseQuality(state.meter);
+  const movement = state.meter.movement;
+  state.meter = null;
+  state.shooter = NO_ENTITY;
+
+  const shotInput = shotInputAt(x, y, side, ratings, {
+    contest: contestOn(state, world, carrier, side),
+    release: quality,
+    movement,
+    clockPressure: clockPressure(state),
+  });
+
+  registerTouch(state.rules, side);
+  const shot = takeShot(world, ball, carrier, side, shotInput, state.step, rng);
+  state.shot = shot;
+
+  return [
+    event(EventKind.SHOT, state.step, side, {
+      actor: carrier,
+      value: shot.value,
+      x,
+      y,
+      detail: {
+        zone: shot.zone,
+        release: round3(quality),
+        contest: round3(shotInput.contest),
+        probability: round3(shot.probability),
+        movement,
+      },
+    }),
+  ];
+}
+
+/** Turns a shot in flight into a basket or a rebound when it reaches the rim. */
+function resolveFlight(state: BasketballState, world: World, rng: Rng): SportEvent[] {
+  const shot = state.shot;
+  if (shot === null || state.step < shot.resolveStep) return [];
+  state.shot = null;
+
+  if (!shot.made) {
+    caromOffRim(world, state.ballState, shot.side, rng);
+    state.reboundLive = true;
+    return [];
+  }
+
+  dropThroughNet(world, state.ballState, shot.side);
+  state.reboundLive = false;
+
+  return [
+    event(EventKind.SCORE, state.step, shot.side, {
+      value: shot.value,
+      actor: shot.shooter,
+      x: world.x[state.ballState.entity] as number,
+      y: world.y[state.ballState.entity] as number,
+    }),
+    ...onBasketMade(state.rules, shot.side, state.step),
+  ];
+}
+
+/** How smothered the carrier is, from the nearest opponent. */
+function contestOn(state: BasketballState, world: World, actor: EntityId, side: CourtSide): number {
+  let nearest = Infinity;
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    if (state.sides.get(id) === side) return;
+    const d = Math.hypot(
+      (world.x[id] as number) - (world.x[actor] as number),
+      (world.y[id] as number) - (world.y[actor] as number),
+    );
+    if (d < nearest) nearest = d;
+  });
+  return nearest === Infinity ? 0 : contestLevel(nearest);
+}
+
+/** `0` with time to spare, `1` at the buzzer. */
+function clockPressure(state: BasketballState): number {
+  const seconds = shotClockSeconds(state.rules);
+  return seconds >= LATE_CLOCK_SECONDS ? 0 : 1 - seconds / LATE_CLOCK_SECONDS;
+}
+
+/** Set, off the dribble, or fading — read from where the carrier is going, not from a button. */
+function movementOf(world: World, actor: EntityId, side: CourtSide): ShotMovementName {
+  const speed = Math.hypot(world.vx[actor] as number, world.vy[actor] as number);
+  if (speed < 1) return ShotMovement.SET;
+
+  const basket = attackedBasket(side);
+  const toBasketX = basket.x - (world.x[actor] as number);
+  const toBasketY = basket.y - (world.y[actor] as number);
+  const towards = toBasketX * (world.vx[actor] as number) + toBasketY * (world.vy[actor] as number);
+  return towards < 0 ? ShotMovement.FADEAWAY : ShotMovement.OFF_DRIBBLE;
+}
+
+/**
+ * Placeholder shot selection, replaced by T-2.8. Deliberately simple and honest about it: take the
+ * layup, take the open three, and never let the shot clock expire with the ball in your hands.
+ */
+function cpuWantsToShoot(
+  state: BasketballState,
+  world: World,
+  actor: EntityId,
+  side: CourtSide,
+  rng: Rng,
+): boolean {
+  if (!state.rules.frontcourt) return false;
+
+  const x = world.x[actor] as number;
+  const y = world.y[actor] as number;
+  const distance = shotDistance(x, y, side);
+  const contest = contestOn(state, world, actor, side);
+  const seconds = shotClockSeconds(state.rules);
+
+  if (seconds < 3) return true;
+  if (distance < 3.5 && contest < 0.6) return rng.bool(0.25);
+  if (!isPerimeterRole(state, actor)) return false;
+  // Behind the arc: take the open one, and never let the clock die holding it.
+  if (distance > 6.9 && distance < 9.2)
+    return rng.bool(contest < 0.5 ? 0.12 : seconds < 8 ? 0.2 : 0);
+  return false;
+}
+
+/** Seeded shooting ratings, biased by role — guards shoot, bigs finish. Replaced at T-3.17. */
+function rollRatings(rng: Rng, roleIndex: number): ShooterRatings {
+  const perimeter = roleIndex <= 1;
+  const shot = rng.int(perimeter ? 55 : 35, perimeter ? 88 : 68);
+  const inside = rng.int(perimeter ? 45 : 62, perimeter ? 75 : 92);
+  return {
+    finishing: inside,
+    midRange: Math.round((shot + inside) / 2),
+    threePoint: shot,
+    freeThrow: rng.int(55, 90),
+    composure: rng.int(40, 85),
+  };
+}
+
+function round3(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
 /** Absolute court position for a role fraction, measured from the end `side` defends. */
 function roleSpot(fx: number, fy: number, side: CourtSide): { x: number; y: number } {
   const x = fx * COURT.length;
@@ -353,14 +594,17 @@ function moveEveryone(
         0.5,
         desired,
       );
+    } else if (state.meter !== null && state.shooter === id) {
+      // A shooter plants. Everything about the meter is about standing still and letting go.
     } else if (ball.carrier === id) {
-      const basket = attackedBasket(side);
-      seek(
+      const target = carryTarget(state, world, id, side);
+      arrive(
         world.x[id] as number,
         world.y[id] as number,
-        basket.x,
-        basket.y,
+        target.x,
+        target.y,
         profile.maxSpeed,
+        1,
         desired,
       );
     } else if (ball.carrier === NO_ENTITY && restart === null) {
@@ -389,6 +633,38 @@ function moveEveryone(
     integrate(world, id, profile, desired, dt);
     world.clampToBounds(id, world.radius[id] as number);
   });
+}
+
+/**
+ * Where the ball-handler is heading. Bigs drive; perimeter roles pull up behind the arc.
+ *
+ * Placeholder, replaced by T-2.8 — but not an arbitrary one: without it every possession is a
+ * drive to the rim and the three-point half of the shooting model never runs.
+ */
+function carryTarget(
+  state: BasketballState,
+  world: World,
+  id: EntityId,
+  side: CourtSide,
+): { x: number; y: number } {
+  const basket = attackedBasket(side);
+  // Bigs always drive; so does anyone whose look has not come by the time the clock gets short.
+  if (!isPerimeterRole(state, id) || shotClockSeconds(state.rules) < LATE_CLOCK_SECONDS * 2) {
+    return { x: basket.x, y: basket.y };
+  }
+
+  const x = world.x[id] as number;
+  const y = world.y[id] as number;
+  const away = Math.hypot(x - basket.x, y - basket.y);
+  if (away <= PULL_UP_DISTANCE) return { x, y };
+
+  const scale = PULL_UP_DISTANCE / away;
+  return { x: basket.x + (x - basket.x) * scale, y: basket.y + (y - basket.y) * scale };
+}
+
+/** Guards and wings shoot from range; the forward and the centre work inside. */
+function isPerimeterRole(state: BasketballState, id: EntityId): boolean {
+  return (state.roleIndex.get(id) ?? 0) <= 2;
 }
 
 /**
@@ -530,14 +806,27 @@ function collectLooseBall(state: BasketballState, world: World): SportEvent[] {
 
   attach(world, ball, taker);
   const wasOffence = state.rules.possession === side;
-  return grantPossession(
-    state.rules,
-    side,
-    state.step,
-    wasOffence ? ShotClockReset.KEEP : ShotClockReset.FULL,
-    world.x[taker] as number,
-    taker,
+  const rebound = state.reboundLive;
+  state.reboundLive = false;
+
+  const events: SportEvent[] = [];
+  if (rebound) {
+    // The contest itself is T-2.6; the event is already true and downstream stats want it.
+    events.push(event(EventKind.REBOUND, state.step, side, { actor: taker }));
+  }
+
+  const reset = rebound
+    ? wasOffence
+      ? ShotClockReset.OFFENSIVE_REBOUND
+      : ShotClockReset.FULL
+    : wasOffence
+      ? ShotClockReset.KEEP
+      : ShotClockReset.FULL;
+
+  events.push(
+    ...grantPossession(state.rules, side, state.step, reset, world.x[taker] as number, taker),
   );
+  return events;
 }
 
 /** Builds a match ready to step — used by the rules tests and, later, the balance harness. */

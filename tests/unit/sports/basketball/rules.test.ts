@@ -146,30 +146,22 @@ describe('the shot clock', () => {
 });
 
 describe('advancing the ball', () => {
-  it('gives eight game seconds to cross the centre line', () => {
+  it('has no eight-second count — the compressed clock makes one unplayable', () => {
     const state = createRulesState(0);
-    // Side 0 attacks high x, so its backcourt is low x.
+    // Side 0 attacks high x, so x = 3 is deep in its own backcourt.
     grantPossession(state, 0, 0, ShotClockReset.FULL, 3);
     expect(state.frontcourt).toBe(false);
-    expect(state.backcourtClock).toBe(gameSecondsToSteps(8));
 
-    expect(run(state, state.backcourtClock - 1, 3)).toEqual([]);
-    const events = run(state, 1, 3);
-    expect(sportKinds(events)).toEqual([
-      BasketballEvent.EIGHT_SECOND_VIOLATION,
-      EventKind.TURNOVER,
-      BasketballEvent.RESTART,
-    ]);
+    // Dawdling in the backcourt costs the shot clock and nothing else.
+    const events = run(state, gameSecondsToSteps(20), 3);
+    expect(events).toEqual([]);
   });
 
-  it('stops the eight-second count once the frontcourt is established', () => {
+  it('arms the over-and-back rule when the ball crosses the centre line', () => {
     const state = createRulesState(0);
     grantPossession(state, 0, 0, ShotClockReset.FULL, 3);
     run(state, 60, CENTRE_X + 2);
     expect(state.frontcourt).toBe(true);
-    expect(state.backcourtClock).toBe(-1);
-    // Well past eight game seconds, and still no violation — only the shot clock is left.
-    expect(run(state, gameSecondsToSteps(12), CENTRE_X + 2)).toEqual([]);
   });
 
   it('turns the ball over if it goes back to the backcourt', () => {
@@ -287,14 +279,12 @@ describe('restarts', () => {
     expect(state.shotClockRunning).toBe(true);
     // x = 3 is side 0's backcourt, so the eight-second count is on.
     expect(state.frontcourt).toBe(false);
-    expect(state.backcourtClock).toBe(gameSecondsToSteps(8));
   });
 
   it('starts no eight-second count on a frontcourt throw-in', () => {
     const state = pendingThrowIn();
     completeRestart(state, 7, COURT.length - 3);
     expect(state.frontcourt).toBe(true);
-    expect(state.backcourtClock).toBe(-1);
   });
 });
 

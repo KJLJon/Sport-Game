@@ -10,8 +10,9 @@
  * full quarter. The unit tests prove each count fires; this proves they compose — that a match
  * keeps moving, that no possession outlives the shot clock, and that the same seed replays exactly.
  *
- * There is no scoring yet (T-2.3), so every possession here ends in a violation. That is the
- * honest state of the sport at T-2.2 and the test asserts it rather than pretending otherwise.
+ * Shot selection and spacing are still placeholders (T-2.8 owns them), so the assertions here are
+ * about *shape* — shots go up, some go in, the score moves, misses become rebounds — rather than
+ * about the shooting percentages T-2.13 will tune.
  */
 import { describe, expect, it } from 'vitest';
 import { World } from '@/engine/world.ts';
@@ -72,42 +73,87 @@ describe('a basketball match', () => {
 
   it('never lets a possession outlive the shot clock', () => {
     const { events } = play('quarter', BASKETBALL_RULES.periodSteps);
-    const live = events.filter(
-      (e) =>
-        (e.sportKind ?? e.kind) === BasketballEvent.RESTART_COMPLETE ||
-        (e.sportKind ?? e.kind) === BasketballEvent.SHOT_CLOCK_VIOLATION,
-    );
 
-    let liveSince: number | null = null;
-    for (const e of live) {
-      if ((e.sportKind ?? e.kind) === BasketballEvent.RESTART_COMPLETE) {
-        liveSince = e.step;
-      } else if (liveSince !== null) {
-        expect(e.step - liveSince).toBeLessThanOrEqual(gameSecondsToSteps(24) + 2);
-        liveSince = null;
+    // The clock restarts on every reset — an offensive rebound legitimately extends a possession —
+    // so a span is measured from the last reset, not from the last inbound.
+    let armedAt: number | null = null;
+    for (const e of events) {
+      const kind = e.sportKind ?? e.kind;
+      if (kind === BasketballEvent.SHOT_CLOCK_RESET) armedAt = e.step;
+      else if (kind === BasketballEvent.SHOT_CLOCK_VIOLATION) {
+        expect(armedAt).not.toBeNull();
+        expect(e.step - (armedAt as number)).toBeLessThanOrEqual(gameSecondsToSteps(24) + 2);
+        armedAt = null;
       }
     }
   });
 
   it('keeps play moving — the ball is never dead for long', () => {
     const { events } = play('flow', BASKETBALL_RULES.periodSteps);
-    const restarts = of(events, BasketballEvent.RESTART);
     const completions = of(events, BasketballEvent.RESTART_COMPLETE);
 
-    // Every restart is put back in play, give or take one still pending at the buzzer.
-    expect(completions.length).toBeGreaterThanOrEqual(restarts.length - 1);
-    // And a quarter's worth of possessions actually happened.
+    // A quarter's worth of possessions actually happened...
     expect(completions.length).toBeGreaterThan(10);
+
+    // ...and no dead ball stayed dead. The worst case is an inbounder walking the length of the
+    // court, about five real seconds; eight leaves room without hiding a stall.
+    let awardedAt: number | null = null;
+    for (const e of events) {
+      const kind = e.sportKind ?? e.kind;
+      if (kind === BasketballEvent.RESTART) awardedAt = e.step;
+      else if (kind === BasketballEvent.RESTART_COMPLETE && awardedAt !== null) {
+        expect(e.step - awardedAt).toBeLessThan(8 * 60);
+        awardedAt = null;
+      }
+    }
   });
 
-  it('turns every possession over on the shot clock while there is no scoring yet', () => {
+  it('takes shots, makes some, and moves the score', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const shots = of(events, EventKind.SHOT);
+    const scores = of(events, EventKind.SCORE);
+
+    expect(shots.length).toBeGreaterThan(15);
+    expect(scores.length).toBeGreaterThan(3);
+    expect(scores.length).toBeLessThan(shots.length);
+
+    // Every made shot is worth two or three, and only ever to the side that took it.
+    for (const score of scores) {
+      expect([2, 3]).toContain(score.value);
+      expect([0, 1]).toContain(score.side);
+    }
+  });
+
+  it('records what the shooting model decided, so a balance pass has something to read', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    for (const shot of of(events, EventKind.SHOT)) {
+      const detail = shot.detail ?? {};
+      expect(typeof detail.zone).toBe('string');
+      expect(detail.probability as number).toBeGreaterThanOrEqual(0.02);
+      expect(detail.probability as number).toBeLessThanOrEqual(0.95);
+      expect(detail.release as number).toBeGreaterThanOrEqual(0);
+      expect(detail.release as number).toBeLessThanOrEqual(1);
+      expect(shot.actor).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('turns a miss into a live rebound rather than a dead ball', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const shots = of(events, EventKind.SHOT).length;
+    const scores = of(events, EventKind.SCORE).length;
+    const rebounds = of(events, EventKind.REBOUND).length;
+
+    // Not every miss is rebounded — some go out of bounds — but most are.
+    expect(rebounds).toBeGreaterThan((shots - scores) * 0.4);
+    expect(rebounds).toBeLessThanOrEqual(shots - scores);
+  });
+
+  it('still ends a stalled possession on the shot clock', () => {
     const { events } = play('flow', BASKETBALL_RULES.periodSteps);
     const violations = of(events, BasketballEvent.SHOT_CLOCK_VIOLATION);
     const turnovers = of(events, EventKind.TURNOVER);
-    expect(violations.length).toBeGreaterThan(10);
-    expect(turnovers.length).toBe(violations.length);
-    // Nobody has scored, because nobody can shoot yet.
-    expect(of(events, EventKind.SCORE)).toHaveLength(0);
+    expect(violations.length).toBeGreaterThan(0);
+    expect(turnovers.length).toBeGreaterThanOrEqual(violations.length);
   });
 
   it('alternates possession — one side does not keep the ball all quarter', () => {
