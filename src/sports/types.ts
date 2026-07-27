@@ -124,6 +124,34 @@ export interface SportRenderer {
   fieldKey(field: FieldGeometry, view: ViewTransform): string;
 }
 
+/**
+ * What a sport tells the presentation layer about itself, beyond the score and the period the match
+ * clock already owns.
+ *
+ * Deliberately generic: "action clock", not "shot clock"; "team fouls", not "personal fouls with
+ * bonus". A HUD that read `state.rules.shotClock` would carry basketball's field names into shared
+ * UI and break INV-5 the moment a second sport arrived, so this is the sport's side of that
+ * contract — and the reason `status()` exists at all rather than the HUD reaching in.
+ */
+export interface SportStatus {
+  /** Seconds on the sport's own action clock — a shot clock, a play clock — or `null` if it has none. */
+  readonly actionClock: number | null;
+  /** Team-foul counts, or `null` for a sport without them. */
+  readonly teamFouls: readonly [number, number] | null;
+  /** Whether each side's fouls have reached the penalty threshold. */
+  readonly bonus: readonly [boolean, boolean] | null;
+  /** Which side has the ball, or `-1`. */
+  readonly possession: 0 | 1 | -1;
+  /** The athlete the local player is controlling, or `-1`. */
+  readonly controlled: EntityId;
+  /** Why play is stopped, for the stoppage caption (`06` §4). */
+  readonly stoppage: string | null;
+  /** A charging action's progress, `0–1`, for a release meter. `null` when nothing is charging. */
+  readonly meter: number | null;
+  /** Game seconds remaining in the current period, as the sport counts them. */
+  readonly periodClock: number;
+}
+
 export interface SportHudSpec {
   readonly showShotClock: boolean;
   readonly showPossession: boolean;
@@ -174,6 +202,18 @@ export interface SportModule<S extends SportState = SportState> {
   readonly ai: SportAiAdapter;
   readonly render: SportRenderer;
   readonly hud: SportHudSpec;
+
+  /**
+   * What to show about this sport right now. Optional so a Phase-1 test fixture stays valid; a
+   * sport without it gets the generic HUD and nothing breaks.
+   */
+  status?(state: S): SportStatus;
+
+  /**
+   * Called by the mode host when a new period begins, so the sport can reset what it owns. The
+   * clock is the engine's; whatever a period start means to the sport is the sport's.
+   */
+  startPeriod?(state: S, period: number): void;
 }
 
 /**

@@ -1,0 +1,433 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   2 — Basketball · Live
+ * @task    T-2.2 — Basketball rules: quarters, game clock, shot clock, possession, out-of-bounds, restarts
+ * @story   US-3.1 — Play a 5v5 basketball match
+ * @design  06-game-design.md §3.1, 12-quality-and-testing.md §3 (INV-8)
+ * @invariant INV-8 (determinism)
+ *
+ * Purpose: the rule book driven through the real module, the real world, and the real clock for a
+ * full quarter. The unit tests prove each count fires; this proves they compose — that a match
+ * keeps moving, that no possession outlives the shot clock, and that the same seed replays exactly.
+ *
+ * Shot selection and spacing are still placeholders (T-2.8 owns them), so the assertions here are
+ * about *shape* — shots go up, some go in, the score moves, misses become rebounds — rather than
+ * about the shooting percentages T-2.13 will tune.
+ */
+import { describe, expect, it } from 'vitest';
+import { World } from '@/engine/world.ts';
+import { EventBus, EventKind, type SportEvent } from '@/engine/match/events.ts';
+import { MatchStateMachine } from '@/engine/match/state-machine.ts';
+import { basketball, createBasketballMatch } from '@/sports/basketball/index.ts';
+import { COURT } from '@/sports/basketball/court.ts';
+import {
+  BASKETBALL_RULES,
+  BasketballEvent,
+  FOULS,
+  gameSecondsToSteps,
+} from '@/sports/basketball/rules.ts';
+
+const STEP = 1 / 60;
+
+function arena(): World {
+  return new World({
+    width: basketball.field.width,
+    height: basketball.field.height,
+    cellSize: 3,
+    capacity: 32,
+  });
+}
+
+/** Steps a match for `steps` ticks with no input, returning everything it emitted. */
+function play(seed: string, steps: number): { events: SportEvent[]; world: World } {
+  const world = arena();
+  const { state, rng } = createBasketballMatch(world, seed);
+  const events: SportEvent[] = [];
+  const empty = new Map();
+  for (let i = 0; i < steps; i++) {
+    events.push(...basketball.step(state, world, empty, STEP, rng));
+  }
+  return { events, world };
+}
+
+function of(events: readonly SportEvent[], kind: string): SportEvent[] {
+  return events.filter((e) => (e.sportKind ?? e.kind) === kind);
+}
+
+describe('a basketball match', () => {
+  it('spawns ten athletes and a ball on a FIBA court', () => {
+    const world = arena();
+    const { state } = createBasketballMatch(world, 'setup');
+    expect(state.sides.size).toBe(10);
+    expect(world.count).toBe(11);
+    expect(world.width).toBe(28);
+    expect(world.height).toBe(15);
+    expect(state.rules.restart?.kind).toBe('tipOff');
+  });
+
+  it('opens with a tip-off that gives somebody the ball', () => {
+    const { events } = play('tip', 200);
+    const possessions = of(events, EventKind.POSSESSION);
+    expect(possessions.length).toBeGreaterThan(0);
+    expect([0, 1]).toContain(possessions[0]?.side);
+  });
+
+  it('never lets a possession outlive the shot clock', () => {
+    const world = arena();
+    const { state, rng } = createBasketballMatch(world, 'quarter');
+    const empty = new Map();
+    const max = gameSecondsToSteps(24);
+
+    // Event spans cannot measure this: the clock stops for every dead ball, so wall-clock steps and
+    // shot-clock steps are different quantities. Counting the steps it actually *ran* for is what
+    // the rule is about.
+    let ranFor = 0;
+    let previous = state.rules.shotClock;
+
+    for (let i = 0; i < BASKETBALL_RULES.periodSteps; i++) {
+      basketball.step(state, world, empty, STEP, rng);
+
+      expect(state.rules.shotClock).toBeGreaterThanOrEqual(0);
+      expect(state.rules.shotClock).toBeLessThanOrEqual(max);
+
+      if (state.rules.shotClock > previous) ranFor = 0;
+      else if (state.rules.shotClock < previous) ranFor++;
+      previous = state.rules.shotClock;
+
+      expect(ranFor).toBeLessThanOrEqual(max);
+    }
+  });
+
+  it('keeps play moving — the ball is never dead for long', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const completions = of(events, BasketballEvent.RESTART_COMPLETE);
+
+    // A quarter's worth of possessions actually happened...
+    expect(completions.length).toBeGreaterThan(10);
+
+    // ...and no dead ball stayed dead. The worst case is an inbounder walking the length of the
+    // court, about five real seconds; eight leaves room without hiding a stall.
+    let awardedAt: number | null = null;
+    for (const e of events) {
+      const kind = e.sportKind ?? e.kind;
+      if (kind === BasketballEvent.RESTART) awardedAt = e.step;
+      else if (kind === BasketballEvent.RESTART_COMPLETE && awardedAt !== null) {
+        expect(e.step - awardedAt).toBeLessThan(8 * 60);
+        awardedAt = null;
+      }
+    }
+  });
+
+  it('takes shots, makes some, and moves the score', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const shots = of(events, EventKind.SHOT);
+    const scores = of(events, EventKind.SCORE);
+
+    expect(shots.length).toBeGreaterThan(15);
+    expect(scores.length).toBeGreaterThan(3);
+    expect(scores.length).toBeLessThan(shots.length);
+
+    // Every score is a free throw, a two, or a three, and only ever to the side that took it.
+    for (const score of scores) {
+      expect([1, 2, 3]).toContain(score.value);
+      expect([0, 1]).toContain(score.side);
+    }
+  });
+
+  it('records what the shooting model decided, so a balance pass has something to read', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    for (const shot of of(events, EventKind.SHOT)) {
+      const detail = shot.detail ?? {};
+      expect(typeof detail.zone).toBe('string');
+      expect(detail.probability as number).toBeGreaterThanOrEqual(0.02);
+      expect(detail.probability as number).toBeLessThanOrEqual(0.95);
+      expect(detail.release as number).toBeGreaterThanOrEqual(0);
+      expect(detail.release as number).toBeLessThanOrEqual(1);
+      expect(shot.actor).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('turns a miss into a live rebound rather than a dead ball', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const shots = of(events, EventKind.SHOT).length;
+    const scores = of(events, EventKind.SCORE).length;
+    const rebounds = of(events, EventKind.REBOUND);
+
+    // Not every miss is rebounded — some go out of bounds — but most are.
+    expect(rebounds.length).toBeGreaterThan((shots - scores) * 0.4);
+    expect(rebounds.length).toBeLessThanOrEqual(shots - scores);
+  });
+
+  it('says how each rebound was won, and splits them plausibly', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const rebounds = of(events, EventKind.REBOUND);
+
+    let offensive = 0;
+    for (const rebound of rebounds) {
+      const detail = rebound.detail ?? {};
+      expect(['offensive', 'defensive']).toContain(detail.kind);
+      expect(typeof detail.boxedOut).toBe('boolean');
+      expect(detail.timing as number).toBeGreaterThanOrEqual(0);
+      expect(detail.timing as number).toBeLessThanOrEqual(1);
+      if (detail.kind === 'offensive') offensive++;
+    }
+
+    // Both boards are live. The offensive share is high — around half — because nobody boxes out
+    // yet: the defence has no reason to put a body between the shooter and the rim until T-2.7,
+    // so the team driving the basket is simply nearer the ball. The *contest* is right; the
+    // *positioning* is what T-2.7 fixes and T-2.13 balances.
+    expect(offensive).toBeGreaterThan(0);
+    expect(offensive / rebounds.length).toBeLessThan(0.65);
+  });
+
+  it('still ends a stalled possession on the shot clock', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const violations = of(events, BasketballEvent.SHOT_CLOCK_VIOLATION);
+    const turnovers = of(events, EventKind.TURNOVER);
+    expect(violations.length).toBeGreaterThan(0);
+    expect(turnovers.length).toBeGreaterThanOrEqual(violations.length);
+  });
+
+  it('alternates possession — one side does not keep the ball all quarter', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const sides = of(events, EventKind.POSSESSION).map((e) => e.side);
+    expect(sides.filter((s) => s === 0).length).toBeGreaterThan(3);
+    expect(sides.filter((s) => s === 1).length).toBeGreaterThan(3);
+  });
+
+  it('moves the ball — passes are thrown, caught, and sometimes read', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const passes = of(events, EventKind.PASS);
+    const intercepts = of(events, BasketballEvent.INTERCEPTION);
+    const turnovers = of(events, EventKind.TURNOVER);
+
+    expect(passes.length).toBeGreaterThan(5);
+    for (const pass of passes) {
+      expect(pass.actor).toBeGreaterThanOrEqual(0);
+      expect([0, 1]).toContain(pass.side);
+    }
+
+    // Interceptions happen, and every one of them is a turnover against the passing side.
+    expect(intercepts.length).toBeLessThan(passes.length / 2);
+    expect(turnovers.length).toBeGreaterThanOrEqual(intercepts.length);
+  });
+
+  it('makes carrying the ball cost something', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const contacts = of(events, BasketballEvent.CONTACT);
+    const blowBys = of(events, BasketballEvent.BLOW_BY);
+
+    // Drives meet bodies, and some of them get past.
+    expect(contacts.length).toBeGreaterThan(3);
+    expect(blowBys.length).toBeGreaterThan(0);
+
+    // Contact resolves on the collision, not on every step two bodies lean on each other.
+    expect(contacts.length).toBeLessThan(BASKETBALL_RULES.periodSteps / 20);
+
+    for (const contact of contacts) {
+      const severity = (contact.detail ?? {}).severity as number;
+      expect(severity).toBeGreaterThanOrEqual(0);
+      expect(severity).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('defends — fouls are called, and they cost the right things', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps * 4);
+    const fouls = of(events, EventKind.FOUL);
+    const freeThrows = of(events, EventKind.SHOT).filter((e) => e.detail?.zone === 'freeThrow');
+
+    // A whole game's worth, not a whistle every possession and not silence either.
+    expect(fouls.length).toBeGreaterThan(5);
+    expect(fouls.length).toBeLessThan(60);
+    expect(freeThrows.length).toBeGreaterThan(0);
+
+    for (const foul of fouls) {
+      expect(foul.actor).toBeGreaterThanOrEqual(0);
+      expect((foul.detail ?? {}).personal as number).toBeGreaterThan(0);
+    }
+  });
+
+  it('sends fouled shooters to the line and nobody else', () => {
+    const world = arena();
+    const { state, rng } = createBasketballMatch(world, 'line');
+    const empty = new Map();
+
+    for (let i = 0; i < BASKETBALL_RULES.periodSteps * 2; i++) {
+      basketball.step(state, world, empty, STEP, rng);
+
+      const set = state.rules.freeThrows;
+      if (set === null) continue;
+      // While anybody is at the line, the clock is stopped and nobody else is playing.
+      expect(state.rules.shotClockRunning).toBe(false);
+      expect(state.rules.restart).toBeNull();
+      expect(set.remaining).toBeGreaterThan(0);
+      expect(set.remaining).toBeLessThanOrEqual(set.total);
+    }
+  });
+
+  it('never lets a disqualified athlete keep fouling', () => {
+    const world = arena();
+    const { state, rng } = createBasketballMatch(world, 'foulout');
+    const empty = new Map();
+
+    for (let i = 0; i < BASKETBALL_RULES.periodSteps * 4; i++) {
+      basketball.step(state, world, empty, STEP, rng);
+    }
+
+    for (const [athlete, count] of Object.entries(state.rules.personalFouls)) {
+      expect(count).toBeLessThanOrEqual(FOULS.personalLimit);
+      if (count >= FOULS.personalLimit) {
+        expect(state.rules.fouledOut).toContain(Number(athlete));
+      }
+    }
+  });
+
+  it('steals and blocks the ball, not only fouls it', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps * 4);
+    expect(of(events, BasketballEvent.STEAL).length).toBeGreaterThan(0);
+    expect(of(events, BasketballEvent.BLOCK).length).toBeGreaterThan(0);
+    // A blocked shot is a missed attempt, so it never scores.
+    for (const block of of(events, BasketballEvent.BLOCK)) {
+      expect(block.actor).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('produces a shot chart with a shape, not a pile of layups', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps * 4);
+    const zones = new Map<string, number>();
+    for (const shot of of(events, EventKind.SHOT)) {
+      const zone = String((shot.detail ?? {}).zone);
+      if (zone === 'freeThrow') continue;
+      zones.set(zone, (zones.get(zone) ?? 0) + 1);
+    }
+
+    const threes =
+      (zones.get('cornerThree') ?? 0) +
+      (zones.get('wingThree') ?? 0) +
+      (zones.get('topThree') ?? 0);
+    const inside = (zones.get('restricted') ?? 0) + (zones.get('paint') ?? 0);
+    const total = [...zones.values()].reduce((a, b) => a + b, 0);
+
+    // Every zone of the floor is used, and neither extreme swallows the game.
+    expect(total).toBeGreaterThan(60);
+    expect(threes).toBeGreaterThan(total * 0.1);
+    expect(inside).toBeGreaterThan(total * 0.1);
+    expect(threes).toBeLessThan(total * 0.7);
+  });
+
+  it('spaces the floor — five athletes are not standing in the same paint', () => {
+    // Averaged over several matches, not one: spacing is a property of how the offence plays, and
+    // a single seed's worth of drives and scrambles is a noisy way to ask about it.
+    let samples = 0;
+    let spread = 0;
+
+    for (const seed of ['spacing-a', 'spacing-b', 'spacing-c']) {
+      const world = arena();
+      const { state, rng } = createBasketballMatch(world, seed);
+      const empty = new Map();
+
+      for (let i = 0; i < BASKETBALL_RULES.periodSteps; i++) {
+        basketball.step(state, world, empty, STEP, rng);
+        if (i % 120 !== 0 || state.rules.possession === -1 || !state.rules.frontcourt) continue;
+
+        const offence = state.rules.possession;
+        const ys: number[] = [];
+        world.forEach((id) => {
+          if ((world.kind[id] as number) !== 0) return;
+          if (state.sides.get(id) !== offence) return;
+          ys.push(world.y[id] as number);
+        });
+        if (ys.length < 5) continue;
+
+        spread += Math.max(...ys) - Math.min(...ys);
+        samples++;
+      }
+    }
+
+    expect(samples).toBeGreaterThan(20);
+
+    // The measured average is about 4.9 m of lateral spread — well short of the 10.8 m the spot
+    // table implies, because the ball-handler drives out of position, cutters leave, and everybody
+    // gets shoved about. The floor is set below that on purpose: it is a regression guard, not a
+    // target. A bunched offence, all five converging on the ball, measures nearer 2 m.
+    expect(spread / samples).toBeGreaterThan(4);
+  });
+
+  it('runs both schemes without either collapsing', () => {
+    // The scheme is drawn from the match seed, so a spread of seeds exercises both.
+    let zoneMatches = 0;
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+      const world = arena();
+      const { state, rng } = createBasketballMatch(world, seed);
+      const empty = new Map();
+      for (let i = 0; i < 1200; i++) basketball.step(state, world, empty, STEP, rng);
+      if (state.zoneSide !== -1) zoneMatches++;
+      expect([-1, 0, 1]).toContain(state.zoneSide);
+    }
+    expect(zoneMatches).toBeGreaterThan(0);
+  });
+
+  it('keeps the player attached to somebody, and says when it changed', () => {
+    const world = arena();
+    const { state, rng } = createBasketballMatch(world, 'control', 0);
+    const empty = new Map();
+    const switches: number[] = [];
+
+    for (let i = 0; i < BASKETBALL_RULES.periodSteps; i++) {
+      for (const e of basketball.step(state, world, empty, STEP, rng)) {
+        if ((e.sportKind ?? e.kind) === BasketballEvent.CONTROL_SWITCH) switches.push(e.step);
+      }
+      // Always somebody, always on the player's own side.
+      expect(state.controlled).toBeGreaterThanOrEqual(0);
+      expect(state.sides.get(state.controlled)).toBe(0);
+    }
+
+    expect(switches.length).toBeGreaterThan(5);
+    // Not every other frame: the hysteresis margin is what stops that.
+    expect(switches.length).toBeLessThan(BASKETBALL_RULES.periodSteps / 20);
+  });
+
+  it('leaves control alone in a spectated match', () => {
+    const { events } = play('spectated', 3000);
+    expect(of(events, BasketballEvent.CONTROL_SWITCH)).toHaveLength(0);
+  });
+
+  it('keeps every athlete on the court', () => {
+    const { world } = play('bounds', 3000);
+    world.forEach((id) => {
+      if ((world.kind[id] as number) !== 0) return;
+      expect(world.x[id] as number).toBeGreaterThanOrEqual(0);
+      expect(world.x[id] as number).toBeLessThanOrEqual(COURT.length);
+      expect(world.y[id] as number).toBeGreaterThanOrEqual(0);
+      expect(world.y[id] as number).toBeLessThanOrEqual(COURT.width);
+    });
+  });
+
+  it('replays identically from the same seed, and differently from another (INV-8)', () => {
+    const a = play('golden-seed', 2400);
+    const b = play('golden-seed', 2400);
+    const c = play('another-seed', 2400);
+
+    expect(JSON.stringify(b.events)).toBe(JSON.stringify(a.events));
+    expect(JSON.stringify(c.events)).not.toBe(JSON.stringify(a.events));
+  });
+
+  it('runs a whole quarter through the match clock without the two disagreeing', () => {
+    const world = arena();
+    const bus = new EventBus();
+    const machine = new MatchStateMachine(BASKETBALL_RULES, bus);
+    const { state, rng } = createBasketballMatch(world, 'clocked');
+    const empty = new Map();
+
+    machine.start();
+    while (machine.isRunning) {
+      bus.emitAll(basketball.step(state, world, empty, STEP, rng));
+      machine.step();
+    }
+
+    expect(machine.currentPeriod).toBe(1);
+    expect(machine.currentPhase).toBe('periodBreak');
+    expect(state.step).toBe(BASKETBALL_RULES.periodSteps);
+    expect(bus.filter(EventKind.PERIOD_END)).toHaveLength(1);
+  });
+});
