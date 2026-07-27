@@ -12,25 +12,21 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-1.6 — Ball physics: position + height, gravity, bounce, spin/curve, possession
+- **Task:** T-1.7 — Canvas 2D renderer: layers, batching, LOD, off-screen static layers, debug overlay
 - **Status:** in_progress
 - **Started:** 2026-07-27
 - **Branch commit:** (see `git log` on `claude/phase-1-token-optimizations-g7sjm3`)
 - **Done so far:**
-  - [x] T-1.1 PRNG · T-1.2 loop · T-1.3 world · T-1.4 movement/steering · T-1.5 collision/contests
-  - [ ] Gravity, bounce, and rolling friction in 3D
-  - [ ] Spin-driven curve (Magnus)
-  - [ ] Possession attach/detach and carry
-- **Next step:** `src/engine/physics/ball.ts` per `04` §6 — the ball as its own small integrator
-  over the world's `z`/`vz` arrays, with possession as a state the ball holds rather than a flag
-  on the athlete.
-- **Files touched:** src/engine/{rng,loop,world}.ts,
-  src/engine/physics/{movement,steering,collision}.ts and their tests
+  - [x] T-1.1 PRNG · T-1.2 loop · T-1.3 world · T-1.4 movement · T-1.5 collision · T-1.6 ball
+  - [ ] Layer stack with an off-screen static layer
+  - [ ] Distance-based LOD and the debug overlay
+- **Next step:** `src/engine/render/renderer.ts` per `04` §6 — draw through a small command
+  surface so the layer policy is unit-testable against a fake 2D context rather than a real canvas.
+- **Files touched:** src/engine/{rng,loop,world}.ts, src/engine/physics/*.ts and their tests
 - **Blockers:** none. **Pre-existing, unrelated:** `pnpm test:coverage` fails two `12` §2
   thresholds (`src/storage/**` functions, `src/ui/**` lines), identically at Gate 0's merge commit.
-- **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27). Feature
-  branches verify locally with `pnpm verify` / `pnpm e2e`. Formatting is hook-handled (`CLAUDE.md`
-  §11).
+- **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27). Formatting
+  is hook-handled (`CLAUDE.md` §11).
 
 
 > **Resuming after an interruption:** read this block, `git log --oneline -20`, then continue from
@@ -44,7 +40,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
-| 1 | Engine core | 13 | 5 | `in_progress` | — |
+| 1 | Engine core | 13 | 6 | `in_progress` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
@@ -55,7 +51,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **23** | | |
+| | **Total** | **170** | **24** | | |
 
 ---
 
@@ -93,7 +89,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-1.3 | Entity model: struct-of-arrays state, spatial hash for neighbour queries | L | `done` | | `tests/unit/engine/world.test.ts` | `auto` | SoA typed arrays: the hot loops touch one field across all entities, and typed arrays give the GC nothing to collect mid-match (`01` R2). Uniform grid rebuilt per step by counting sort — O(n + cells), allocation-free, and simpler than incremental updates at 22 entities. Two determinism decisions: `spawn` claims the *lowest* free slot, not the most recently freed, so a replay assigns the same ids; and the grid is filled in ascending id order, so query results come out id-ordered without a sort (INV-8). Queries write into a caller-owned `Int32Array` and stop at its length, so the hot path allocates nothing. Distances are 2D on purpose — a ball 3 m up is still near the athlete catching it. Correctness is checked against brute force over 40 random 22-entity layouts, plus cell-boundary and out-of-field cases. |
 | T-1.4 | Movement & steering from attributes: accel, max speed, turn rate, seek/arrive/pursue/avoid | L | `done` | | `tests/unit/engine/{movement,steering}.test.ts` | `auto` | The engine never sees attributes: `movementProfile()` takes *derived ratings* (1–99, the output of `05` §3) and returns metres and seconds, so the sport seam stays honest. Three limits do all the work — top speed 4.0–8.5 m/s, acceleration 3–9 m/s², turn rate 4–12 rad/s — and `MOVEMENT_TUNING` is the single feel-tuning surface. Integration order is rotate → change speed → move: rotating the current velocity rather than snapping to the desired one is what makes a joystick flick read as a body turning. A near-stationary athlete may pivot freely, otherwise starting off feels sticky. Steering behaviours are pure functions writing into caller-owned vectors (zero allocation). Two deliberate choices: separation weights by `1 − d/r` rather than `1/d²`, because inverse-square makes touching athletes fire apart like a bug; and `avoid()` returns `false` when no dodge is needed, so callers fall through to real intent instead of blending a zero vector. |
 | T-1.5 | Collision & contact contests weighted by strength/agility | L | `done` | | `tests/unit/engine/collision.test.ts` | `auto` | Two separate problems, kept separate: `resolveCollisions()` is deterministic geometry with no randomness at all, `contest()` is the seeded ratings decision sports build rebounds and tackles on. Contact is soft on purpose — positional correction at 40% of the overlap per step, mass-weighted — because impulse separation at 60 Hz jitters between two athletes who both want the same spot, which is most of a possession. Pairs are taken once with `a < b`, so the result never depends on visit order. Coincident athletes get a contact normal derived from their ids: INV-2 forbids a random one, and a random one would diverge a replay the moment two players stack. The contest curve is logistic over a rating difference with divisor 25 — a 20-point edge is ~65–70%, and even 99-vs-1 leaves the underdog a few percent, which is what keeps a low-rated squad playable. Separation settles to within `OVERLAP_EPSILON` (1 mm) rather than exactly zero, deliberately. |
-| T-1.6 | Ball physics: position + height, gravity, bounce, spin/curve, possession attach/detach | L | `todo` | | | | |
+| T-1.6 | Ball physics: position + height, gravity, bounce, spin/curve, possession attach/detach | L | `done` | | `tests/unit/engine/ball.test.ts` | `auto` | The ball lives in the same `World` as the athletes (using `z`/`vz`), so neighbour queries find it for free, and it is flagged `INTANGIBLE` so contact resolution never shoves an athlete off their line as it rolls past. Possession is a state the *ball* holds, not a flag on an athlete: exactly one carrier can exist, so "who has it" is unambiguous and losing it is one assignment. A carried ball does not integrate — it is placed ahead of its carrier, which feels better than simulating a constrained dribble. **Bug found and fixed in test:** treating "airborne" as `z > radius` alone gave every bounce one gravity-free step of rise, injecting enough energy for a permanent low limit cycle — the ball never settled. Airborne is now `z > radius || vz > 0`. Spin is yaw-only (one axis covers curving passes, crosses, and hooks); Magnus reads pre-update velocity so a pass cannot accelerate in flight. `launchVelocity()` solves the vertical component exactly rather than iterating, so the same pass request always produces the same pass. |
 | T-1.7 | Canvas 2D renderer: layers, batching, LOD, off-screen static layers, debug overlay | L | `todo` | | | | |
 | T-1.8 | Camera: ball follow, smoothing, dynamic zoom, bounds clamp, shake (reduced-motion aware) | M | `todo` | | | | |
 | T-1.9 | Input layer: floating joystick, context buttons, handedness mirror, keyboard, gamepad | L | `todo` | | | | |
