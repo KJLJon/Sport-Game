@@ -12,26 +12,24 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-1.2 — Fixed-timestep loop (60 Hz)
-- **Status:** in_progress
-- **Started:** 2026-07-27
-- **Branch commit:** (see `git log` on `claude/phase-1-token-optimizations-g7sjm3`)
-- **Done so far:**
-  - [x] T-1.1 — seeded PRNG (`src/engine/rng.ts`) + INV-2 invariant test
-  - [ ] Accumulator loop with a spiral-of-death clamp
-  - [ ] Render interpolation alpha
-  - [ ] Pause, single-step, and time-scale
-- **Next step:** implement `src/engine/loop.ts` per `04` §6 — a pure `advance(dtMs)` returning
-  `{ steps, alpha }` plus a thin requestAnimationFrame driver, so the policy is testable with no
-  browser and no timers.
-- **Files touched:** src/engine/rng.ts, tests/unit/engine/rng.test.ts,
-  tests/invariants/inv-02-no-math-random.test.ts
-- **Blockers:** Awaiting the user's answers to [`08-open-questions.md`](./08-open-questions.md);
-  working assumptions are recorded there, so none of them block Phase 1.
-- **Notes:** **Branch.** Each session works on the branch it is assigned; this one is
+- **Task:** T-1.3 — Entity model: struct-of-arrays state + spatial hash
+- **Status:** todo (next up)
+- **Started:** —
+- **Branch commit:** —
+- **Done so far:** T-1.1 (seeded PRNG) and T-1.2 (fixed-timestep loop) are `done`; the tooling
+  commit ahead of them added format-and-fix hooks (`CLAUDE.md` §11).
+- **Next step:** `src/engine/world.ts` per `04` §6 — struct-of-arrays typed arrays for athlete
+  kinematics plus a uniform-grid spatial hash, with no per-frame allocation in the hot path.
+- **Files touched:** —
+- **Blockers:** none for T-1.3. **Pre-existing, unrelated to Phase 1:** `pnpm test:coverage`
+  fails two `12` §2 thresholds that were already failing at the Gate 0 merge commit (b924762) —
+  `src/storage/**` functions 90.54% (needs 95%) and `src/ui/**` lines 59.97% (needs 70%). CI has
+  never run on GitHub, so Gate 0 recorded a pass the coverage job would not have given. `12` §2
+  forbids lowering the thresholds, so this is Phase-0 test debt to pay down; raised with the user
+  2026-07-27.
+- **Notes:** Each session works on the branch it is assigned; this one is
   `claude/phase-1-token-optimizations-g7sjm3`. `CLAUDE.md` no longer names a single branch.
-  Formatting and auto-fixable lint are now handled by hooks (`CLAUDE.md` §11) — never spend a
-  turn on them.
+  Formatting and auto-fixable lint are handled by hooks — never spend a turn on them.
 
 
 > **Resuming after an interruption:** read this block, `git log --oneline -20`, then continue from
@@ -45,7 +43,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
-| 1 | Engine core | 13 | 1 | `in_progress` | — |
+| 1 | Engine core | 13 | 2 | `in_progress` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
@@ -56,7 +54,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **19** | | |
+| | **Total** | **170** | **20** | | |
 
 ---
 
@@ -90,7 +88,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
 | T-1.1 | Seeded PRNG + lint rule banning `Math.random` in `engine/`, `sports/` (INV-2) | S | `done` | | `tests/unit/engine/rng.test.ts`, `tests/invariants/inv-02-no-math-random.test.ts` | `auto` | sfc32 seeded through splitmix32, all int32 ops so two engines produce byte-identical streams; a float generator could not promise that. `fork(label)` derives from seed + label, **not** from the parent's position, so adding a draw in one subsystem cannot shift another's results — that is what makes determinism survive refactors. `snapshot()`/`restore()` carry the pending Box–Muller spare, so a replay checkpoint resumes mid-pair. A golden-seed test pins the first eight values: changing the algorithm invalidates every recorded replay, so it should be a deliberate decision. `randomSeed()` is the one non-deterministic call, and it uses `crypto.getRandomValues`. The lint rule was already in place from T-0.1; INV-2's test scans `engine/`, `sports/`, `modes/` as text (an inline disable cannot hide a substring) and also asserts the lint rule still covers all three directories. |
-| T-1.2 | Fixed-timestep loop (60 Hz) with accumulator, render interpolation, pause/step/time-scale | M | `todo` | | | | |
+| T-1.2 | Fixed-timestep loop (60 Hz) with accumulator, render interpolation, pause/step/time-scale | M | `done` | | `tests/unit/engine/loop.test.ts` | `auto` | Split in two: `Clock` holds the accumulator and *only* the timing policy, `createLoop` converts frame timestamps into deltas. Everything worth testing is therefore testable with no browser, no timers, and no waiting — the frame source is injected. Two clamps, not one: `maxFrameMs` (250) throws away a backgrounded tab's minutes before they reach the accumulator, and `maxStepsPerFrame` (5) is the spiral-of-death guard, which discards the backlog rather than banking it. `alpha` holds still while paused so a paused frame renders identically instead of shimmering. Resume does not clear the accumulator — the driver drops the paused wall time instead, so resuming never bursts. Step size is fixed at every time scale: slow motion changes how much time accumulates, never what the sim sees. Verified at 30/60/120 fps that simulated time matches to within one step. |
 | T-1.3 | Entity model: struct-of-arrays state, spatial hash for neighbour queries | L | `todo` | | | | |
 | T-1.4 | Movement & steering from attributes: accel, max speed, turn rate, seek/arrive/pursue/avoid | L | `todo` | | | | |
 | T-1.5 | Collision & contact contests weighted by strength/agility | L | `todo` | | | | |
