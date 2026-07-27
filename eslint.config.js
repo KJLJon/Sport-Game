@@ -11,6 +11,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
+import specHeaderPlugin from './tools/eslint-spec-header.js';
 
 /** INV-4 — no literal repository path anywhere in src/. */
 const LITERAL_BASE_PATH = String.raw`/Sport-Game/`;
@@ -46,6 +47,16 @@ export default tseslint.config(
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
       '@typescript-eslint/explicit-module-boundary-types': 'off',
+    },
+  },
+
+  // ── INV-15: every src/ module carries a spec header ────────────────────────
+  {
+    files: ['src/**/*.ts'],
+    ignores: ['src/**/*.d.ts'],
+    plugins: { spec: specHeaderPlugin },
+    rules: {
+      'spec/spec-header': 'error',
     },
   },
 

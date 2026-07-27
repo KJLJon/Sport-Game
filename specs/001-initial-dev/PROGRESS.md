@@ -12,14 +12,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-0.17 — Spec-header lint rule + traceability report generator (INV-15)
+- **Task:** T-0.15 — GitHub Actions CI + tagged Pages deploy, then T-0.16 — the sixteen PWA E2Es
 - **Status:** todo (next up)
 - **Started:** —
 - **Branch commit:** —
 - **Done so far:** —
-- **Next step:** A local ESLint rule asserting every `src/` module carries a spec header whose
-  task and story IDs resolve against `03` and `02`, plus `tools/spec-trace.ts` generating
-  `docs/traceability.md` both ways. Then T-0.18, T-0.15 (CI), and T-0.16 (the sixteen PWA E2Es).
+- **Next step:** CI workflow running typecheck, lint, unit, coverage, budgets, and Playwright,
+  plus a tag-triggered Pages deploy using the `GITHUB_REPOSITORY`-derived base path. Then the
+  sixteen `11` §9 scenarios as Playwright E2Es — the last task before Gate 0.
 - **Files touched:** —
 - **Blockers:** Awaiting the user's answers to [`08-open-questions.md`](./08-open-questions.md);
   working assumptions are recorded there, so none of them block Phase 0.
@@ -38,7 +38,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
-| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 14 | `in_progress` | — |
+| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 16 | `in_progress` | — |
 | 1 | Engine core | 13 | 0 | `todo` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
@@ -76,8 +76,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-0.14 | Install UX: `beforeinstallprompt` capture, custom button, iOS-only A2HS instructions | M | `done` | | `tests/unit/pwa/install.test.ts` | `auto` | The event fires once and only replays inside a user gesture, so it is captured and the mini-infobar suppressed. iOS Safari gets the manual A2HS steps — and Chrome-on-iOS deliberately does not, since it has no such menu item. Four distinct states, each with its own copy. |
 | T-0.15 | GitHub Actions: CI (typecheck, lint, unit, e2e, a11y, coverage, budgets) + tagged Pages deploy | M | `todo` | | | | |
 | T-0.16 | PWA lifecycle E2E suite: all sixteen scenarios in `11` §9 | L | `todo` | | | | |
-| T-0.17 | Spec-header lint rule + traceability report generator (INV-15) | M | `todo` | | | | |
-| T-0.18 | `PROGRESS.md` validation script: task IDs resolve, statuses valid, no orphans | S | `todo` | | | | |
+| T-0.17 | Spec-header lint rule + traceability report generator (INV-15) | M | `done` | | `tests/invariants/inv-15-spec-headers.test.ts`, `tests/unit/tools/spec-tooling.test.ts` | `auto` | Deliberately two checks: a plain-JS ESLint rule doing a presence check on the five mandatory fields with no filesystem access, so it runs on every keystroke; and the invariant test resolving every task and story ID against `03` and `02`, which is authoritative and runs in CI. `pnpm trace` writes `docs/traceability.md` both ways — currently 39 modules across 12 tasks. |
+| T-0.18 | `PROGRESS.md` validation script: task IDs resolve, statuses valid, no orphans | S | `done` | | `tests/unit/tools/spec-tooling.test.ts` | `auto` — `pnpm progress:check` reports 156 todo / 14 done, no problems | Catches unresolvable IDs, invalid statuses, duplicated rows, orphaned tasks defined in `03` with no row, an In-flight task with no row, and more than one `in_progress` at a time (`CLAUDE.md` §2). |
 
 ### Phase 1 — Engine core
 
