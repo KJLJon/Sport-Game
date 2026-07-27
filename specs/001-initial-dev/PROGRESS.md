@@ -12,22 +12,27 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-1.1 — Seeded PRNG + lint rule banning `Math.random` in `engine/`, `sports/` (INV-2)
-- **Status:** todo (next up — Phase 1)
-- **Started:** —
-- **Branch commit:** —
-- **Done so far:** —
-- **Next step:** **Phase 0 is complete; see the Gate 0 record below.** Phase 1 starts with the
-  seeded PRNG (`04` §6), which everything deterministic depends on. The lint rule banning
-  `Math.random` in `engine/`, `sports/`, and `modes/` is already in `eslint.config.js` from
-  T-0.1; T-1.1 adds the PRNG itself and the INV-2 invariant test.
-- **Files touched:** —
+- **Task:** T-1.2 — Fixed-timestep loop (60 Hz)
+- **Status:** in_progress
+- **Started:** 2026-07-27
+- **Branch commit:** (see `git log` on `claude/phase-1-token-optimizations-g7sjm3`)
+- **Done so far:**
+  - [x] T-1.1 — seeded PRNG (`src/engine/rng.ts`) + INV-2 invariant test
+  - [ ] Accumulator loop with a spiral-of-death clamp
+  - [ ] Render interpolation alpha
+  - [ ] Pause, single-step, and time-scale
+- **Next step:** implement `src/engine/loop.ts` per `04` §6 — a pure `advance(dtMs)` returning
+  `{ steps, alpha }` plus a thin requestAnimationFrame driver, so the policy is testable with no
+  browser and no timers.
+- **Files touched:** src/engine/rng.ts, tests/unit/engine/rng.test.ts,
+  tests/invariants/inv-02-no-math-random.test.ts
 - **Blockers:** Awaiting the user's answers to [`08-open-questions.md`](./08-open-questions.md);
-  working assumptions are recorded there, so none of them block Phase 0.
-- **Notes:** **Branch.** This work is being pushed to `claude/build-project-azivs9`, not the
-  `claude/multi-sport-pwa-game-50k7u7` named in `CLAUDE.md` §11 — the session was assigned the
-  former and may not push elsewhere. `CLAUDE.md` should be reconciled once the user confirms which
-  branch is canonical.
+  working assumptions are recorded there, so none of them block Phase 1.
+- **Notes:** **Branch.** Each session works on the branch it is assigned; this one is
+  `claude/phase-1-token-optimizations-g7sjm3`. `CLAUDE.md` no longer names a single branch.
+  Formatting and auto-fixable lint are now handled by hooks (`CLAUDE.md` §11) — never spend a
+  turn on them.
+
 
 > **Resuming after an interruption:** read this block, `git log --oneline -20`, then continue from
 > **Next step**. Everything needed should be here — if it isn't, the previous session didn't follow
@@ -40,7 +45,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
-| 1 | Engine core | 13 | 0 | `todo` | — |
+| 1 | Engine core | 13 | 1 | `in_progress` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
@@ -51,7 +56,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **18** | | |
+| | **Total** | **170** | **19** | | |
 
 ---
 
@@ -84,7 +89,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-1.1 | Seeded PRNG + lint rule banning `Math.random` in `engine/`, `sports/` (INV-2) | S | `todo` | | | | |
+| T-1.1 | Seeded PRNG + lint rule banning `Math.random` in `engine/`, `sports/` (INV-2) | S | `done` | | `tests/unit/engine/rng.test.ts`, `tests/invariants/inv-02-no-math-random.test.ts` | `auto` | sfc32 seeded through splitmix32, all int32 ops so two engines produce byte-identical streams; a float generator could not promise that. `fork(label)` derives from seed + label, **not** from the parent's position, so adding a draw in one subsystem cannot shift another's results — that is what makes determinism survive refactors. `snapshot()`/`restore()` carry the pending Box–Muller spare, so a replay checkpoint resumes mid-pair. A golden-seed test pins the first eight values: changing the algorithm invalidates every recorded replay, so it should be a deliberate decision. `randomSeed()` is the one non-deterministic call, and it uses `crypto.getRandomValues`. The lint rule was already in place from T-0.1; INV-2's test scans `engine/`, `sports/`, `modes/` as text (an inline disable cannot hide a substring) and also asserts the lint rule still covers all three directories. |
 | T-1.2 | Fixed-timestep loop (60 Hz) with accumulator, render interpolation, pause/step/time-scale | M | `todo` | | | | |
 | T-1.3 | Entity model: struct-of-arrays state, spatial hash for neighbour queries | L | `todo` | | | | |
 | T-1.4 | Movement & steering from attributes: accel, max speed, turn rate, seek/arrive/pursue/avoid | L | `todo` | | | | |
