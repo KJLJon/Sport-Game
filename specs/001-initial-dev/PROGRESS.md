@@ -12,15 +12,19 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** — (none; Phase 1 complete, Gate 1 recorded)
-- **Status:** —
-- **Started:** —
-- **Branch commit:** —
-- **Done so far:** Phase 0 and Phase 1 are `done`. See the Gate 1 record below for what passed,
-  what was deferred, and why.
-- **Next step:** Phase 2 — Basketball · Live, starting with T-2.1 (court geometry, zones, arc,
-  key, hoop, boundaries), which depends on T-1.11 (`done`).
-- **Files touched:** —
+- **Task:** T-2.2 — Basketball rules: quarters, game clock, shot clock, possession, out-of-bounds,
+  restarts
+- **Status:** in_progress
+- **Started:** 2026-07-27
+- **Branch commit:** (see `git log`)
+- **Done so far:**
+  - [x] T-2.1 — court geometry, zones, arc, key, hoop, boundaries (`done`)
+  - [ ] Quarter and game clock wired to `MatchStateMachine`
+  - [ ] Shot clock with the reset rules
+  - [ ] Possession, out-of-bounds detection, and restarts
+- **Next step:** write `src/sports/basketball/rules.ts` on top of `court.ts`, then the
+  `SportModule` shell in `src/sports/basketball/index.ts`.
+- **Files touched:** src/sports/basketball/court.ts, src/sports/basketball/court-render.ts
 - **Blockers:** none.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
   branches locally with `pnpm verify`, `pnpm bench`, and `pnpm e2e`. Formatting and auto-fixable
@@ -40,7 +44,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
-| 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
+| 2 | Basketball · Live | 13 | 1 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
@@ -50,7 +54,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **31** | | |
+| | **Total** | **170** | **32** | | |
 
 ---
 
@@ -101,7 +105,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-2.1 | Court geometry, zones, arc, key, hoop, boundaries | M | `todo` | | | | |
+| T-2.1 | Court geometry, zones, arc, key, hoop, boundaries | M | `done` | | `tests/unit/sports/basketball/{court,court-render}.test.ts` | `auto` | FIBA dimensions in metres (28 × 15), origin at a corner, `goals[side]` is the basket that side *defends* — same convention as the seam. The three-point test is deliberately two rules, not one: beyond the arc **or** outside the straight corner lines, because a distance-only test scores the corner three as a two. World bounds equal court bounds, so an inbounder stands on the line rather than a metre behind it; nothing in the rules depends on that metre. `court-render.ts` draws the line art from the same constants, and its test asserts the arc's radius and sweep match the rules' — the one piece of art with a derived shape. |
 | T-2.2 | Basketball rules: quarters, game clock, shot clock, possession, out-of-bounds, restarts | L | `todo` | | | | |
 | T-2.3 | Shooting: hold-release meter, arc trajectory, make probability from ratings × distance × pressure × release | L | `todo` | | | | |
 | T-2.4 | Passing: aimed, lead passes, interceptions, turnovers | M | `todo` | | | | |
