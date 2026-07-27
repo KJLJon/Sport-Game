@@ -2,21 +2,32 @@
  * @spec    001-initial-dev
  * @phase   2 — Basketball · Live
  * @task    T-2.2 — Basketball rules: quarters, game clock, shot clock, possession, out-of-bounds, restarts
+ * @task    T-2.3 — Shooting: hold-release meter, arc trajectory, make probability
+ * @task    T-2.4 — Passing: aimed, lead passes, interceptions, turnovers
+ * @task    T-2.5 — Dribbling & driving: handling control, contact absorption, blow-by
+ * @task    T-2.6 — Rebounding: height/vertical/strength/box-out/timing contest
+ * @task    T-2.7 — Defence: marking, contest, steal, block, foul model, free throws
  * @story   US-3.1 — Play a 5v5 basketball match
+ * @story   US-3.2 — Shoot, drive, pass, and rebound
+ * @story   US-3.3 — Defend
  * @story   US-2.4 — See the state of the match at a glance
  * @design  06-game-design.md §3.1 (basketball), 04-architecture.md §5 (the sport module seam)
  * @invariant INV-2 (seeded PRNG only), INV-5 (no sport logic in the engine), INV-8 (determinism)
  *
  * Purpose: the basketball `SportModule` — the object the rest of the game plays basketball through.
- * It owns the world (ten athletes and a ball), drives the rule book in `rules.ts`, and turns both
- * into the one `SportEvent` stream everything downstream consumes.
+ * It owns the world (ten athletes and a ball), drives the rule book in `rules.ts` and the models in
+ * its sibling modules, and turns all of it into the one `SportEvent` stream everything downstream
+ * consumes.
  *
- * **What is deliberately crude here.** Movement is "carrier drives at the rim, everyone else goes
- * to their spot". That is placeholder behaviour, replaced task by task: shooting (T-2.3), passing
- * (T-2.4), driving (T-2.5), rebounding (T-2.6), defence (T-2.7), and the real CPU (T-2.8). What is
- * *not* placeholder is everything the clock and the rule book do — a possession really does end on
- * the shot clock, the ball really does go out of bounds against whoever touched it last, and play
- * really does restart from the right spot. That is what T-2.2 is for.
+ * This file is deliberately the *only* place those models meet. `shooting.ts`, `passing.ts`,
+ * `dribbling.ts`, `rebounding.ts`, and `defence.ts` are pure and know nothing about each other or
+ * about the world's step order; the wiring lives here, once, where the order is visible.
+ *
+ * **What is still crude here.** Shot selection, spacing, and off-ball movement are placeholders,
+ * replaced by the real CPU in T-2.8, and the numbers they produce are T-2.13's to balance. What is
+ * *not* placeholder is the rule book and every model it calls: a possession really does end on the
+ * shot clock, a shot really is decided by the athlete's ratings, a foul really does come from
+ * approach angle and speed differential, and play really does restart from the right spot.
  */
 import { createRng, type Rng } from '../../engine/rng.ts';
 import type { InputFrame } from '../../engine/input/types.ts';
@@ -37,7 +48,8 @@ import { arrive } from '../../engine/physics/steering.ts';
 import {
   ShotMovement,
   caromOffRim,
-  contestLevel,
+  releaseWindow,
+  contestFromDirection,
   dropThroughNet,
   isOverheld,
   releaseQuality,
@@ -85,6 +97,22 @@ import {
   type Contender,
   type RebounderRatings,
 } from './rebounding.ts';
+import {
+  BlockResult,
+  DEFENCE,
+  StealResult,
+  approachAngle,
+  assignMarks,
+  boxOutSpot,
+  foulChance,
+  freeThrowProbability,
+  markingSpot,
+  resolveBlock,
+  resolveSteal,
+  type AttackerRatings,
+  type DefenderRatings,
+  type FreeThrowRatings,
+} from './defence.ts';
 import type {
   ActionIntent,
   MatchSetup,
@@ -100,6 +128,7 @@ import {
   COURT,
   attackedBasket,
   basketballCourt,
+  freeThrowSpot,
   mirrorX,
   shotDistance,
   shotZone,
@@ -117,10 +146,13 @@ import {
   completeRestart,
   createRulesState,
   grantPossession,
+  isFouledOut,
   markRestartReady,
   onBasketMade,
   onPeriodStart,
+  recordFoul,
   registerTouch,
+  resolveFreeThrow,
   shotClockSeconds,
   tickClocks,
   type RulesState,
@@ -174,6 +206,14 @@ export interface BasketballState extends SportState {
   readonly beaten: Set<EntityId>;
   /** The defender the carrier is currently leaning on, so contact resolves once per collision. */
   contactWith: EntityId;
+  /** Defender → the attacker they are marking, recomputed when possession changes. */
+  readonly marks: Map<EntityId, EntityId>;
+  /** Which side the current assignments were drawn for, so they are recomputed exactly once. */
+  marksFor: 0 | 1 | -1;
+  /** Steps until each defender may lunge again — a steal is an attempt, not a state. */
+  readonly stealCooldown: Map<EntityId, number>;
+  /** Steps the free-throw shooter has been set at the line. */
+  freeThrowSetup: number;
   readonly playerSide: 0 | 1 | -1;
   controlled: EntityId;
   step: number;
@@ -231,10 +271,23 @@ const RESTART_SETUP_STEPS = 30;
 const LATE_CLOCK_SECONDS = 6;
 
 /** Steps of hold that make a perfect release — mirrored from `SHOOTING.idealHoldSteps`. */
-const SHOT_IDEAL_HOLD = 30;
+const SHOT_IDEAL_HOLD = 22;
 
 /** Above this the ball is still on its way down and nobody has a hand on it. */
 const REBOUND_MAX_HEIGHT = 2.6;
+
+/** Per-step chance a CPU defender in range lunges for the ball, before the steal itself is rolled. */
+const CPU_STEAL_CHANCE_PER_STEP = 0.006;
+
+/**
+ * Per-step chance a CPU defender in range goes up to contest a shot in the air. Low, because the
+ * shot hangs for half a second and every step is another chance: at 0.05 a headless game produced
+ * thirteen blocks, which is two or three times what a real one has.
+ */
+const CPU_BLOCK_CHANCE_PER_STEP = 0.02;
+
+/** Steps a free-throw shooter takes to set before the ball goes up. */
+const FREE_THROW_SETUP_STEPS = 25;
 
 /** Where a perimeter ball-handler stops rather than driving — comfortably behind the arc. */
 const PULL_UP_DISTANCE = 7.9;
@@ -323,6 +376,10 @@ export const basketball: SportModule<BasketballState> = {
       stagger: new Map(),
       beaten: new Set(),
       contactWith: NO_ENTITY,
+      marks: new Map(),
+      marksFor: -1,
+      stealCooldown: new Map(),
+      freeThrowSetup: 0,
       playerSide: setup.playerSide,
       controlled,
       step: 0,
@@ -355,6 +412,8 @@ export const basketball: SportModule<BasketballState> = {
     world.reindex();
 
     events.push(...advanceRestart(state, world, rng));
+    events.push(...driveFreeThrows(state, world, inputs, rng));
+    events.push(...driveDefence(state, world, inputs, rng));
     events.push(...driveDribbling(state, world, inputs, rng));
     events.push(...driveShooting(state, world, inputs, rng));
     events.push(...drivePassing(state, world, inputs, rng));
@@ -362,7 +421,12 @@ export const basketball: SportModule<BasketballState> = {
     events.push(...resolvePass(state, world, rng));
 
     // A ball in flight is nobody's to catch — that is what makes a shot a shot.
-    if (ball.carrier === NO_ENTITY && state.shot === null && state.pass === null) {
+    if (
+      ball.carrier === NO_ENTITY &&
+      state.shot === null &&
+      state.pass === null &&
+      state.rules.freeThrows === null
+    ) {
       events.push(...collectLooseBall(state, world, rng));
     }
 
@@ -408,6 +472,309 @@ export const basketball: SportModule<BasketballState> = {
 };
 
 /**
+ * Steals and blocks — the two things a defender can do about the ball, and the two things that can
+ * put the other team on the line.
+ *
+ * A steal that could only succeed or fail would be free to spam. One that can also concede two
+ * shots is a decision, which is what `06` §3.3 is asking for.
+ */
+function driveDefence(
+  state: BasketballState,
+  world: World,
+  inputs: ReadonlyMap<EntityId, InputFrame>,
+  rng: Rng,
+): SportEvent[] {
+  for (const [id, steps] of state.stealCooldown) {
+    if (steps <= 1) state.stealCooldown.delete(id);
+    else state.stealCooldown.set(id, steps - 1);
+  }
+
+  if (state.rules.restart !== null || state.rules.freeThrows !== null) return [];
+
+  const offence = state.rules.possession;
+  if (offence === -1) return [];
+  const carrier = state.ballState.carrier;
+
+  const events: SportEvent[] = [];
+  const defenders: EntityId[] = [];
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    if (state.sides.get(id) !== offence) defenders.push(id);
+  });
+
+  for (const defender of defenders) {
+    if (events.length > 0) break;
+    if ((state.stealCooldown.get(defender) ?? 0) > 0) continue;
+    if (isFouledOut(state.rules, defender)) continue;
+
+    const input = inputs.get(defender);
+    // Block a shot in the air; otherwise go for the ball.
+    if (state.shot !== null) {
+      events.push(...tryBlock(state, world, defender, input, rng));
+    } else if (carrier !== NO_ENTITY) {
+      events.push(...trySteal(state, world, defender, carrier, input, rng));
+    }
+  }
+
+  return events;
+}
+
+/** A lunge at the ball-handler. */
+function trySteal(
+  state: BasketballState,
+  world: World,
+  defender: EntityId,
+  carrier: EntityId,
+  input: InputFrame | undefined,
+  rng: Rng,
+): SportEvent[] {
+  const defenderRatings = state.ratings.get(defender);
+  const carrierRatings = state.ratings.get(carrier);
+  const defenderSide = state.sides.get(defender);
+  const carrierSide = state.sides.get(carrier);
+  if (
+    defenderRatings === undefined ||
+    carrierRatings === undefined ||
+    defenderSide === undefined ||
+    carrierSide === undefined
+  ) {
+    return [];
+  }
+
+  const distance = Math.hypot(
+    (world.x[defender] as number) - (world.x[carrier] as number),
+    (world.y[defender] as number) - (world.y[carrier] as number),
+  );
+  if (distance > DEFENCE.stealReach) return [];
+
+  const wants =
+    input !== undefined ? wasPressed(input, Button.A) : rng.bool(CPU_STEAL_CHANCE_PER_STEP);
+  if (!wants) return [];
+
+  state.stealCooldown.set(defender, DEFENCE.stealCooldown);
+
+  const approach = approachAngle(
+    { x: world.vx[defender] as number, y: world.vy[defender] as number },
+    { x: world.vx[carrier] as number, y: world.vy[carrier] as number },
+  );
+  const differential = Math.hypot(
+    (world.vx[defender] as number) - (world.vx[carrier] as number),
+    (world.vy[defender] as number) - (world.vy[carrier] as number),
+  );
+
+  const result = resolveSteal(
+    defenderRatings,
+    carrierRatings,
+    distance,
+    approach,
+    differential,
+    rng,
+  );
+
+  if (result === StealResult.STOLEN) {
+    attach(world, state.ballState, defender);
+    state.beaten.clear();
+    state.contactWith = NO_ENTITY;
+    return [
+      event(EventKind.TURNOVER, state.step, carrierSide, { detail: { reason: 'stolen' } }),
+      event(EventKind.SPORT, state.step, defenderSide, {
+        sportKind: BasketballEvent.STEAL,
+        actor: defender,
+        target: carrier,
+      }),
+      ...grantPossession(
+        state.rules,
+        defenderSide,
+        state.step,
+        ShotClockReset.FULL,
+        world.x[defender] as number,
+        defender,
+      ),
+    ];
+  }
+
+  if (result === StealResult.FOULED) {
+    return recordFoul(state.rules, defender, defenderSide, carrier, state.step, {
+      ballX: world.x[state.ballState.entity] as number,
+    });
+  }
+
+  return [];
+}
+
+/** A challenge on a shot already in the air. */
+function tryBlock(
+  state: BasketballState,
+  world: World,
+  defender: EntityId,
+  input: InputFrame | undefined,
+  rng: Rng,
+): SportEvent[] {
+  const shot = state.shot;
+  if (shot === null) return [];
+
+  const defenderRatings = state.ratings.get(defender);
+  const defenderSide = state.sides.get(defender);
+  if (defenderRatings === undefined || defenderSide === undefined) return [];
+  if (!world.isAlive(shot.shooter)) return [];
+
+  const distance = Math.hypot(
+    (world.x[defender] as number) - (world.x[shot.shooter] as number),
+    (world.y[defender] as number) - (world.y[shot.shooter] as number),
+  );
+  if (distance > DEFENCE.blockReach) return [];
+
+  const wants =
+    input !== undefined ? wasPressed(input, Button.B) : rng.bool(CPU_BLOCK_CHANCE_PER_STEP);
+  if (!wants) return [];
+
+  state.stealCooldown.set(defender, DEFENCE.stealCooldown);
+
+  const approach = approachAngle(
+    { x: world.vx[defender] as number, y: world.vy[defender] as number },
+    { x: world.vx[shot.shooter] as number, y: world.vy[shot.shooter] as number },
+  );
+  const differential = Math.hypot(
+    (world.vx[defender] as number) - (world.vx[shot.shooter] as number),
+    (world.vy[defender] as number) - (world.vy[shot.shooter] as number),
+  );
+
+  const result = resolveBlock(defenderRatings, distance, shot.release, approach, differential, rng);
+
+  if (result === BlockResult.BLOCKED) {
+    state.shot = null;
+    caromOffRim(world, state.ballState, shot.side, rng);
+    state.reboundLive = true;
+    registerTouch(state.rules, defenderSide);
+    return [
+      event(EventKind.SAVE, state.step, defenderSide, { actor: defender, target: shot.shooter }),
+      event(EventKind.SPORT, state.step, defenderSide, {
+        sportKind: BasketballEvent.BLOCK,
+        actor: defender,
+        target: shot.shooter,
+      }),
+    ];
+  }
+
+  if (result === BlockResult.FOULED) {
+    // A foul on a shooter is a shooting foul, and the shot still counts if it drops.
+    state.shot = null;
+    const made = shot.made;
+    const events: SportEvent[] = [];
+    if (made) {
+      dropThroughNet(world, state.ballState, shot.side);
+      events.push(
+        event(EventKind.SCORE, state.step, shot.side, {
+          value: shot.value,
+          actor: shot.shooter,
+        }),
+      );
+    } else {
+      caromOffRim(world, state.ballState, shot.side, rng);
+    }
+    state.reboundLive = false;
+    events.push(
+      ...recordFoul(state.rules, defender, defenderSide, shot.shooter, state.step, {
+        shooting: true,
+        shotValue: shot.value,
+        made,
+      }),
+    );
+    return events;
+  }
+
+  return [];
+}
+
+/**
+ * The trip to the line. Play stops, the shooter sets, and each attempt goes through the same
+ * release meter as every other shot — because a free throw is the release meter with nothing else
+ * attached, and that is what makes `freeThrow` worth having as its own rating.
+ */
+function driveFreeThrows(
+  state: BasketballState,
+  world: World,
+  inputs: ReadonlyMap<EntityId, InputFrame>,
+  rng: Rng,
+): SportEvent[] {
+  const set = state.rules.freeThrows;
+  if (set === null) {
+    state.freeThrowSetup = 0;
+    return [];
+  }
+
+  const shooter = set.shooter;
+  const ratings = state.ratings.get(shooter);
+  if (ratings === undefined || !world.isAlive(shooter)) return [];
+
+  const line = freeThrowSpot(set.side);
+  attach(world, state.ballState, shooter);
+
+  const atLine =
+    Math.hypot((world.x[shooter] as number) - line.x, (world.y[shooter] as number) - line.y) < 1.3;
+  if (!atLine) {
+    state.freeThrowSetup = 0;
+    state.meter = null;
+    return [];
+  }
+
+  state.freeThrowSetup++;
+  if (state.freeThrowSetup < FREE_THROW_SETUP_STEPS) return [];
+
+  // The release meter, with nothing on it but the shooter's nerve. Same meter as every other shot,
+  // which is what makes `freeThrow` worth having as its own rating rather than a flat percentage.
+  const input = inputs.get(shooter);
+  if (state.meter === null) {
+    state.meter = {
+      charge: 0,
+      window: releaseWindow(ratings.freeThrow),
+      movement: ShotMovement.SET,
+    };
+    state.shooter = shooter;
+    state.cpuRelease = Math.round(SHOT_IDEAL_HOLD + rng.float(-1, 1) * state.meter.window * 0.7);
+    return [];
+  }
+
+  state.meter.charge++;
+  const letGo =
+    input !== undefined
+      ? wasReleased(input, Button.A) || isOverheld(state.meter)
+      : state.meter.charge >= state.cpuRelease || isOverheld(state.meter);
+  if (!letGo) return [];
+
+  const quality = releaseQuality(state.meter);
+  state.meter = null;
+  state.shooter = NO_ENTITY;
+  state.freeThrowSetup = 0;
+
+  // The last of a set is the one that matters, and composure is what answers it.
+  const pressure = set.remaining === 1 && set.total > 1 ? 1 : 0;
+  const probability = freeThrowProbability(ratings, quality, pressure);
+  const made = rng.bool(probability);
+
+  const events: SportEvent[] = [
+    event(EventKind.SHOT, state.step, set.side, {
+      actor: shooter,
+      value: 1,
+      x: line.x,
+      y: line.y,
+      detail: { zone: 'freeThrow', release: round3(quality), probability: round3(probability) },
+    }),
+  ];
+
+  if (made) dropThroughNet(world, state.ballState, set.side);
+  events.push(...resolveFreeThrow(state.rules, made, state.step));
+
+  // A missed last free throw is a live ball on the rim.
+  if (!made && state.rules.freeThrows === null) {
+    caromOffRim(world, state.ballState, set.side, rng);
+    state.reboundLive = true;
+  }
+
+  return events;
+}
+
+/**
  * Everything that can happen to the ball while somebody is carrying it: losing the handle, meeting
  * a body, and getting past one.
  *
@@ -426,7 +793,7 @@ function driveDribbling(
   }
 
   const carrier = state.ballState.carrier;
-  if (carrier === NO_ENTITY || state.rules.restart !== null) {
+  if (carrier === NO_ENTITY || state.rules.restart !== null || state.rules.freeThrows !== null) {
     state.contactWith = NO_ENTITY;
     return [];
   }
@@ -525,6 +892,22 @@ function resolveDefenderContact(
 
   if (result.kind === Contact.ABSORBED) return [];
 
+  // `06` §3.1's foul is approach angle × speed differential × discipline, which is precisely what a
+  // driver meeting a body is. Scaled by how heavy the collision was.
+  const defenderSide = state.sides.get(defender);
+  if (defenderSide !== undefined && !isFouledOut(state.rules, defender)) {
+    const approach = approachAngle(
+      { x: world.vx[defender] as number, y: world.vy[defender] as number },
+      { x: world.vx[carrier] as number, y: world.vy[carrier] as number },
+    );
+    if (rng.bool(foulChance(defenderRatings, approach, closing) * result.severity)) {
+      state.contactWith = NO_ENTITY;
+      return recordFoul(state.rules, defender, defenderSide, carrier, state.step, {
+        ballX: world.x[state.ballState.entity] as number,
+      });
+    }
+  }
+
   state.stagger.set(carrier, DRIBBLING.contactStaggerSteps);
   world.vx[carrier] = (world.vx[carrier] as number) * result.speedFactor;
   world.vy[carrier] = (world.vy[carrier] as number) * result.speedFactor;
@@ -563,6 +946,8 @@ function driveShooting(
 ): SportEvent[] {
   const ball = state.ballState;
   const carrier = ball.carrier;
+
+  if (state.rules.freeThrows !== null) return [];
 
   // A shot cannot survive losing the ball.
   if (state.meter !== null && state.shooter !== carrier) {
@@ -660,19 +1045,35 @@ function resolveFlight(state: BasketballState, world: World, rng: Rng): SportEve
   ];
 }
 
-/** How smothered the carrier is, from the nearest opponent. */
+/**
+ * How smothered an athlete is: the worst contest any opponent is putting on them, weighted by
+ * whether that opponent is actually *in the way* of the basket rather than merely nearby.
+ */
 function contestOn(state: BasketballState, world: World, actor: EntityId, side: CourtSide): number {
-  let nearest = Infinity;
+  const x = world.x[actor] as number;
+  const y = world.y[actor] as number;
+  const basket = attackedBasket(side);
+  const toBasketX = basket.x - x;
+  const toBasketY = basket.y - y;
+  const toBasket = Math.hypot(toBasketX, toBasketY);
+  if (toBasket < 1e-6) return 0;
+
+  let worst = 0;
   world.forEach((id) => {
     if ((world.kind[id] as number) !== Kind.ATHLETE) return;
     if (state.sides.get(id) === side) return;
-    const d = Math.hypot(
-      (world.x[id] as number) - (world.x[actor] as number),
-      (world.y[id] as number) - (world.y[actor] as number),
-    );
-    if (d < nearest) nearest = d;
+
+    const dx = (world.x[id] as number) - x;
+    const dy = (world.y[id] as number) - y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 1e-6) return;
+
+    const alignment = (dx * toBasketX + dy * toBasketY) / (distance * toBasket);
+    const contest = contestFromDirection(distance, alignment);
+    if (contest > worst) worst = contest;
   });
-  return nearest === Infinity ? 0 : contestLevel(nearest);
+
+  return worst;
 }
 
 /** `0` with time to spare, `1` at the buzzer. */
@@ -735,6 +1136,7 @@ function drivePassing(
 ): SportEvent[] {
   const carrier = state.ballState.carrier;
   if (carrier === NO_ENTITY || state.rules.restart !== null) return [];
+  if (state.rules.freeThrows !== null) return [];
   // A shot being charged owns the ball; you cannot pass out of the release.
   if (state.meter !== null) return [];
 
@@ -749,9 +1151,11 @@ function drivePassing(
     return makePass(state, world, carrier, side, target, 1, rng);
   }
 
-  // Placeholder judgement, replaced by T-2.8: move the ball when the pressure says to.
-  if (contestOn(state, world, carrier, side) < 0.5) return [];
-  if (!rng.bool(0.06)) return [];
+  // Placeholder judgement, replaced by T-2.8: move the ball when the pressure says to. The
+  // threshold matters more than it looks — set it low and the ball never stops moving, which
+  // costs shot volume and hands the defence a deflection every possession.
+  if (contestOn(state, world, carrier, side) < 0.65) return [];
+  if (!rng.bool(0.03)) return [];
 
   const target = mostOpenTeammate(state, world, carrier, side);
   if (target === NO_ENTITY) return [];
@@ -973,7 +1377,10 @@ type AthleteRatings = ShooterRatings &
   InterceptorRatings &
   HandlerRatings &
   BodyRatings &
-  RebounderRatings;
+  RebounderRatings &
+  DefenderRatings &
+  AttackerRatings &
+  FreeThrowRatings;
 
 /** Seeded ratings, biased by role — guards shoot and pass, bigs finish. Replaced at T-3.17. */
 function rollRatings(rng: Rng, roleIndex: number): AthleteRatings {
@@ -994,6 +1401,7 @@ function rollRatings(rng: Rng, roleIndex: number): AthleteRatings {
     strength: rng.int(perimeter ? 35 : 60, perimeter ? 70 : 92),
     vertical: rng.int(perimeter ? 45 : 55, perimeter ? 88 : 92),
     rebounding: rng.int(perimeter ? 25 : 58, perimeter ? 60 : 92),
+    discipline: rng.int(35, 90),
   };
 }
 
@@ -1023,6 +1431,8 @@ function moveEveryone(
   const ballX = world.x[ball.entity] as number;
   const ballY = world.y[ball.entity] as number;
   const restart = state.rules.restart;
+  const freeThrows = state.rules.freeThrows;
+  refreshMarks(state, world);
 
   world.forEach((id) => {
     if ((world.kind[id] as number) !== Kind.ATHLETE) return;
@@ -1045,6 +1455,23 @@ function moveEveryone(
         restart.y,
         profile.maxSpeed,
         0.5,
+        desired,
+      );
+    } else if (freeThrows !== null) {
+      const spot =
+        id === freeThrows.shooter
+          ? freeThrowSpot(freeThrows.side)
+          : stationSpot(state, world, id, side);
+      // A generous slowing radius, not a tight one: at full speed a tight radius cannot decelerate
+      // in time and the athlete orbits the spot for ever, which is how the first free throw of the
+      // first headless game never got taken.
+      arrive(
+        world.x[id] as number,
+        world.y[id] as number,
+        spot.x,
+        spot.y,
+        profile.maxSpeed,
+        1.6,
         desired,
       );
     } else if (state.meter !== null && state.shooter === id) {
@@ -1071,7 +1498,7 @@ function moveEveryone(
         desired,
       );
     } else {
-      const spot = stationSpot(state, id, side);
+      const spot = stationSpot(state, world, id, side);
       arrive(
         world.x[id] as number,
         world.y[id] as number,
@@ -1130,6 +1557,7 @@ function isPerimeterRole(state: BasketballState, id: EntityId): boolean {
  */
 function stationSpot(
   state: BasketballState,
+  world: World,
   id: EntityId,
   side: CourtSide,
 ): { x: number; y: number } {
@@ -1137,7 +1565,44 @@ function stationSpot(
   const role = roles.roles[index] as (typeof roles.roles)[number];
   const attacking = state.rules.possession === side;
   const base = roleSpot(role.x, role.y, side);
-  return attacking ? { x: mirrorX(base.x), y: base.y } : base;
+  if (attacking) return { x: mirrorX(base.x), y: base.y };
+  // Nobody marks anybody at the line.
+  if (state.rules.freeThrows !== null) return base;
+
+  // Defending: mark your man, or seal him off the glass once a shot is up.
+  const mark = state.marks.get(id);
+  const ratings = state.ratings.get(id);
+  if (mark === undefined || ratings === undefined || !world.isAlive(mark)) return base;
+
+  const markSide = state.sides.get(mark);
+  if (markSide === undefined) return base;
+
+  const basket = attackedBasket(markSide);
+  const at = { x: world.x[mark] as number, y: world.y[mark] as number };
+
+  if (state.shot !== null || state.reboundLive) return boxOutSpot(at, basket);
+
+  const inPaint = Math.hypot(at.x - basket.x, at.y - basket.y) < 5;
+  return markingSpot(at, basket, ratings, inPaint);
+}
+
+/** Redraws man assignments when the ball changes hands, and not on any other step. */
+function refreshMarks(state: BasketballState, world: World): void {
+  const offence = state.rules.possession;
+  if (offence === -1 || state.marksFor === offence) return;
+  state.marksFor = offence;
+
+  const attackers: EntityId[] = [];
+  const defenders: EntityId[] = [];
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    (state.sides.get(id) === offence ? attackers : defenders).push(id);
+  });
+
+  state.marks.clear();
+  for (const [defender, attacker] of assignMarks(attackers, defenders)) {
+    state.marks.set(defender, attacker);
+  }
 }
 
 /**

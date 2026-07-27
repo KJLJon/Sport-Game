@@ -29,11 +29,18 @@ import {
   gameClockSeconds,
   gameSecondsToSteps,
   grantPossession,
+  FOULS,
+  awardFreeThrows,
+  inBonus,
   inboundAfterScoreSpot,
+  isFouledOut,
   markRestartReady,
   onBasketMade,
   onPeriodStart,
+  personalFouls,
+  recordFoul,
   registerTouch,
+  resolveFreeThrow,
   shotClockSeconds,
   tickClocks,
   type RulesState,
@@ -328,5 +335,120 @@ describe('period starts and made baskets', () => {
     const state = createRulesState(0);
     expect(onBasketMade(state, -1, 40)).toEqual([]);
     expect(state.restart).toBeNull();
+  });
+});
+
+describe('fouls', () => {
+  function live(): RulesState {
+    const state = createRulesState(0);
+    grantPossession(state, 1, 0, ShotClockReset.FULL, CENTRE_X - 5);
+    return state;
+  }
+
+  it('counts personally and by team, and hands the ball back', () => {
+    const state = live();
+    const events = recordFoul(state, 3, 0, 8, 20, { ballX: 12 });
+
+    expect(personalFouls(state, 3)).toBe(1);
+    expect(state.teamFouls[0]).toBe(1);
+    expect(state.teamFouls[1]).toBe(0);
+    expect(sportKinds(events)).toContain(EventKind.FOUL);
+    // Not in the bonus and not a shooting foul: a throw-in, not free throws.
+    expect(state.freeThrows).toBeNull();
+    expect(state.restart?.side).toBe(1);
+  });
+
+  it('puts a team in the bonus, after which every foul is two shots', () => {
+    const state = live();
+    for (let i = 0; i < FOULS.teamLimitPerPeriod - 1; i++) {
+      recordFoul(state, i, 0, 8, i, { ballX: 12 });
+      expect(inBonus(state, 0)).toBe(false);
+    }
+
+    const events = recordFoul(state, 4, 0, 8, 40, { ballX: 12 });
+    expect(inBonus(state, 0)).toBe(true);
+    expect(sportKinds(events)).toContain(BasketballEvent.BONUS);
+    expect(state.freeThrows).toMatchObject({ shooter: 8, remaining: FOULS.bonusShots });
+  });
+
+  it('sends a fouled shooter to the line for as many shots as the shot was worth', () => {
+    const two = live();
+    recordFoul(two, 3, 0, 8, 20, { shooting: true, shotValue: 2 });
+    expect(two.freeThrows?.total).toBe(2);
+
+    const three = live();
+    recordFoul(three, 3, 0, 8, 20, { shooting: true, shotValue: 3 });
+    expect(three.freeThrows?.total).toBe(3);
+  });
+
+  it('gives one shot when the fouled shot went in anyway', () => {
+    const state = live();
+    recordFoul(state, 3, 0, 8, 20, { shooting: true, shotValue: 3, made: true });
+    expect(state.freeThrows?.total).toBe(FOULS.andOneShots);
+  });
+
+  it('disqualifies an athlete on their fifth, once', () => {
+    const state = live();
+    for (let i = 0; i < FOULS.personalLimit; i++) recordFoul(state, 3, 0, 8, i, { ballX: 12 });
+
+    expect(isFouledOut(state, 3)).toBe(true);
+    expect(state.fouledOut).toEqual([3]);
+
+    recordFoul(state, 3, 0, 8, 99, { ballX: 12 });
+    expect(state.fouledOut).toEqual([3]);
+  });
+
+  it('clears team fouls at a period break but never personal ones', () => {
+    const state = live();
+    recordFoul(state, 3, 0, 8, 20, { ballX: 12 });
+    onPeriodStart(state, 2, 30);
+
+    expect(state.teamFouls).toEqual([0, 0]);
+    expect(personalFouls(state, 3)).toBe(1);
+  });
+});
+
+describe('free throws', () => {
+  function atTheLine(count: number): RulesState {
+    const state = createRulesState(0);
+    awardFreeThrows(state, 8, 1, count, 10);
+    return state;
+  }
+
+  it('stops the clock and puts the ball with the shooter', () => {
+    const state = atTheLine(2);
+    expect(state.freeThrows).toMatchObject({ shooter: 8, side: 1, total: 2, remaining: 2 });
+    expect(state.shotClockRunning).toBe(false);
+    expect(state.restart).toBeNull();
+    expect(state.possession).toBe(1);
+  });
+
+  it('scores one point at a time and counts them down', () => {
+    const state = atTheLine(2);
+
+    const first = resolveFreeThrow(state, true, 20);
+    expect(first[0]).toMatchObject({ kind: EventKind.SCORE, value: 1, side: 1 });
+    expect(state.freeThrows?.remaining).toBe(1);
+
+    const second = resolveFreeThrow(state, true, 40);
+    expect(state.freeThrows).toBeNull();
+    expect(sportKinds(second)).toContain(BasketballEvent.FREE_THROWS_DONE);
+    // A made last one is inbounded by the other side, like any other basket.
+    expect(state.restart).toMatchObject({ kind: RestartKind.AFTER_SCORE, side: 0 });
+  });
+
+  it('leaves a missed last one live for the rebound', () => {
+    const state = atTheLine(1);
+    const events = resolveFreeThrow(state, false, 20);
+
+    expect(state.freeThrows).toBeNull();
+    expect(state.restart).toBeNull();
+    expect(state.possession).toBe(-1);
+    expect(sportKinds(events)).not.toContain(EventKind.SCORE);
+  });
+
+  it('does nothing when nobody is at the line', () => {
+    const state = createRulesState(0);
+    expect(resolveFreeThrow(state, true, 5)).toEqual([]);
   });
 });

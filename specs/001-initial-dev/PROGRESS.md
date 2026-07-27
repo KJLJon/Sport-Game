@@ -12,18 +12,20 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-2.7 — Defence: marking, contest, steal, block, foul model, free throws
+- **Task:** T-2.8 — Baseline CPU: role-based offence (spacing, cuts, screens), man defence,
+  possession decisions
 - **Status:** todo (not started)
 - **Started:** —
 - **Branch commit:** (see `git log`)
 - **Done so far:**
   - [x] T-2.1 court · T-2.2 rules · T-2.3 shooting · T-2.4 passing · T-2.5 dribbling ·
-        T-2.6 rebounding (all `done`)
-- **Next step:** `src/sports/basketball/defence.ts`. Three hooks are already in place and unused,
-  waiting for it: `dribbling.resolveContact()` returns a `severity` built for the foul model,
-  `shooting.ShooterRatings.freeThrow` is rolled and never read, and `rebounding.isBoxedOut()` is
-  computed but nothing *tries* to box out — defenders currently stand on their role spots.
-  Defensive positioning is also what will fix the offensive-rebound share (see T-2.6's note).
+        T-2.6 rebounding · T-2.7 defence (all `done`)
+- **Next step:** the placeholder decisions are all in `src/sports/basketball/index.ts` and all
+  labelled: `cpuWantsToShoot`, `carryTarget`/`PULL_UP_DISTANCE`, `mostOpenTeammate`, the pass
+  threshold in `drivePassing`, and `CPU_STEAL_CHANCE_PER_STEP` / `CPU_BLOCK_CHANCE_PER_STEP`.
+  Man marking already exists in `defence.ts` for the scheme layer to vary; zone is the one `06`
+  §3.1 names that has no code yet. Spacing is the thing to fix first — every model below it is
+  starved by five athletes standing in the same paint.
 - **Files touched:** src/sports/basketball/*.ts
 - **Blockers:** none.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
@@ -44,7 +46,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
-| 2 | Basketball · Live | 13 | 6 | `in_progress` | v0.1 |
+| 2 | Basketball · Live | 13 | 7 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
@@ -54,7 +56,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **37** | | |
+| | **Total** | **170** | **38** | | |
 
 ---
 
@@ -111,7 +113,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-2.4 | Passing: aimed, lead passes, interceptions, turnovers | M | `done` | | `tests/unit/sports/basketball/passing.test.ts`, `tests/integration/sports/basketball-match.test.ts` | `auto` | Unlike a shot, a pass is *flown* rather than resolved at release: whether it arrives depends on where five defenders happen to be while it is in the air, so interceptions fall out of proximity — which is also what makes jumping a lane something a player can do rather than a die the sim rolls for them. The lead is solved in two iterations, because one uses the receiver's current position and is wrong exactly when the lead matters. Two bugs found headless: a defender draped over the passer was inside catching range the instant the ball left the hand (there is now a six-step delay — taking it out of someone's hands is a *steal*, T-2.7), and a pass spends ten-odd steps inside a defender's reach, so each defender now gets one read per pass rather than ten. Interceptions went from 37% of passes to ~5%. Difficulty's only lever is the pass-assist cone width (INV-1). |
 | T-2.5 | Dribbling & driving: handling control, contact absorption, blow-by | L | `done` | | `tests/unit/sports/basketball/dribbling.test.ts`, `tests/integration/sports/basketball-match.test.ts` | `auto` | All three costs are per-*step* draws, because a drive is two seconds of sustained pressure rather than an event — the model has to be able to say "he lost it halfway in". That makes the fumble chance a number that looks tiny and, times the three hundred steps of a possession, quietly decides how often anyone keeps the ball; the test asserts the compounded rate, not the per-step one. Bug found headless: contact was resolving on every step two bodies leaned on each other — 2 197 collisions a game — and now resolves on the step they meet, giving ~113. Contact reports a `severity` for T-2.7's foul model and decides no whistle itself. Blow-by is one attempt per defender per possession, so a drive is a move rather than a dice tower. |
 | T-2.6 | Rebounding: height/vertical/strength/box-out/timing contest | M | `done` | | `tests/unit/sports/basketball/rebounding.test.ts`, `tests/integration/sports/basketball-match.test.ts` | `auto` | A weighted draw, not a highest-score contest: taking the best score would mean the same five athletes rebound in the same order every time and a possession would be readable from the box score before the shot went up. Skill enters the draw squared — linear, an elite rebounder beats a guard only 60/40 with everything else equal, which does not read as elite. Better rebounders get a *narrower* timing spread rather than a bonus, which is the difference between good and lucky. **Known imbalance:** the offensive rebound share is around half, because nobody boxes out yet — the defence has no reason to put a body between shooter and rim until T-2.7, so the team driving the basket is simply nearer the ball. The contest is right; the positioning is T-2.7's and the balance is T-2.13's. Also fixed here: a restart reset the shot clock without saying so, which would have left the HUD showing the old count. |
-| T-2.7 | Defence: marking, contest, steal, block, foul model, free throws | L | `todo` | | | | |
+| T-2.7 | Defence: marking, contest, steal, block, foul model, free throws | L | `done` | | `tests/unit/sports/basketball/defence.test.ts`, `tests/unit/sports/basketball/rules.test.ts` (fouls, free throws), `tests/integration/sports/basketball-match.test.ts` | `auto` | Every defensive action carries a foul risk, and that is the design: a steal that could only succeed or fail would be free to spam, one that can also concede two shots is a decision. Ball before whistle, always — a defender who gets it cleanly has not fouled, however fast they arrived. Three bugs and one model error found headless: **(1)** the first free throw of the first game was never taken, because `arrive` with a tight slowing radius cannot decelerate a sprinting athlete in time and they orbit the spot for ever; **(2)** a first guess of `baseFoul: 0.3` produced fifty fouls and ten disqualifications in one game — every athlete on the floor fouled out; **(3)** the CPU block rate gave thirteen blocks a game, two or three times a real one, because a shot hangs half a second and every step was another chance; and **(4)** contest was computed from the nearest opponent regardless of *direction*, so a defender standing behind the shooter contested as hard as one in the shot line, and tight man defence dropped the whole floor to 25% — it is now weighted by alignment with the basket. The release meter also came down from 30 steps to 22, because at half a second the defence closed between the decision to shoot and the shot. A game now runs 62–43 with 25 fouls, 8 blocks, 29/36 from the line, and 34% from the field. **Feel note:** still nothing played by hand — no HUD until T-2.10. 34% is low and the shot chart is still rim-heavy; both are shot selection, which is T-2.8's, and the numbers are T-2.13's. Zone defence is deferred to T-2.8 with scheme selection. |
 | T-2.8 | Baseline CPU: role-based offence (spacing, cuts, screens), man defence, possession decisions | XL | `todo` | | | | |
 | T-2.9 | Control switching: auto on turnover, manual cycle, controlled-athlete indicator | M | `todo` | | | | |
 | T-2.10 | Match HUD: score, clocks, fouls, live box score, minimap, off-screen indicators | M | `todo` | | | | |
@@ -341,6 +343,8 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 | 2026-07-27 | T-2.3 | Placeholder shot selection got two small tweaks it did not strictly need | Without a pull-up behaviour for perimeter roles, every possession was a drive and the three-point half of the shooting model never ran in a real match. Both tweaks are T-2.8's to replace. |
 | 2026-07-27 | T-2.4 | A pass is flown and resolved by proximity; a shot is resolved at release | They fail differently. A shot's outcome depends only on the shooter's circumstances at release, so drawing it there keeps the make rate a property of the athlete. A pass's outcome depends on where the defence is *during* the flight, which cannot be known at release without simulating it. |
 | 2026-07-27 | T-2.6 | The rebound is a weighted draw rather than the highest score | The best score always winning makes the same five athletes rebound in the same order every game, and a possession's outcome readable before the shot goes up. The draw keeps the better rebounder winning most of them and leaves the guard who got position his share. |
+| 2026-07-27 | T-2.7 | Zone defence deferred to T-2.8 | `06` §3.1 lists man and 2-3 zone as *schemes*. A scheme is a variation on marking, and marking is what T-2.7 builds; picking between schemes is a CPU decision and belongs with the rest of them. |
+| 2026-07-27 | T-2.7 | Contest is weighted by direction, not just distance | A defender standing behind the shooter is not contesting the shot however close they are. Without it, tight man marking made every shot maximally contested from every angle and the whole floor shot 25%. |
 | 2026-07-27 | T-2.6 | No delegation this session, despite the offer | The tasks marked `sonnet` in `03` are the HUD (T-2.10), the pause/summary screens (T-2.11), and the art pass (T-2.12). All three are out of order, and the art pass in particular has nothing to be viewed in until the HUD exists — reviewing a large diff for it would have cost more than the gameplay tasks it displaced. Worth revisiting once T-2.10 lands. |
 
 ---

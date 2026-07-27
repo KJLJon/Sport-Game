@@ -116,8 +116,10 @@ export const SHOOTING = {
 
   /** Release-window half-width in steps, before the rating and assist scale it. */
   windowBaseSteps: 9,
-  /** Steps of hold that make a perfect release. */
-  idealHoldSteps: 30,
+  /** Steps of hold that make a perfect release. A third of a second: long enough to be a timing
+   * mechanic, short enough that the decision to shoot and the shot itself are the same moment. At
+   * half a second the defence closed between the two and every shot went up contested. */
+  idealHoldSteps: 22,
   /** Beyond `ideal + overholdWindows × window`, the shot goes up whether you like it or not. */
   overholdWindows: 2,
 
@@ -125,6 +127,8 @@ export const SHOOTING = {
   contestRadius: 2.6,
   /** Default arm reach, until athlete heights arrive with T-3.2. */
   defaultReach: 2.35,
+  /** Share of a contest a defender standing *behind* the shooter still contributes. */
+  behindShare: 0.3,
 } as const;
 
 /** Which rating a shot from here is judged on. `06` §3.1 names three; the zones map onto them. */
@@ -192,6 +196,21 @@ export function contestLevel(distance: number, reach: number = SHOOTING.defaultR
   const closeness = 1 - distance / SHOOTING.contestRadius;
   const reachFactor = clamp(reach / SHOOTING.defaultReach, 0.7, 1.3);
   return clamp01(closeness * reachFactor);
+}
+
+/**
+ * How much of a contest a defender in a given *direction* is.
+ *
+ * A defender standing behind the shooter is not contesting the shot, however close they are — the
+ * hand has to be in the shot line. Without this, tight man defence makes every shot maximally
+ * contested from every angle and the whole floor shoots 25%.
+ *
+ * `alignment` is the cosine between "towards the defender" and "towards the basket": `1` directly
+ * in the way, `-1` directly behind.
+ */
+export function contestFromDirection(distance: number, alignment: number, reach?: number): number {
+  const raw = reach === undefined ? contestLevel(distance) : contestLevel(distance, reach);
+  return raw * (SHOOTING.behindShare + (1 - SHOOTING.behindShare) * clamp01(alignment));
 }
 
 /**

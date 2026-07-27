@@ -88,11 +88,30 @@ const SHOT_CLOCK_STEPS = gameSecondsToSteps(TIMING.shotClockGameSeconds);
 const OFFENSIVE_REBOUND_STEPS = gameSecondsToSteps(TIMING.offensiveReboundGameSeconds);
 const INBOUND_STEPS = gameSecondsToSteps(TIMING.inboundGameSeconds);
 
+/**
+ * Foul limits.
+ *
+ * @spec-ref 06-game-design.md §3.1 — "personal and team fouls with bonus"
+ */
+export const FOULS = {
+  /** Personal fouls before an athlete is disqualified (FIBA's five, not the NBA's six). */
+  personalLimit: 5,
+  /** Team fouls in a period before every subsequent foul is two shots. */
+  teamLimitPerPeriod: 5,
+  /** Shots a shooting foul is worth, by where the shot was from. */
+  shootingShots: { 2: 2, 3: 3 } as Readonly<Record<number, number>>,
+  /** And when the shot went in anyway. */
+  andOneShots: 1,
+  /** Shots a non-shooting foul is worth once the fouling team is in the bonus. */
+  bonusShots: 2,
+} as const;
+
 /** Why play is stopped and how it starts again. */
 export const RestartKind = {
   TIP_OFF: 'tipOff',
   THROW_IN: 'throwIn',
   AFTER_SCORE: 'afterScore',
+  FREE_THROW: 'freeThrow',
 } as const;
 export type RestartKindName = (typeof RestartKind)[keyof typeof RestartKind];
 
@@ -111,6 +130,12 @@ export const BasketballEvent = {
   RESTART_READY: 'basketball.restartReady',
   RESTART_COMPLETE: 'basketball.restartComplete',
   SHOT_CLOCK_RESET: 'basketball.shotClockReset',
+  STEAL: 'basketball.steal',
+  BLOCK: 'basketball.block',
+  BONUS: 'basketball.bonus',
+  FOUL_OUT: 'basketball.fouledOut',
+  FREE_THROW: 'basketball.freeThrow',
+  FREE_THROWS_DONE: 'basketball.freeThrowsDone',
 } as const;
 
 export interface Restart {
@@ -150,6 +175,27 @@ export interface RulesState {
   restartClock: number;
   /** Last side to touch the ball — decides who gets it when it goes out. */
   lastTouch: Side;
+
+  /**
+   * Personal fouls per athlete, keyed by entity id. A record rather than a `Map` because this goes
+   * into snapshots and replays, and a `Map` does not survive `JSON.stringify`.
+   */
+  personalFouls: Record<number, number>;
+  /** Team fouls this period, which is what puts a team in the bonus. */
+  teamFouls: [number, number];
+  /** Athletes disqualified for the rest of the match. */
+  fouledOut: EntityId[];
+  /** The free throws being shot, or `null`. */
+  freeThrows: FreeThrowSet | null;
+}
+
+/** A trip to the line. */
+export interface FreeThrowSet {
+  readonly shooter: EntityId;
+  readonly side: CourtSide;
+  readonly total: number;
+  remaining: number;
+  made: number;
 }
 
 export function createRulesState(arrow: CourtSide = 0): RulesState {
@@ -163,7 +209,146 @@ export function createRulesState(arrow: CourtSide = 0): RulesState {
     restartReady: false,
     restartClock: 0,
     lastTouch: -1,
+    personalFouls: {},
+    teamFouls: [0, 0],
+    fouledOut: [],
+    freeThrows: null,
   };
+}
+
+/** Whether a side has fouled enough this period that every further foul is two shots. */
+export function inBonus(state: RulesState, side: CourtSide): boolean {
+  return state.teamFouls[side] >= FOULS.teamLimitPerPeriod;
+}
+
+export function personalFouls(state: RulesState, athlete: EntityId): number {
+  return state.personalFouls[athlete] ?? 0;
+}
+
+export function isFouledOut(state: RulesState, athlete: EntityId): boolean {
+  return state.fouledOut.includes(athlete);
+}
+
+/**
+ * Records a foul and decides what it costs.
+ *
+ * The three outcomes are the real ones: free throws for a shooting foul, free throws for a
+ * non-shooting foul once the fouling team is in the bonus, and otherwise the ball back out of
+ * bounds. An and-one — fouled on a shot that went in — is one shot, not a fresh set.
+ */
+export function recordFoul(
+  state: RulesState,
+  offender: EntityId,
+  offenderSide: CourtSide,
+  fouled: EntityId,
+  step: number,
+  options: { shooting?: boolean; shotValue?: number; made?: boolean; ballX?: number } = {},
+): SportEvent[] {
+  const victimSide: CourtSide = offenderSide === 0 ? 1 : 0;
+  state.personalFouls[offender] = personalFouls(state, offender) + 1;
+  state.teamFouls[offenderSide]++;
+
+  const events: SportEvent[] = [
+    event(EventKind.FOUL, step, offenderSide, {
+      actor: offender,
+      target: fouled,
+      detail: {
+        personal: personalFouls(state, offender),
+        team: state.teamFouls[offenderSide],
+        shooting: options.shooting === true,
+      },
+    }),
+  ];
+
+  if (personalFouls(state, offender) >= FOULS.personalLimit && !isFouledOut(state, offender)) {
+    state.fouledOut.push(offender);
+    events.push(sportEvent(step, offenderSide, BasketballEvent.FOUL_OUT, { actor: offender }));
+  }
+
+  if (state.teamFouls[offenderSide] === FOULS.teamLimitPerPeriod) {
+    events.push(sportEvent(step, offenderSide, BasketballEvent.BONUS, { side: offenderSide }));
+  }
+
+  const shots = shotsFor(state, offenderSide, options);
+  if (shots > 0) {
+    events.push(...awardFreeThrows(state, fouled, victimSide, shots, step));
+    return events;
+  }
+
+  const spot = throwInSpot(options.ballX ?? COURT.length / 2, -1);
+  events.push(
+    ...awardRestart(
+      state,
+      { kind: RestartKind.THROW_IN, side: victimSide, x: spot.x, y: spot.y, reason: 'foul' },
+      step,
+    ),
+  );
+  return events;
+}
+
+function shotsFor(
+  state: RulesState,
+  offenderSide: CourtSide,
+  options: { shooting?: boolean; shotValue?: number; made?: boolean },
+): number {
+  if (options.shooting === true) {
+    if (options.made === true) return FOULS.andOneShots;
+    return FOULS.shootingShots[options.shotValue ?? 2] ?? 2;
+  }
+  return inBonus(state, offenderSide) ? FOULS.bonusShots : 0;
+}
+
+/** Sends a shooter to the line. The clock is stopped and stays stopped until the last one lands. */
+export function awardFreeThrows(
+  state: RulesState,
+  shooter: EntityId,
+  side: CourtSide,
+  count: number,
+  step: number,
+): SportEvent[] {
+  state.freeThrows = { shooter, side, total: count, remaining: count, made: 0 };
+  state.shotClockRunning = false;
+  state.restart = null;
+  state.restartReady = false;
+  state.possession = side;
+
+  return [sportEvent(step, side, BasketballEvent.FREE_THROW, { actor: shooter, count })];
+}
+
+/**
+ * Resolves one free throw. The last one is what decides how play restarts: a make is inbounded by
+ * the other side, a miss is a live rebound.
+ */
+export function resolveFreeThrow(state: RulesState, made: boolean, step: number): SportEvent[] {
+  const set = state.freeThrows;
+  if (set === null) return [];
+
+  set.remaining--;
+  if (made) set.made++;
+
+  const events: SportEvent[] = [];
+  if (made) {
+    events.push(event(EventKind.SCORE, step, set.side, { value: 1, actor: set.shooter }));
+  }
+
+  if (set.remaining > 0) return events;
+
+  state.freeThrows = null;
+  events.push(
+    sportEvent(step, set.side, BasketballEvent.FREE_THROWS_DONE, {
+      made: set.made,
+      of: set.total,
+    }),
+  );
+
+  if (made) {
+    events.push(...onBasketMade(state, set.side, step));
+  } else {
+    // A missed last free throw is live. The caller puts the ball on the rim.
+    state.possession = -1;
+    state.shotClockRunning = false;
+  }
+  return events;
 }
 
 /** Shot clock as the HUD shows it: seconds remaining, one decimal under five. */
@@ -396,6 +581,9 @@ export function onBasketMade(state: RulesState, scoringSide: Side, step: number)
 
 /** The opening tip, and the start of every subsequent period. */
 export function onPeriodStart(state: RulesState, period: number, step: number): SportEvent[] {
+  // Team fouls are per period; personal fouls are not. `06` §3.1's bonus depends on the difference.
+  state.teamFouls = [0, 0];
+  state.freeThrows = null;
   state.frontcourt = false;
   state.shotClock = SHOT_CLOCK_STEPS;
   state.shotClockRunning = false;

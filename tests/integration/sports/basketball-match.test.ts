@@ -23,6 +23,7 @@ import { COURT } from '@/sports/basketball/court.ts';
 import {
   BASKETBALL_RULES,
   BasketballEvent,
+  FOULS,
   gameSecondsToSteps,
 } from '@/sports/basketball/rules.ts';
 
@@ -126,9 +127,9 @@ describe('a basketball match', () => {
     expect(scores.length).toBeGreaterThan(3);
     expect(scores.length).toBeLessThan(shots.length);
 
-    // Every made shot is worth two or three, and only ever to the side that took it.
+    // Every score is a free throw, a two, or a three, and only ever to the side that took it.
     for (const score of scores) {
-      expect([2, 3]).toContain(score.value);
+      expect([1, 2, 3]).toContain(score.value);
       expect([0, 1]).toContain(score.side);
     }
   });
@@ -227,6 +228,67 @@ describe('a basketball match', () => {
       const severity = (contact.detail ?? {}).severity as number;
       expect(severity).toBeGreaterThanOrEqual(0);
       expect(severity).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('defends — fouls are called, and they cost the right things', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps * 4);
+    const fouls = of(events, EventKind.FOUL);
+    const freeThrows = of(events, EventKind.SHOT).filter((e) => e.detail?.zone === 'freeThrow');
+
+    // A whole game's worth, not a whistle every possession and not silence either.
+    expect(fouls.length).toBeGreaterThan(5);
+    expect(fouls.length).toBeLessThan(60);
+    expect(freeThrows.length).toBeGreaterThan(0);
+
+    for (const foul of fouls) {
+      expect(foul.actor).toBeGreaterThanOrEqual(0);
+      expect((foul.detail ?? {}).personal as number).toBeGreaterThan(0);
+    }
+  });
+
+  it('sends fouled shooters to the line and nobody else', () => {
+    const world = arena();
+    const { state, rng } = createBasketballMatch(world, 'line');
+    const empty = new Map();
+
+    for (let i = 0; i < BASKETBALL_RULES.periodSteps * 2; i++) {
+      basketball.step(state, world, empty, STEP, rng);
+
+      const set = state.rules.freeThrows;
+      if (set === null) continue;
+      // While anybody is at the line, the clock is stopped and nobody else is playing.
+      expect(state.rules.shotClockRunning).toBe(false);
+      expect(state.rules.restart).toBeNull();
+      expect(set.remaining).toBeGreaterThan(0);
+      expect(set.remaining).toBeLessThanOrEqual(set.total);
+    }
+  });
+
+  it('never lets a disqualified athlete keep fouling', () => {
+    const world = arena();
+    const { state, rng } = createBasketballMatch(world, 'foulout');
+    const empty = new Map();
+
+    for (let i = 0; i < BASKETBALL_RULES.periodSteps * 4; i++) {
+      basketball.step(state, world, empty, STEP, rng);
+    }
+
+    for (const [athlete, count] of Object.entries(state.rules.personalFouls)) {
+      expect(count).toBeLessThanOrEqual(FOULS.personalLimit);
+      if (count >= FOULS.personalLimit) {
+        expect(state.rules.fouledOut).toContain(Number(athlete));
+      }
+    }
+  });
+
+  it('steals and blocks the ball, not only fouls it', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps * 4);
+    expect(of(events, BasketballEvent.STEAL).length).toBeGreaterThan(0);
+    expect(of(events, BasketballEvent.BLOCK).length).toBeGreaterThan(0);
+    // A blocked shot is a missed attempt, so it never scores.
+    for (const block of of(events, BasketballEvent.BLOCK)) {
+      expect(block.actor).toBeGreaterThanOrEqual(0);
     }
   });
 
