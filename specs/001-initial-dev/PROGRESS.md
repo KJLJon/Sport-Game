@@ -12,17 +12,19 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** —
-- **Status:** none
+- **Task:** T-0.3 — App shell: canvas host, hash router, safe-area layout, orientation handling
+- **Status:** todo (next up)
 - **Started:** —
 - **Branch commit:** —
 - **Done so far:** —
-- **Next step:** Specification is complete and awaiting review. Once approved, begin **T-0.1**.
+- **Next step:** Build `src/app/` — hash router, screen registry, safe-area layout, canvas host.
 - **Files touched:** —
 - **Blockers:** Awaiting the user's answers to [`08-open-questions.md`](./08-open-questions.md);
-  working assumptions are recorded there, so none of them block starting Phase 0.
-- **Notes:** No implementation code exists yet. The repository currently contains the specification
-  set and `CLAUDE.md` only.
+  working assumptions are recorded there, so none of them block Phase 0.
+- **Notes:** **Branch.** This work is being pushed to `claude/build-project-azivs9`, not the
+  `claude/multi-sport-pwa-game-50k7u7` named in `CLAUDE.md` §11 — the session was assigned the
+  former and may not push elsewhere. `CLAUDE.md` should be reconciled once the user confirms which
+  branch is canonical.
 
 > **Resuming after an interruption:** read this block, `git log --oneline -20`, then continue from
 > **Next step**. Everything needed should be here — if it isn't, the previous session didn't follow
@@ -34,7 +36,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
-| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 0 | `todo` | — |
+| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 2 | `in_progress` | — |
 | 1 | Engine core | 13 | 0 | `todo` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
@@ -56,8 +58,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-0.1 | Scaffold Vite + TypeScript (strict), ESLint, Prettier, Vitest, Playwright, folder layout per `04` §4 | S | `todo` | | | | |
-| T-0.2 | Derive `base` from repo name at build; lint rule + test banning literal paths (INV-4) | S | `todo` | | | | |
+| T-0.1 | Scaffold Vite + TypeScript (strict), ESLint, Prettier, Vitest, Playwright, folder layout per `04` §4 | S | `done` | | — | `auto` (build + lint + suite green) | pnpm 11. TS strict incl. `noUncheckedIndexedAccess` / `exactOptionalPropertyTypes`. Vitest defaults to the `node` environment; DOM suites opt in per file. |
+| T-0.2 | Derive `base` from repo name at build; lint rule + test banning literal paths (INV-4) | S | `done` | | `tests/unit/tools/base-path.test.ts`, `tests/invariants/inv-04-no-literal-base-path.test.ts` | `auto` | `tools/base-path.ts` resolves `BASE_PATH` → `GITHUB_REPOSITORY` → fallback. Lint bans the literal in `src/`; the invariant test re-checks as text so an inline disable can't hide it. |
 | T-0.3 | App shell: canvas host, hash router, safe-area layout, orientation handling | M | `todo` | | | | |
 | T-0.4 | Design tokens + primitive components + dev-only component gallery route | M | `todo` | | | | |
 | T-0.5 | Web app manifest generated with base-path `id`/`scope`/`start_url`, full icon set incl. maskable | M | `todo` | | | | |
