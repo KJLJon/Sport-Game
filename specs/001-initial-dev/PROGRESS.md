@@ -12,12 +12,13 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-0.3 — App shell: canvas host, hash router, safe-area layout, orientation handling
+- **Task:** T-0.4 — Design tokens + primitive components + dev-only component gallery route
 - **Status:** todo (next up)
 - **Started:** —
 - **Branch commit:** —
 - **Done so far:** —
-- **Next step:** Build `src/app/` — hash router, screen registry, safe-area layout, canvas host.
+- **Next step:** Write `src/ui/tokens.css` from `10` §3.1–3.3, then the primitive components and
+  the `#/dev/ui` gallery route the visual-regression suite targets.
 - **Files touched:** —
 - **Blockers:** Awaiting the user's answers to [`08-open-questions.md`](./08-open-questions.md);
   working assumptions are recorded there, so none of them block Phase 0.
@@ -36,7 +37,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
-| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 2 | `in_progress` | — |
+| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 3 | `in_progress` | — |
 | 1 | Engine core | 13 | 0 | `todo` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
@@ -60,7 +61,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 |---|---|---|---|---|---|---|---|
 | T-0.1 | Scaffold Vite + TypeScript (strict), ESLint, Prettier, Vitest, Playwright, folder layout per `04` §4 | S | `done` | | — | `auto` (build + lint + suite green) | pnpm 11. TS strict incl. `noUncheckedIndexedAccess` / `exactOptionalPropertyTypes`. Vitest defaults to the `node` environment; DOM suites opt in per file. |
 | T-0.2 | Derive `base` from repo name at build; lint rule + test banning literal paths (INV-4) | S | `done` | | `tests/unit/tools/base-path.test.ts`, `tests/invariants/inv-04-no-literal-base-path.test.ts` | `auto` | `tools/base-path.ts` resolves `BASE_PATH` → `GITHUB_REPOSITORY` → fallback. Lint bans the literal in `src/`; the invariant test re-checks as text so an inline disable can't hide it. |
-| T-0.3 | App shell: canvas host, hash router, safe-area layout, orientation handling | M | `todo` | | | | |
+| T-0.3 | App shell: canvas host, hash router, safe-area layout, orientation handling | M | `done` | | `tests/unit/app/{router,shell,orientation,canvas-host}.test.ts` | `auto` | Hash routing (`04` §2 — Pages has no rewrites). Literal route segments beat `:params`. `chrome: 'bare'` drops header and tabs for Live. Rotate prompt is the iOS fallback where `orientation.lock` is absent. Screens load lazily; a superseded slow load is dropped rather than mounted late. |
 | T-0.4 | Design tokens + primitive components + dev-only component gallery route | M | `todo` | | | | |
 | T-0.5 | Web app manifest generated with base-path `id`/`scope`/`start_url`, full icon set incl. maskable | M | `todo` | | | | |
 | T-0.6 | Service worker: per-class cache strategies (`11` §2), atomic precache install, versioned caches, activate cleanup | L | `todo` | | | | |

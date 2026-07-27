@@ -1,0 +1,240 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   0 — Foundation, PWA shell, update & offline lifecycle
+ * @task    T-0.3 — App shell: canvas host, hash router, safe-area layout, orientation handling
+ * @story   US-13.1 — The game works on my phone
+ * @design  10-ui-ux.md §4 (layout), §11 (accessibility), 04-architecture.md §9
+ *
+ * Purpose: structural layout only — safe areas, the fixed tab bar, the screen host, and the
+ * gesture suppression a match view needs. Colour and type come from the design tokens; the
+ * fallbacks here keep the shell legible on its own.
+ */
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --shell-header-h: 56px;
+  --shell-tabs-h: 64px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--surface-0, #0b0f14);
+  color: var(--text-hi, #f2f6fa);
+  font-family: var(--font-body, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
+  font-size: var(--text-16, 1rem);
+  line-height: 1.45;
+  /* Suppress double-tap zoom and text selection inside the app frame (`04` §9). */
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  height: 100%;
+}
+
+/* ── Frame ────────────────────────────────────────────────────────────────── */
+
+.shell {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  height: 100%;
+  /* `dvh` tracks the collapsing mobile URL bar; `100%` is the fallback above. */
+  height: 100dvh;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+.shell__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12, 12px);
+  min-height: var(--shell-header-h);
+  padding: var(--safe-top) var(--space-16, 16px) 0;
+  padding-top: calc(var(--safe-top) + var(--space-8, 8px));
+}
+
+.shell__title {
+  margin: 0;
+  font-size: var(--text-20, 1.25rem);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.shell__banners:empty {
+  display: none;
+}
+
+.shell__main {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-16, 16px);
+  -webkit-overflow-scrolling: touch;
+}
+
+.shell__main:focus-visible {
+  outline: 2px solid var(--accent, #3ddc91);
+  outline-offset: -2px;
+}
+
+/* ── Tab bar ──────────────────────────────────────────────────────────────── */
+
+.shell__tabs {
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  min-height: var(--shell-tabs-h);
+  padding-bottom: var(--safe-bottom);
+  background: var(--surface-1, #131a22);
+  border-top: 1px solid var(--surface-2, #1c2530);
+}
+
+.shell__tab {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* `10` §2 — minimum interactive target is 44 px. */
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--space-8, 8px) var(--space-4, 4px);
+  color: var(--text-lo, #94a3b4);
+  text-decoration: none;
+  font-size: var(--text-12, 0.75rem);
+}
+
+.shell__tab svg {
+  width: 24px;
+  height: 24px;
+  fill: currentcolor;
+}
+
+.shell__tab[aria-current='page'] {
+  color: var(--accent, #3ddc91);
+}
+
+/* The active tab is also marked by a bar, so state is never colour alone (`10` §11). */
+.shell__tab[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentcolor;
+  transform: translateY(-6px);
+}
+
+.shell__tab:focus-visible {
+  outline: 2px solid var(--accent, #3ddc91);
+  outline-offset: -3px;
+}
+
+/* ── Bare chrome: Live matches and full-screen arcade games ───────────────── */
+
+.shell[data-chrome='bare'] {
+  grid-template-rows: auto 1fr;
+}
+
+.shell[data-chrome='bare'] .shell__header,
+.shell[data-chrome='bare'] .shell__tabs {
+  display: none;
+}
+
+.shell[data-chrome='bare'] .shell__main {
+  padding: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+/* ── Canvas host ──────────────────────────────────────────────────────────── */
+
+.canvas-host {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* ── Rotate prompt ────────────────────────────────────────────────────────── */
+
+.shell__rotate {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-content: center;
+  padding: var(--space-32, 32px);
+  text-align: center;
+  background: var(--surface-0, #0b0f14);
+  font-size: var(--text-20, 1.25rem);
+}
+
+.shell__rotate[hidden] {
+  display: none;
+}
+
+/* ── Accessibility helpers ────────────────────────────────────────────────── */
+
+.shell__skip {
+  position: absolute;
+  left: -9999px;
+  z-index: 50;
+}
+
+.shell__skip:focus {
+  left: var(--space-16, 16px);
+  top: var(--space-16, 16px);
+  padding: var(--space-8, 8px) var(--space-12, 12px);
+  background: var(--surface-2, #1c2530);
+  color: var(--text-hi, #f2f6fa);
+  border-radius: var(--radius-8, 8px);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.empty-state {
+  display: grid;
+  gap: var(--space-12, 12px);
+  justify-items: start;
+  max-width: 40ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
