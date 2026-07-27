@@ -1,5 +1,10 @@
 # 06 — Game Design
 
+> This document covers **Live** mode — the real-time top-down game — plus the shared systems
+> (cross-sport experience, difficulty, progression, art direction) that all modes use.
+> **Playbook** (turn-based) and **Arcade** (standalone mini-games) are designed in
+> [`09-modes-and-arcade.md`](./09-modes-and-arcade.md).
+
 ## 1. The core loop
 
 ```
@@ -143,7 +148,8 @@ is the emotional core of the game, and the achievement set is written to reward 
 
 Four levels. They change how well the CPU plays and how much help you get. **They never change any
 athlete's attributes or derived ratings on either team** — this is an invariant with a test behind it
-(`04` §11), because stat-cheating difficulty makes wins feel unearned.
+(INV-1, `12` §3), because stat-cheating difficulty makes wins feel unearned. The same four levels
+apply in Playbook (call quality, exploitation) and Arcade (window sizes) — see `09` §7.
 
 | | Rookie | Pro | All-Star | Legend |
 |---|---|---|---|---|
@@ -157,7 +163,7 @@ athlete's attributes or derived ratings on either team** — this is an invarian
 | Your shot-timing window | generous | normal | tight | tight |
 | Coin/XP multiplier | ×0.75 | ×1.0 | ×1.4 | ×2.0 |
 
-Target win-rate bands, verified by headless batch simulation (T-5.9): a new player should win ~80%+
+Target win-rate bands, verified by headless batch simulation (T-7.10): a new player should win ~80%+
 on Rookie; an experienced player should sit near 50% on All-Star and below 40% on Legend.
 
 ## 8. Progression and pacing

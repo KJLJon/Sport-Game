@@ -16,7 +16,7 @@ touching logic.
 | `economy` | singleton | Coin balance, ledger, pity counters, market state |
 | `matches` | `id` | Match records, box scores, replay triples |
 | `settings` | singleton | All user preferences |
-| `ledger` | `custodyId` | P2P transfer receipts (Phase 8) |
+| `ledger` | `custodyId` | P2P transfer receipts (Phase 10) |
 | `meta` | singleton | `schemaVersion`, install ID, keypair, timestamps |
 
 ## 2. Athlete
@@ -287,7 +287,7 @@ Representative selection from the ~60 at launch:
 | P2P | Handshake | Complete a P2P match | 800 |
 | P2P | Fair Trade | Complete a peer trade | 600 |
 
-## 7. P2P custody (Phase 8)
+## 7. P2P custody (Phase 10)
 
 ```ts
 interface TransferReceipt {

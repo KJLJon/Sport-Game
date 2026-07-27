@@ -27,12 +27,12 @@ absorbed into sport work; a hard performance budget applies from Phase 1.
 
 Rejected: four sports at v1.0, six sports at v1.0, four plus two lightweight 1v1 sports.
 
-Basketball and soccer at v1.0; hockey and American football in Phase 9 (v1.1), specified here.
+Basketball and soccer at v1.0; hockey and American football in Phase 11 (v1.1), specified here.
 They differ enough — hand vs foot, court vs pitch, 5v5 vs 11v11, possession-dense vs possession-sparse
 — that building both genuinely proves the module seam.
 
 **Note on the MUST:** the requirement for multiple sports is met at v1.0 with two, and fully met
-against the named list at v1.1. Phase 9 is in scope of this spec, not deferred out of it.
+against the named list at v1.1. Phase 11 is in scope of this spec, not deferred out of it.
 
 ---
 
@@ -114,7 +114,7 @@ tamper-resistant timing and a price model, trading needs the custody ledger and 
 economy depend on the bonus phase.
 
 **Consequences:** the anti-farm invariant (`05` §5.5) is enforced by test, since four interacting
-mechanisms make an accidental coin loop much more likely; trading ships in Phase 8 with the rest of
+mechanisms make an accidental coin loop much more likely; trading ships in Phase 10 with the rest of
 P2P, and the economy is complete and coherent without it.
 
 ---
@@ -129,7 +129,7 @@ A direct data channel with signaling done by hand — the host's offer becomes a
 guest returns an answer the same way. No server of ours is involved at any point.
 
 **Amendment made during specification:** asynchronous challenge codes are included anyway, as
-`T-8.1`, ahead of the WebRTC work. Not as a substitute — as the fallback for the case WebRTC cannot
+`T-10.1`, ahead of the WebRTC work. Not as a substitute — as the fallback for the case WebRTC cannot
 solve without a TURN server (symmetric NAT / carrier-grade NAT). Shipping it first also means the
 bonus phase delivers something usable even if NAT traversal proves painful. Flagged for your
 agreement in `08` Q-1.
@@ -175,9 +175,9 @@ nothing. Backed by a test (`04` §11).
 **Decided during specification.**
 
 Fixed timestep, seeded PRNG, no `Math.random` in the sim, state hashing. Costs discipline in Phase 1;
-buys replays (US-2.7), headless balance testing (T-2.13, T-5.9, T-6.14), match resume from an input
-triple rather than a state dump (T-6.4), and lockstep P2P (T-8.6). Retrofitting determinism after the
-fact is close to a rewrite, which is why it is a Phase 1 constraint rather than a Phase 8 one.
+buys replays (US-2.7), headless balance testing (T-2.13, T-7.10, T-8.16), match resume from an input
+triple rather than a state dump (T-8.4), and lockstep P2P (T-10.7). Retrofitting determinism after the
+fact is close to a rewrite, which is why it is a Phase 1 constraint rather than a Phase 10 one.
 
 ---
 
@@ -213,3 +213,143 @@ progression economy just doesn't have to pretend a 99-everything athlete is norm
 Every push builds and tests; only tags publish. The live site is therefore always a deliberate
 release, and a half-finished phase on the feature branch never becomes the installed app that
 existing users auto-update into.
+
+---
+
+## D-15 — Three play modes, not one
+
+**Decided by the user**, amending D-01.
+
+Live (real-time) stays. Added: **Playbook**, a turn-based tactical mode where the simulation resolves
+possessions and phases from ratings, and **Arcade**, standalone skill mini-games. Playbook's key
+moments hand off to Arcade games. Full design in `09`.
+
+Rejected: keeping Live as the only mode; making turn-based a difficulty option rather than a mode.
+
+Three modes roughly double the gameplay surface. What keeps that affordable is that all three read
+the same derived ratings and emit the same `SportEvent` stream, so progression, economy,
+achievements, stats, and XP are written once and work everywhere (INV-9). Playbook and Arcade are
+each far cheaper than Live, and Arcade is not separate content — it *is* Playbook's key-moment
+component, built once and used four ways.
+
+**Consequences:** Phases 4 and 5 are new; soccer moves to Phase 6 so it is built once against a
+settled three-mode contract; cross-mode balance parity becomes an enforced invariant (INV-11/12);
+sport modules grow two adapters but still plug into one seam.
+
+---
+
+## D-16 — Arcade games are earned through play, and calibrated by the athlete
+
+**Decided during specification**, from the user's "maybe you can win a way to play the arcade style
+games independently so you can practice (as an achievement for each one)".
+
+Each mini-game unlocks via an achievement earned by doing the thing in a real match — make a free
+throw to unlock Free Throw, score a penalty to unlock Penalty Shootout. Never purchasable.
+
+The harder call is calibration. An arcade game could be a pure reflex test, which is simpler to build
+and would quietly make the entire roster system irrelevant in the mode new players see first.
+Instead: **the athlete's ratings and familiarity set the size and speed of the window; your input
+decides where inside the resulting band you land.** A great shooter is forgiving; a soccer player
+shooting free throws is not. This is INV-10, tested by asserting window size is a pure function of
+the athlete and difficulty — never of the player's past scores.
+
+---
+
+## D-17 — Hot-seat local multiplayer for Playbook and Arcade
+
+**Decided during specification**, from "I want to play this with my family".
+
+Turn-based and single-mechanic games pass around a phone naturally; real-time doesn't. So Playbook
+and Arcade get 2–4 player hot-seat with pass-the-device screens and party formats, and Live gets
+honest labelling that local two-player needs two gamepads on a desktop.
+
+Local player names are stored per device so party screens use real names. Deliberately *not* full
+per-person save slots — that would multiply every store, migration, and backup path. Flagged as Q-13
+if you want it.
+
+---
+
+## D-18 — Update reliability and offline durability are designed as opposites that must both hold
+
+**Decided during specification**, from the user's reported history of cache-locked updates and
+offline apps that decayed.
+
+The root cause of both symptoms is a service worker with one uniform caching strategy. The design
+(`11`) splits by resource class: everything that tells you what version you're on — `index.html`,
+`sw.js`, `version.json` — is network-first or network-only, while content-hashed assets are
+cache-first and immutable, where staleness is impossible by construction.
+
+Layered on top: five independent update-detection triggers, a version poll that can spot a stuck
+service worker the SW machinery itself missed, atomic precache installs so a bad deploy can't leave a
+half-cached app, a launch-time integrity check that silently re-fetches evicted files, and a
+**Repair** button that clears caches and service workers while leaving IndexedDB — your roster —
+untouched.
+
+Rejected: relying on `skipWaiting` alone (updates without consent, breaks mid-match); cache-busting
+query strings (doesn't fix a stuck SW); asking the user to clear site data (loses the save).
+
+**Consequences:** this is Phase 0 work, not later, because retrofitting it is how these bugs ship.
+Sixteen automated lifecycle scenarios (`11` §9) run on every commit.
+
+---
+
+## D-19 — UI/UX is a phase with a gate, not a polish pass
+
+**Decided during specification**, from "I want to play this with my family".
+
+`10` specifies the design system, screen map, flows, feel, and a design QA checklist that blocks
+v1.0 — including an unaided newcomer reaching a played match in under 60 seconds. Design tokens and
+the component gallery start in Phase 0 so quality accrues instead of being retrofitted, and the cut
+order in `03` explicitly forbids cutting Phase 9.
+
+The alternative — treating UX as whatever's left at the end — is how a technically impressive game
+ends up unplayed by the people it was built for.
+
+---
+
+## D-20 — Every task is independently trackable and resumable
+
+**Decided by the user.**
+
+`PROGRESS.md` holds one row per task with status, verification record, and commit link, plus an
+in-flight block carrying the current task's checkpoint notes, files touched, and next step. It is
+updated in the same commit as the work, so the repository itself is the state — an interrupted
+session resumes by reading it, with no memory required. `CLAUDE.md` §3–§5 defines the protocol.
+
+---
+
+## D-21 — Commit and push continuously
+
+**Decided by the user.**
+
+Commit at every checkpoint within a task, not only at task boundaries, and push after every commit.
+Work in progress on a feature branch behind a draft PR costs nothing, and an interrupted session then
+loses minutes rather than hours. Only tagged releases deploy (D-14), so frequent pushes never reach
+players.
+
+---
+
+## D-22 — Code carries its spec coordinates
+
+**Decided by the user.**
+
+Every module in `src/` opens with a header naming its spec, phase, task, story, and design section,
+plus a one-line purpose. A lint rule requires it, a generator produces a traceability report both
+ways (task → files, file → task), and CI fails on a header that doesn't resolve (INV-15). Format in
+`CLAUDE.md` §6.
+
+This is what makes "why does this code exist?" answerable in seconds rather than by archaeology.
+
+---
+
+## D-23 — Subagents are used for parallel, well-bounded work only
+
+**Decided by the user** ("you are able to use agents (with different models) where it makes sense").
+
+Delegated: independent arcade games, UI screens against a settled design system, achievement content,
+test suites for finished interfaces, art and audio passes, mechanical refactors. Model chosen per
+task class.
+
+Not delegated: engine core, determinism, netcode, rating and economy math, anything crossing the
+sport-module seam, and anything where two agents would touch the same files. The main session always
+reviews, runs the suite, and owns the commit. Protocol in `CLAUDE.md` §7.

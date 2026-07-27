@@ -52,6 +52,43 @@ As a player, I want the browser to treat my save as important.
 - Settings shows estimated usage and quota.
 - If persistence was denied, Settings shows a plain-language warning and a one-tap backup export.
 
+### US-1.6 — Never get stuck on an old version · **M**
+As a player who has been burned by this before, I want to be certain I can always get the latest
+version, even though the app caches itself for offline use.
+- `index.html`, `sw.js`, and `version.json` are never served cache-first, so a new deploy is always
+  detectable (`11` §2).
+- The app checks for updates on launch, on returning to the foreground, on a timer, and on demand.
+- If a newer version exists on the server but the service worker hasn't picked it up, the app detects
+  the mismatch itself and offers Repair rather than silently doing nothing.
+- Settings always shows the running version, build hash, build date, and last check time, so
+  "am I on the latest?" is answerable without guessing.
+
+### US-1.7 — Update without thinking about it · **S**
+As a player, I want updates to just happen, but never at a bad moment.
+- Auto-update (default on) applies a waiting update silently at a safe point — home screen, no match,
+  no open editor, idle.
+- Auto-update never fires mid-match, mid-pack-opening, or mid-edit.
+- With auto-update off, a non-blocking banner offers the update; "Later" is respected for 24 hours.
+- A release marked below `minSupportedVersion` shows a non-dismissable prompt with the reason.
+
+### US-1.8 — Stay playable offline, indefinitely · **M**
+As a player, I don't want the game to quietly stop working offline after a few weeks.
+- On launch and daily, the app verifies its cached files against the build manifest.
+- Missing files are silently restored when online; when offline, a quiet notice says they'll be
+  restored later and everything still playable stays playable.
+- A failed deploy can never leave a half-cached app: the precache installs atomically or not at all.
+- Settings shows an explicit "Ready to play offline" state, with progress when incomplete.
+- "Download everything for offline" fetches every sport and mode ahead of a flight.
+
+### US-1.9 — Repair the app when something's wrong · **M**
+As a player, I want one button that fixes a stuck app without losing my roster.
+- Settings → Repair app unregisters our service workers, deletes only our namespaced caches, and
+  re-downloads everything.
+- Repair never touches IndexedDB — roster, progress, coins, and achievements survive, and the UI says
+  so before you press it.
+- Repair offers a backup export first.
+- Caches belonging to other apps on the same domain are never touched.
+
 ---
 
 ## E2 — Core match engine and controls
@@ -344,6 +381,12 @@ This is the headline feature.
 - The client refuses to import an athlete whose custody ID is already in the local ledger.
 - The UI states plainly that trades are peer-trusted and cannot be enforced against a modified client.
 
+### US-11.5 — Play a Playbook match against a peer · **B**
+- Turn-based matches exchange a few hundred bytes per turn, so they work on any connection that
+  establishes at all — no lockstep, no latency sensitivity.
+- Either side can drop and reconnect without losing the match.
+- This is the P2P mode we expect to actually work reliably (`09` §6).
+
 ### US-11.4 — Asynchronous challenge codes · **B**
 - I can generate a compact code/link from a completed scenario (seed + rules + my result), share it
   by any means, and my friend can play the identical scenario and compare results.
@@ -388,8 +431,24 @@ This is the headline feature.
   never autoplays before interaction.
 
 ### US-13.4 — Understand how to play · **M**
-- A short interactive tutorial for each sport's controls, replayable from Settings.
+- A short interactive tutorial for each sport and each mode, replayable from Settings.
 - A rules/controls reference reachable from the pause menu.
+- First launch reaches a played match in under 60 seconds without instruction.
+
+### US-13.5 — Enjoy using it · **M**
+As someone who wants to show this to their family, I want the app to look and feel good.
+- A consistent design system: one token set, one component library, every component with a complete
+  state matrix (`10` §5).
+- Transitions are quick (≤180 ms) and never drop frames; every animation is skippable.
+- The athlete card is genuinely nice to look at, and switching sports on it animates.
+- Copy is short, warm, and never blames the player.
+- Every screen is usable one-handed in portrait and legible at 1.3× UI scale.
+
+### US-13.6 — Never hit a broken-looking screen · **M**
+- Empty roster, empty market, zero coins, offline, storage denied, storage nearly full, update
+  available, update failed, migration running, save recovered, P2P failed, arcade game locked,
+  sandbox athlete blocked, interrupted match found — each has a designed state (`10` §10).
+- Each states what happened in plain language and offers exactly one suggested action.
 
 ---
 
@@ -410,3 +469,106 @@ This is the headline feature.
 ### US-14.4 — Prove the engine is extensible · **C**
 - Adding a sport requires only a new rules module, asset set, and rating-weight table — no changes
   to engine core, storage, or economy code.
+
+---
+
+## E15 — Playbook mode (turn-based)
+
+### US-15.1 — Play a match as the coach · **M**
+As a player who doesn't want a twitch game, I want to win with decisions instead of reflexes.
+- A Playbook match runs as a sequence of turns: I make a tactical call, the opponent makes theirs,
+  the engine resolves the outcome from my athletes' ratings and a seeded roll.
+- Resolution is shown as a short animated court/pitch diagram with one line of narration — never a
+  wall of text.
+- A full match takes 4–6 minutes, is pausable between turns, and is playable one-handed in portrait.
+- The same athletes, ratings, familiarity, XP, stats, achievements, and coins apply as in Live.
+
+### US-15.2 — Make meaningful tactical choices · **M**
+- Basketball offers possession-level play calls (iso, pick and roll, post up, motion, spot-up, push
+  tempo) and defensive schemes (man, zone, press, double, protect the rim).
+- Soccer offers phase-level intents (tempo, width, risk, press line, focus) that persist until
+  changed, matching how the sport actually flows.
+- Calls shift probabilities; none hard-counters another, and a much better athlete usually still wins
+  the matchup.
+- The call screen shows why a call suits my roster.
+
+### US-15.3 — Understand what just happened · **M**
+- Every turn produces a readable animated diagram and a plain-language narration line.
+- A running turn log is scrollable; the box score is always one tap away.
+
+### US-15.4 — Play the big moments myself · **M**
+- High-leverage moments (open three, clutch free throw, penalty, one-on-one, free kick) hand control
+  to an Arcade mini-game whose result feeds back into the simulation.
+- The challenge is calibrated by the athlete's ratings and familiarity — a great shooter gets a wide,
+  forgiving window; a novice gets a narrow, fast one.
+- Frequency is configurable: off, clutch only, standard, or every chance.
+
+### US-15.5 — Know whether I helped or hurt · **S**
+- The post-match screen compares my arcade results against what the simulation expected, so I can see
+  where I won or lost the game myself.
+
+### US-15.6 — Keep it moving · **S**
+- Hold to fast-forward resolution; an auto-call assistant coach can take over stretches of the match.
+- Turn speed is configurable.
+
+### US-15.7 — Face a real opponent · **M**
+- The CPU calls plays according to its roster's strengths and my tendencies, at four difficulty
+  levels, and exploits weaknesses more at higher levels.
+
+### US-15.8 — Get consistent results across modes · **M**
+- The same rosters produce comparable outcomes in Live and Playbook; neither mode is the easy one.
+- Coin and XP rates per minute are comparable across modes; neither is the efficient farm.
+
+---
+
+## E16 — Arcade mode
+
+### US-16.1 — Play a quick skill game · **M**
+As a player with two minutes, or a kid who's never played before, I want something instantly fun.
+- A hub of short mini-games, each one mechanic, one thumb, 20–90 seconds.
+- Basketball at launch: Free Throw, Three-Point Contest, Buzzer Beater, Fast Break, Pickpocket.
+  Soccer: Penalty Shootout, Free Kick, One-on-One, Header, Last Line.
+- Each is playable within ten seconds of tapping it, with no reading required.
+- Practice mode is unlimited and unrewarded; scored runs have lives or a clock, a score, and stars.
+
+### US-16.2 — Earn my mini-games · **M**
+- Each arcade game unlocks via an achievement earned by playing — never by paying.
+- The unlock is a clear moment that says "you can practise this any time now".
+- Locked games show what unlocks them.
+
+### US-16.3 — Feel my athlete in the mini-game · **M**
+- The chosen athlete's ratings and familiarity set the difficulty window, not my past scores.
+- The athlete picker states plainly whether this athlete's window here is wide or narrow.
+- Practising with a soccer star at basketball visibly differs from practising with a specialist.
+
+### US-16.4 — Take a daily challenge · **S**
+- A seeded daily run, identical for everyone that day, with a fixed athlete and modifiers.
+- Shareable as a challenge code so a friend can attempt the identical run.
+
+### US-16.5 — Have practice count · **S**
+- Arcade play grants that sport's skill XP and familiarity at a reduced rate versus a real match, so
+  practice genuinely helps an athlete learn a new sport.
+
+### US-16.6 — Not be able to farm it · **M**
+- Coin rewards are capped daily and diminish sharply, so no mini-game out-earns playing matches.
+
+---
+
+## E17 — Playing with other people on one device
+
+### US-17.1 — Play Playbook against someone next to me · **S**
+- 2–4 players on one device, each calling their own team's plays on their turn.
+- A clear "pass to <name>" screen between turns, with an optional curtain hiding my calls.
+
+### US-17.2 — Play Arcade party rounds · **S**
+- Everyone takes the same seeded challenge in turn; scores are ranked at the end.
+- Best-of-N and elimination formats.
+
+### US-17.3 — Be recognised by name · **S**
+- Local player names are remembered on the device, so party screens say "Dad" and "Ana" rather than
+  "Player 2".
+- Names are local only, never transmitted, and editable or removable at any time.
+
+### US-17.4 — Know the honest limit · **M**
+- Live mode supports two local players only with two gamepads on a desktop; this is stated plainly
+  in the mode selector rather than discovered by failure.

@@ -109,24 +109,32 @@ Quota is requested via `navigator.storage.persist()` and reported via `navigator
 │  │  ├─ input/             # joystick, buttons, keyboard, gamepad
 │  │  ├─ ai/                # utility scoring, roles, difficulty modifiers
 │  │  └─ match/             # state machine, event bus, replay recorder
+│  ├─ modes/
+│  │  ├─ live/              # real-time match host
+│  │  ├─ playbook/          # turn engine, resolution, narration, key moments
+│  │  └─ arcade/            # mini-game framework, calibration, hub, daily/party
 │  ├─ sports/
-│  │  ├─ types.ts           # the SportModule seam
-│  │  ├─ basketball/
-│  │  ├─ soccer/
-│  │  ├─ hockey/            # phase 9
-│  │  └─ football/          # phase 9
+│  │  ├─ types.ts           # the SportModule seam (incl. playbook + arcade adapters)
+│  │  ├─ basketball/        # rules, actions, playbook calls, arcade games, art
+│  │  ├─ soccer/            # phase 6
+│  │  ├─ hockey/            # phase 11
+│  │  └─ football/          # phase 11
 │  ├─ athletes/             # attributes, derivation, familiarity, skill XP
-│  ├─ meta/                 # teams, squads, seasons, stats
+│  ├─ meta/                 # teams, squads, tournaments, stats, local players
 │  ├─ economy/              # coins, packs, sell, market
-│  ├─ achievements/         # definitions + evaluation engine
-│  ├─ p2p/                  # webrtc, signaling codec, lockstep, ledger
+│  ├─ achievements/         # definitions + evaluation engine + arcade unlocks
+│  ├─ p2p/                  # webrtc, signaling codec, lockstep, turn exchange, ledger
+│  ├─ pwa/                  # registration, update flow, integrity check, repair
 │  ├─ storage/              # scoped storage, schemas, migrations, backup
-│  └─ ui/                   # screens and widgets
+│  └─ ui/                   # design tokens, components, screens, gallery
 ├─ tests/
 │  ├─ unit/                 # vitest
 │  ├─ sim/                  # golden-seed determinism + headless balance batches
-│  └─ e2e/                  # playwright: install, offline, scoping, smoke
-└─ tools/                   # sw manifest generation, asset pipeline, benchmarks
+│  ├─ invariants/           # the INV-* suite from 12 §3
+│  ├─ visual/               # playwright screenshot baselines
+│  └─ e2e/                  # playwright: install, offline, update, repair, scoping, smoke
+├─ docs/                    # generated traceability report
+└─ tools/                   # sw manifest, spec-trace, asset pipeline, sim runner, benchmarks
 ```
 
 ## 5. The sport module seam
@@ -156,7 +164,11 @@ export interface SportModule<S extends SportState = SportState> {
 
 `SportEvent`s (shot, goal, foul, turnover, save, period-end…) are the one currency flowing outward:
 achievements, stats, XP, and the economy all subscribe to that stream and never inspect sport
-internals.
+internals — and, critically, never inspect which *mode* produced them (INV-9).
+
+The interface grows two more members for the Playbook and Arcade modes — `playbook: PlaybookAdapter`
+and `arcade: ArcadeGameDef[]` — defined in [`09-modes-and-arcade.md`](./09-modes-and-arcade.md) §5.
+Adding a sport is still one module; it just carries three modes' worth of content.
 
 ## 6. Engine architecture
 
@@ -177,11 +189,18 @@ weights; the framework, difficulty modifiers, and reaction-latency queues are sh
 adjusts latency, scoring noise, execution error, and aggression — never attributes.
 
 **Match state machine.** `PreMatch → Live → Stoppage → PeriodBreak → Final`, with an event bus that
-feeds HUD, stats, achievements, XP, and the replay recorder.
+feeds HUD, stats, achievements, XP, and the replay recorder. Playbook runs the same machine with
+turns in place of ticks; Arcade sessions emit into the same bus.
 
 **Rendering.** Canvas 2D with layered draws (field, shadows, athletes, ball, effects, HUD),
 off-screen canvases for static field layers, distance-based LOD, and a reduced-motion path that
 disables shake and heavy particles.
+
+## 6a. Update and offline lifecycle
+
+The service-worker caching strategy, update detection and application, offline integrity self-check,
+and the Repair flow are specified in full in [`11-pwa-lifecycle.md`](./11-pwa-lifecycle.md). They are
+Phase 0 work, not a later hardening pass.
 
 ## 7. State, persistence, migrations
 
