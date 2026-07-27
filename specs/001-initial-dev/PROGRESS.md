@@ -12,18 +12,21 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-3.2 — Attribute system: budget rules, sandbox flag, random roll
+- **Task:** T-3.3 — Derivation engine: weight matrix, physical modifiers, unit-tested invariants
 - **Status:** in_progress
 - **Started:** 2026-07-27
 - **Branch commit:** (see `git log`)
 - **Done so far:**
-  - [x] T-3.1 — schema, store indexes, repository (done, committed)
-  - [ ] Budget validation and the sandbox flag
-  - [ ] Seeded random roll by rarity band
-  - [ ] The athlete factory every other creation path goes through
-- **Next step:** write `src/athletes/tuning.ts` (the `05` numbers) and `src/athletes/attributes.ts`
-  (budget + roll), against `05` §2.1 and §4.
-- **Files touched:** src/athletes/types.ts, src/athletes/repository.ts, src/storage/idb.ts
+  - [x] T-3.1 — schema, store indexes, repository
+  - [x] T-3.2 — budget, sandbox, seeded roll, the athlete factory
+  - [ ] Weight matrix for basketball and soccer (`05` §3.1, §3.2), in `tuning.ts`
+  - [ ] `deriveRatings()` — raw → familiarity gate → skill bonus
+  - [ ] Overall and position fit (`05` §3.4)
+  - [ ] Invariant tests: rows sum to 1.0, monotonic in every weighted attribute, 1–99
+- **Next step:** add the two weight tables to `src/athletes/tuning.ts`, then write
+  `src/athletes/derivation.ts` implementing `05` §3's three stages. Familiarity *growth* is T-3.4;
+  T-3.3 only reads the current value through `famMult`.
+- **Files touched:** src/athletes/{types,repository,tuning,attributes,create}.ts, src/storage/idb.ts
 - **Blockers:** none for Phase 3. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
   top of that debt, deliberately, and Gate 3 inherits it.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
@@ -48,7 +51,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
-| 3 | Athletes, cross-sport ratings, roster | 17 | 1 | `in_progress` | v0.2 |
+| 3 | Athletes, cross-sport ratings, roster | 17 | 2 | `in_progress` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
@@ -57,7 +60,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **45** | | |
+| | **Total** | **170** | **46** | | |
 
 ---
 
@@ -127,8 +130,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
 | T-3.1 | Athlete schema, IndexedDB store, indexes, repository | M | `done` | | `tests/unit/athletes/types.test.ts`, `tests/integration/storage/athletes.test.ts` | `auto` — repository exercised against real IndexedDB | Schema written against `05` §2 field for field; bounds live beside it, the creation *budget* does not (that is T-3.2's, in `tuning.ts`). **Bug found:** the `athletes` store's `byName` index from T-0.11 pointed at `name`, a property no athlete has, so it indexed nothing — the roster browser would have sorted on an empty index. Now `byDisplayName`. IndexedDB has no "alter index", so `openDatabase` now reconciles: creates what is missing, drops what is undeclared, rebuilds a changed key path. `DB_VERSION` 1 → 2; no entry in the *data* chain, since an index is derived and a backup carries none. Search normalises accents, so `ibrahimovic` finds `Ibrahimović`. |
-| T-3.2 | Attribute system: the eleven attributes, budget rules, sandbox flag, random roll | M | `in_progress` | | | | |
-| T-3.3 | Derivation engine: weight matrix, physical modifiers, unit-tested invariants | L | `todo` | | | | |
+| T-3.2 | Attribute system: the eleven attributes, budget rules, sandbox flag, random roll | M | `done` | | `tests/unit/athletes/attributes.test.ts`, `tests/unit/athletes/create.test.ts` | `auto` — roll checked as a property across all five rarities | `tuning.ts` holds every `05` number so a balance pass never touches logic. Sandbox is a *flag, not a refusal*: `judgeCreation` returns the reason and points at Settings, because `05` §2.1 is explicit that the make-Messi fantasy stays available. The roll draws each attribute around the band average and then settles to the exact total; the settle step picks its ±1 targets from the RNG rather than walking in order, because "first attribute with room" is a systematic bias toward `speed` — the same shape as an id-order tie-break. There is a test for it. `fitToBudget` scales only the headroom above the floor, so a shooter stays a shooter. `createAthlete` clamps rather than throws and omits absent optionals entirely (`exactOptionalPropertyTypes`, and an `undefined` value is a real IndexedDB key). |
+| T-3.3 | Derivation engine: weight matrix, physical modifiers, unit-tested invariants | L | `in_progress` | | | | |
 | T-3.4 | Familiarity model: per-sport familiarity, penalty curve, growth from minutes | L | `todo` | | | | |
 | T-3.5 | Sport skill XP: levels, sub-skills, event-driven awards, diminishing returns | L | `todo` | | | | |
 | T-3.6 | Behavioural coupling: familiarity → decision noise, control error, reaction penalty in-sim | M | `todo` | | | | |
