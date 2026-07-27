@@ -1,0 +1,68 @@
+## @spec 001-initial-dev · @phase 0 · @task T-0.15 · @design 04-architecture.md §2, §10
+##
+## Deploys to GitHub Pages on a tag. `04` §10: `main` always equals the live site, and the base
+## path comes from `GITHUB_REPOSITORY`, so renaming the repository needs no code change.
+##
+## `sw.js` and `version.json` must not be served from a long-lived cache. GitHub Pages sets its
+## own headers, which is why `11` §2 makes the app resilient without relying on them: the worker
+## treats both as network-first, and the browser re-checks `sw.js` by specification.
+
+name: Deploy
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # A tag deploy still runs the gate: a broken build must never reach the live site.
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+      - name: Build with the repository-derived base path
+        run: pnpm build
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Bundle-size budget
+        run: pnpm budget
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

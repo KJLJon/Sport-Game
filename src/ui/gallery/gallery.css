@@ -1,0 +1,67 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   0 — Foundation, PWA shell, update & offline lifecycle
+ * @task    T-0.4 — Design tokens + primitive components + dev-only component gallery route
+ * @story   US-13.2 — The game looks and feels designed, not assembled
+ * @design  10-ui-ux.md §5
+ *
+ * Purpose: layout for the dev gallery only. Ships in dev builds; the route is code-split so this
+ * never reaches a production bundle.
+ */
+
+.gallery {
+  display: grid;
+  gap: var(--space-32);
+  max-width: 1100px;
+}
+
+.gallery__note {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.gallery__section {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.gallery__heading {
+  margin: 0;
+  padding-bottom: var(--space-8);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-24);
+}
+
+.gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-16);
+}
+
+.gallery__item {
+  display: grid;
+  gap: var(--space-8);
+  margin: 0;
+}
+
+.gallery__stage {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  padding: var(--space-16);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-0);
+  overflow: hidden;
+}
+
+.gallery__stage > * {
+  max-width: 100%;
+}
+
+.gallery__caption {
+  color: var(--text-lo);
+  font-size: var(--text-12);
+  font-family: ui-monospace, 'SF Mono', menlo, monospace;
+}

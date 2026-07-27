@@ -1,0 +1,141 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   0 — Foundation, PWA shell, update & offline lifecycle
+ * @task    T-0.4 — Design tokens + primitive components + dev-only component gallery route
+ * @story   US-13.2 — The game looks and feels designed, not assembled
+ * @design  10-ui-ux.md §3.1 (palette), §3.2 (type and space), §3.3 (motion), §11 (accessibility)
+ *
+ * Purpose: every colour, size, radius, and duration in the app. Components reference tokens and
+ * never literal values, so theme, UI scale, and reduced motion are all one switch each.
+ */
+
+:root {
+  /* ── Palette · dark (`10` §3.1) ─────────────────────────────────────────── */
+  --surface-0: #0b0f14;
+  --surface-1: #131a22;
+  --surface-2: #1c2530;
+  --text-hi: #f2f6fa;
+  --text-lo: #94a3b4;
+  --accent: #3ddc91;
+  --accent-alt: #ffb020;
+  --danger: #ff5c5c;
+  --info: #4ea8ff;
+
+  /* Text placed on a filled accent/danger surface. Dark ink on the bright greens and ambers
+     is what keeps these combinations above the AA contrast line (`10` §11). */
+  --on-accent: #06210f;
+  --on-accent-alt: #241700;
+  --on-danger: #2a0707;
+  --on-info: #04121f;
+
+  --border: #263140;
+  --overlay: rgb(4 8 12 / 62%);
+
+  /* ── UI scale (`10` §3.2 — user setting, 0.85×–1.3×) ─────────────────────── */
+  --ui-scale: 1;
+
+  /* ── Type scale · 12/14/16/20/24/32/44, rem-based ────────────────────────── */
+  --text-12: calc(0.75rem * var(--ui-scale));
+  --text-14: calc(0.875rem * var(--ui-scale));
+  --text-16: calc(1rem * var(--ui-scale));
+  --text-20: calc(1.25rem * var(--ui-scale));
+  --text-24: calc(1.5rem * var(--ui-scale));
+  --text-32: calc(2rem * var(--ui-scale));
+  --text-44: calc(2.75rem * var(--ui-scale));
+
+  --font-body: system-ui, -apple-system, 'Segoe UI', roboto, sans-serif;
+  /* Tabular figures so ratings and scores don't jitter as they tick (`10` §3.2). */
+  --font-numeric: 'tabular-nums';
+
+  /* ── Space · 4/8/12/16/24/32/48 ──────────────────────────────────────────── */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+
+  /* ── Radii · 8/12/20/full ────────────────────────────────────────────────── */
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-20: 20px;
+  --radius-full: 999px;
+
+  /* ── Targets (`10` §3.2) ─────────────────────────────────────────────────── */
+  --target-min: 44px;
+  --target-primary: 56px;
+
+  /* ── Motion (`10` §3.3) ──────────────────────────────────────────────────── */
+  --dur-micro: 90ms;
+  --dur-screen: 180ms;
+  --dur-reveal: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --elevation-1: 0 1px 2px rgb(0 0 0 / 30%);
+  --elevation-2: 0 8px 24px rgb(0 0 0 / 40%);
+
+  color-scheme: dark;
+}
+
+/* ── Light theme ───────────────────────────────────────────────────────────── */
+
+:root[data-theme='light'] {
+  --surface-0: #f7f8fa;
+  --surface-1: #ffffff;
+  --surface-2: #eef1f5;
+  --text-hi: #0d1319;
+  --text-lo: #5a6673;
+  /* Darker than `10` §3.1's starting values: the audit in T-0.16 found #0F9D58 and #1668C1 below
+     the AA 4.5:1 line both as text on surface-0 and as a fill behind white. These clear it. */
+  --accent: #0b7a43;
+  --accent-alt: #e08600;
+  --danger: #d93636;
+  --info: #0f5aab;
+
+  --on-accent: #ffffff;
+  /* Amber is too light to carry white text at any usable saturation, so its ink stays dark. */
+  --on-accent-alt: #241700;
+  --on-danger: #ffffff;
+  --on-info: #ffffff;
+
+  --border: #d6dce4;
+  --overlay: rgb(13 19 25 / 45%);
+  --elevation-1: 0 1px 2px rgb(13 19 25 / 10%);
+  --elevation-2: 0 8px 24px rgb(13 19 25 / 16%);
+
+  color-scheme: light;
+}
+
+/* Follows the OS unless the player has chosen a theme explicitly. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --surface-0: #f7f8fa;
+    --surface-1: #ffffff;
+    --surface-2: #eef1f5;
+    --text-hi: #0d1319;
+    --text-lo: #5a6673;
+    --accent: #0b7a43;
+    --accent-alt: #e08600;
+    --danger: #d93636;
+    --info: #0f5aab;
+    --on-accent: #ffffff;
+    --on-accent-alt: #241700;
+    --on-danger: #ffffff;
+    --on-info: #ffffff;
+    --border: #d6dce4;
+    --overlay: rgb(13 19 25 / 45%);
+
+    color-scheme: light;
+  }
+}
+
+/* ── Reduced motion (`10` §3.3, §11) ───────────────────────────────────────── */
+
+:root[data-motion='reduced'] {
+  --dur-micro: 0ms;
+  --dur-screen: 0ms;
+  --dur-reveal: 0ms;
+}
