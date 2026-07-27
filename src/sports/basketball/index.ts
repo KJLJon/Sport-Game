@@ -28,7 +28,6 @@ import {
   attach,
   canCatch,
   createBall,
-  release,
   stepBall,
   type BallState,
 } from '../../engine/physics/ball.ts';
@@ -50,6 +49,21 @@ import {
   type ShotMeter,
   type ShotMovementName,
 } from './shooting.ts';
+import {
+  PASSING,
+  ballSpeed,
+  canIntercept,
+  catchControl,
+  contest as contestCatch,
+  interceptControl,
+  leadTarget,
+  selectPassTarget,
+  throwPass,
+  type InterceptorRatings,
+  type PassInFlight,
+  type PasserRatings,
+  type ReceiverRatings,
+} from './passing.ts';
 import type {
   ActionIntent,
   MatchSetup,
@@ -120,8 +134,8 @@ export interface BasketballState extends SportState {
   readonly sides: Map<EntityId, CourtSide>;
   /** Index into `roles.roles`, per athlete. */
   readonly roleIndex: Map<EntityId, number>;
-  /** Shooting ratings, per athlete. Real athletes replace these at T-3.17. */
-  readonly ratings: Map<EntityId, ShooterRatings>;
+  /** Basketball ratings, per athlete. Real athletes replace these at T-3.17. */
+  readonly ratings: Map<EntityId, AthleteRatings>;
   /** The shot being charged, if any — at most one, since only the carrier can shoot. */
   meter: ShotMeter | null;
   /** Who is charging it, and the hold a CPU shooter is aiming for. */
@@ -129,6 +143,8 @@ export interface BasketballState extends SportState {
   cpuRelease: number;
   /** The ball's current flight, or `null`. */
   shot: ShotInFlight | null;
+  /** The pass currently in the air, or `null`. */
+  pass: PassInFlight | null;
   /** True between a miss and whoever collects it — what makes the next catch a rebound. */
   reboundLive: boolean;
   readonly playerSide: 0 | 1 | -1;
@@ -193,6 +209,12 @@ const SHOT_IDEAL_HOLD = 30;
 /** Where a perimeter ball-handler stops rather than driving — comfortably behind the arc. */
 const PULL_UP_DISTANCE = 7.9;
 
+/**
+ * Pass-assist strength (`06` §2). One number, on the player's side of the ball, widening the cone
+ * target selection snaps within. Difficulty sets it from T-7.x; until then, "moderate" (INV-1).
+ */
+const PASS_ASSIST = 1;
+
 export const basketball: SportModule<BasketballState> = {
   id: 'basketball',
   meta: { displayName: 'Basketball', squadSize: 5, periodName: 'Quarter' },
@@ -209,7 +231,7 @@ export const basketball: SportModule<BasketballState> = {
     const profiles = new Map<EntityId, MovementProfile>();
     const sides = new Map<EntityId, CourtSide>();
     const roleIndex = new Map<EntityId, number>();
-    const ratings = new Map<EntityId, ShooterRatings>();
+    const ratings = new Map<EntityId, AthleteRatings>();
 
     // Rosters come from their own fork, so adding a draw elsewhere cannot change who is fast.
     const rosterRng = rng.fork('roster');
@@ -266,6 +288,7 @@ export const basketball: SportModule<BasketballState> = {
       shooter: NO_ENTITY,
       cpuRelease: 0,
       shot: null,
+      pass: null,
       reboundLive: false,
       playerSide: setup.playerSide,
       controlled,
@@ -300,10 +323,12 @@ export const basketball: SportModule<BasketballState> = {
 
     events.push(...advanceRestart(state, world, rng));
     events.push(...driveShooting(state, world, inputs, rng));
+    events.push(...drivePassing(state, world, inputs, rng));
     events.push(...resolveFlight(state, world, rng));
+    events.push(...resolvePass(state, world, rng));
 
     // A ball in flight is nobody's to catch — that is what makes a shot a shot.
-    if (ball.carrier === NO_ENTITY && state.shot === null) {
+    if (ball.carrier === NO_ENTITY && state.shot === null && state.pass === null) {
       events.push(...collectLooseBall(state, world));
     }
 
@@ -330,25 +355,16 @@ export const basketball: SportModule<BasketballState> = {
     action: ActionIntent,
     rng: Rng,
   ): readonly SportEvent[] {
-    if (state.ballState.carrier !== actor) return [];
-    if (action.kind !== 'pass') return [];
-
-    // Shooting is T-2.3 and real passing is T-2.4; this is enough to move the ball and to make
-    // the rule book's turnover paths reachable from a test.
-    const facing = world.facing[actor] as number;
-    const spread = rng.float(-0.05, 0.05);
-    const power = action.power ?? 11;
-    release(
-      world,
-      state.ballState,
-      Math.cos(facing + spread) * power,
-      Math.sin(facing + spread) * power,
-      1.4,
-    );
-
+    if (state.ballState.carrier !== actor || action.kind !== 'pass') return [];
     const side = state.sides.get(actor);
-    if (side !== undefined) registerTouch(state.rules, side);
-    return [event(EventKind.PASS, state.step, side ?? -1, { actor })];
+    if (side === undefined) return [];
+
+    const target =
+      action.target !== undefined && state.sides.get(action.target) === side
+        ? action.target
+        : pickTarget(state, world, actor, side, action.targetX ?? 0, action.targetY ?? 0);
+
+    return makePass(state, world, actor, side, target, action.power ?? 1, rng);
   },
 
   isFinished(): boolean {
@@ -530,8 +546,256 @@ function cpuWantsToShoot(
   return false;
 }
 
-/** Seeded shooting ratings, biased by role — guards shoot, bigs finish. Replaced at T-3.17. */
-function rollRatings(rng: Rng, roleIndex: number): ShooterRatings {
+/**
+ * Passing, from the player's thumb or the CPU's judgement.
+ *
+ * A pass and a shot are the same gesture from the sim's point of view — the ball leaves with a
+ * velocity — but they fail differently, which is why they are separate modules and separate state.
+ */
+function drivePassing(
+  state: BasketballState,
+  world: World,
+  inputs: ReadonlyMap<EntityId, InputFrame>,
+  rng: Rng,
+): SportEvent[] {
+  const carrier = state.ballState.carrier;
+  if (carrier === NO_ENTITY || state.rules.restart !== null) return [];
+  // A shot being charged owns the ball; you cannot pass out of the release.
+  if (state.meter !== null) return [];
+
+  const side = state.sides.get(carrier);
+  if (side === undefined) return [];
+
+  const input = inputs.get(carrier);
+
+  if (input !== undefined) {
+    if (!wasPressed(input, Button.B)) return [];
+    const target = pickTarget(state, world, carrier, side, input.moveX, input.moveY);
+    return makePass(state, world, carrier, side, target, 1, rng);
+  }
+
+  // Placeholder judgement, replaced by T-2.8: move the ball when the pressure says to.
+  if (contestOn(state, world, carrier, side) < 0.5) return [];
+  if (!rng.bool(0.06)) return [];
+
+  const target = mostOpenTeammate(state, world, carrier, side);
+  if (target === NO_ENTITY) return [];
+  return makePass(state, world, carrier, side, target, 1, rng);
+}
+
+/** Pass assist: the teammate nearest the aim, or the nearest teammate if there is no aim. */
+function pickTarget(
+  state: BasketballState,
+  world: World,
+  passer: EntityId,
+  side: CourtSide,
+  aimX: number,
+  aimY: number,
+): EntityId {
+  const mates: EntityId[] = [];
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    if (id !== passer && state.sides.get(id) === side) mates.push(id);
+  });
+
+  return selectPassTarget(
+    world,
+    { x: world.x[passer] as number, y: world.y[passer] as number },
+    aimX,
+    aimY,
+    mates,
+    PASS_ASSIST,
+  );
+}
+
+/** The teammate with the most space, at a distance worth passing. Placeholder for T-2.8. */
+function mostOpenTeammate(
+  state: BasketballState,
+  world: World,
+  passer: EntityId,
+  side: CourtSide,
+): EntityId {
+  let best = NO_ENTITY;
+  let bestSpace = 1.5;
+
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    if (id === passer || state.sides.get(id) !== side) return;
+
+    const away = Math.hypot(
+      (world.x[id] as number) - (world.x[passer] as number),
+      (world.y[id] as number) - (world.y[passer] as number),
+    );
+    if (away < 3 || away > 16) return;
+
+    const space = nearestOpponentDistance(state, world, id, side);
+    if (space > bestSpace) {
+      bestSpace = space;
+      best = id;
+    }
+  });
+
+  return best;
+}
+
+/** Throws it, and says so. */
+function makePass(
+  state: BasketballState,
+  world: World,
+  passer: EntityId,
+  side: CourtSide,
+  target: EntityId,
+  power: number,
+  rng: Rng,
+): SportEvent[] {
+  const ratings = state.ratings.get(passer);
+  if (ratings === undefined) return [];
+
+  const from = { x: world.x[passer] as number, y: world.y[passer] as number };
+  const lead =
+    target === NO_ENTITY
+      ? {
+          x: from.x + Math.cos(world.facing[passer] as number) * 6,
+          y: from.y + Math.sin(world.facing[passer] as number) * 6,
+          flightTime: 0.5,
+        }
+      : leadTarget(world, from, target, power);
+
+  const pressure = contestOn(state, world, passer, side);
+  state.pass = throwPass(
+    world,
+    state.ballState,
+    passer,
+    side,
+    target,
+    lead.x,
+    lead.y,
+    lead.flightTime,
+    ratings,
+    pressure,
+    state.step,
+    rng,
+  );
+  registerTouch(state.rules, side);
+  state.reboundLive = false;
+
+  return [
+    event(EventKind.PASS, state.step, side, {
+      actor: passer,
+      ...(target === NO_ENTITY ? {} : { target }),
+      x: from.x,
+      y: from.y,
+      detail: { lead: round3(state.pass.leadDistance), pressure: round3(pressure) },
+    }),
+  ];
+}
+
+/**
+ * Resolves a pass in the air: anyone who gets a hand to it may take it.
+ *
+ * Opponents are offered the ball first at equal reach, because a defender in the lane is *in front
+ * of* the receiver — that is what jumping a passing lane means. Their control is deliberately lower
+ * than a receiver's, so a covered lane mostly produces a deflection rather than a clean steal.
+ */
+function resolvePass(state: BasketballState, world: World, rng: Rng): SportEvent[] {
+  const pass = state.pass;
+  if (pass === null) return [];
+
+  if (state.ballState.carrier !== NO_ENTITY || state.step > pass.expireStep) {
+    state.pass = null;
+    return [];
+  }
+
+  const speed = ballSpeed(world, state.ballState);
+  const events: SportEvent[] = [];
+
+  const jumpable = state.step - pass.releaseStep >= PASSING.interceptDelaySteps;
+
+  for (const wantOpponent of [true, false]) {
+    if (wantOpponent && !jumpable) continue;
+    let taker = NO_ENTITY;
+    world.forEach((id) => {
+      if (taker !== NO_ENTITY) return;
+      if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+      const isOpponent = state.sides.get(id) !== pass.side;
+      if (isOpponent !== wantOpponent) return;
+      if (id === pass.passer || pass.contested.includes(id)) return;
+      if (canIntercept(world, state.ballState, id)) taker = id;
+    });
+    if (taker === NO_ENTITY) continue;
+
+    const ratings = state.ratings.get(taker);
+    const side = state.sides.get(taker);
+    if (ratings === undefined || side === undefined) continue;
+    pass.contested.push(taker);
+
+    const control = wantOpponent ? interceptControl(ratings) : catchControl(ratings, speed);
+    if (!contestCatch(world, state.ballState, taker, control, rng)) {
+      // Deflected. The ball is loose and it is nobody's pass any more.
+      state.pass = null;
+      registerTouch(state.rules, side);
+      return [
+        event(EventKind.SPORT, state.step, side, {
+          sportKind: BasketballEvent.PASS_DEFLECTED,
+          actor: taker,
+        }),
+      ];
+    }
+
+    state.pass = null;
+    if (wantOpponent) {
+      events.push(
+        event(EventKind.TURNOVER, state.step, pass.side, { detail: { reason: 'intercepted' } }),
+      );
+      events.push(
+        event(EventKind.SPORT, state.step, side, {
+          sportKind: BasketballEvent.INTERCEPTION,
+          actor: taker,
+        }),
+      );
+    }
+
+    events.push(
+      ...grantPossession(
+        state.rules,
+        side,
+        state.step,
+        wantOpponent ? ShotClockReset.FULL : ShotClockReset.KEEP,
+        world.x[taker] as number,
+        taker,
+      ),
+    );
+    return events;
+  }
+
+  return events;
+}
+
+/** Distance from an athlete to the nearest opponent. */
+function nearestOpponentDistance(
+  state: BasketballState,
+  world: World,
+  actor: EntityId,
+  side: CourtSide,
+): number {
+  let nearest = Infinity;
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    if (state.sides.get(id) === side) return;
+    const d = Math.hypot(
+      (world.x[id] as number) - (world.x[actor] as number),
+      (world.y[id] as number) - (world.y[actor] as number),
+    );
+    if (d < nearest) nearest = d;
+  });
+  return nearest;
+}
+
+/** Everything an athlete's basketball actions read. Real athletes replace this at T-3.17. */
+type AthleteRatings = ShooterRatings & PasserRatings & ReceiverRatings & InterceptorRatings;
+
+/** Seeded ratings, biased by role — guards shoot and pass, bigs finish. Replaced at T-3.17. */
+function rollRatings(rng: Rng, roleIndex: number): AthleteRatings {
   const perimeter = roleIndex <= 1;
   const shot = rng.int(perimeter ? 55 : 35, perimeter ? 88 : 68);
   const inside = rng.int(perimeter ? 45 : 62, perimeter ? 75 : 92);
@@ -541,6 +805,9 @@ function rollRatings(rng: Rng, roleIndex: number): ShooterRatings {
     threePoint: shot,
     freeThrow: rng.int(55, 90),
     composure: rng.int(40, 85),
+    passing: rng.int(perimeter ? 55 : 40, perimeter ? 90 : 72),
+    ballHandling: rng.int(perimeter ? 60 : 35, perimeter ? 92 : 68),
+    perimeterD: rng.int(perimeter ? 50 : 35, perimeter ? 88 : 70),
   };
 }
 

@@ -163,6 +163,23 @@ describe('a basketball match', () => {
     expect(sides.filter((s) => s === 1).length).toBeGreaterThan(3);
   });
 
+  it('moves the ball — passes are thrown, caught, and sometimes read', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const passes = of(events, EventKind.PASS);
+    const intercepts = of(events, BasketballEvent.INTERCEPTION);
+    const turnovers = of(events, EventKind.TURNOVER);
+
+    expect(passes.length).toBeGreaterThan(5);
+    for (const pass of passes) {
+      expect(pass.actor).toBeGreaterThanOrEqual(0);
+      expect([0, 1]).toContain(pass.side);
+    }
+
+    // Interceptions happen, and every one of them is a turnover against the passing side.
+    expect(intercepts.length).toBeLessThan(passes.length / 2);
+    expect(turnovers.length).toBeGreaterThanOrEqual(intercepts.length);
+  });
+
   it('keeps every athlete on the court', () => {
     const { world } = play('bounds', 3000);
     world.forEach((id) => {

@@ -102,6 +102,8 @@ export const BasketballEvent = {
   BACKCOURT_VIOLATION: 'basketball.violation.backcourt',
   INBOUND_VIOLATION: 'basketball.violation.inbound',
   OUT_OF_BOUNDS: 'basketball.outOfBounds',
+  PASS_DEFLECTED: 'basketball.passDeflected',
+  INTERCEPTION: 'basketball.interception',
   RESTART: 'basketball.restart',
   RESTART_READY: 'basketball.restartReady',
   RESTART_COMPLETE: 'basketball.restartComplete',

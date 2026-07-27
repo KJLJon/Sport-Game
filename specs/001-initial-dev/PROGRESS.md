@@ -12,21 +12,19 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-2.4 — Passing: aimed, lead passes, interceptions, turnovers
+- **Task:** T-2.5 — Dribbling & driving: handling control, contact absorption, blow-by
 - **Status:** in_progress
 - **Started:** 2026-07-27
 - **Branch commit:** (see `git log`)
 - **Done so far:**
-  - [x] T-2.1 — court geometry (`done`)
-  - [x] T-2.2 — rules, clocks, possession, out-of-bounds, restarts (`done`)
-  - [x] T-2.3 — shooting: meter, probability model, arc, scoring (`done`)
-  - [ ] Aimed passing with a chosen target
-  - [ ] Lead passes to a moving receiver
-  - [ ] Interceptions and the turnovers they cause
-- **Next step:** `src/sports/basketball/passing.ts`. `resolveAction`'s `pass` branch in
-  `index.ts` is the throwaway placeholder it replaces; `launchVelocity` in the engine's ball
-  physics is what a lead pass should be solved with.
-- **Files touched:** src/sports/basketball/{court,court-render,rules,weights,shooting,index}.ts
+  - [x] T-2.1 court geometry · T-2.2 rules · T-2.3 shooting · T-2.4 passing (all `done`)
+  - [ ] Handling control: ball-security draw from `ballHandling` under pressure
+  - [ ] Contact absorption on a drive, resolved by strength vs agility
+  - [ ] Blow-by: beating a defender off the dribble
+- **Next step:** `src/sports/basketball/dribbling.ts`. The carrier currently moves with the plain
+  `integrate` profile and never loses the ball except to a pass or a shot; T-2.5 is what makes
+  carrying it a skill.
+- **Files touched:** src/sports/basketball/{court,court-render,rules,weights,shooting,passing,index}.ts
 - **Blockers:** none.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
   branches locally with `pnpm verify`, `pnpm bench`, and `pnpm e2e`. Formatting and auto-fixable
@@ -46,7 +44,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
-| 2 | Basketball · Live | 13 | 3 | `in_progress` | v0.1 |
+| 2 | Basketball · Live | 13 | 4 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
@@ -56,7 +54,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **34** | | |
+| | **Total** | **170** | **35** | | |
 
 ---
 
@@ -110,7 +108,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-2.1 | Court geometry, zones, arc, key, hoop, boundaries | M | `done` | | `tests/unit/sports/basketball/{court,court-render}.test.ts` | `auto` | FIBA dimensions in metres (28 × 15), origin at a corner, `goals[side]` is the basket that side *defends* — same convention as the seam. The three-point test is deliberately two rules, not one: beyond the arc **or** outside the straight corner lines, because a distance-only test scores the corner three as a two. World bounds equal court bounds, so an inbounder stands on the line rather than a metre behind it; nothing in the rules depends on that metre. `court-render.ts` draws the line art from the same constants, and its test asserts the arc's radius and sweep match the rules' — the one piece of art with a derived shape. |
 | T-2.2 | Basketball rules: quarters, game clock, shot clock, possession, out-of-bounds, restarts | L | `done` | | `tests/unit/sports/basketball/rules.test.ts`, `tests/integration/sports/basketball-match.test.ts` | `auto` | Clock compression is 4× — a three-real-minute quarter showing 12:00 (`06` §3.1) — and it is *derived* from the two quarter figures rather than authored, so the pair can never disagree. Every duration is written in game seconds, the number on the HUD, and converted to steps in one place. The shot clock is therefore 24 on screen and six real seconds in the hand, which gives ~23 possessions a quarter. Two bugs found in the first headless run: the five-second inbound count was running while the inbounder was still sprinting the length of the court (it now starts when they *have* the ball, which is the real rule), and the setup counter was not reset on a new restart, so violations cascaded. Simplification: every restart gives a fresh 24, where the real rules sometimes keep the remaining clock. Fouls, free throws, and the bonus are T-2.7 — the state shape has room for them. |
 | T-2.3 | Shooting: hold-release meter, arc trajectory, make probability from ratings × distance × pressure × release | L | `done` | | `tests/unit/sports/basketball/shooting.test.ts`, `tests/integration/sports/basketball-match.test.ts` | `auto` | The outcome is decided at release and the trajectory is then aimed to match — dead at the rim for a make, deliberately off it for a miss. Letting collision decide would make the make rate a property of the physics tuning rather than of the athlete, which is the one thing `06` §3.1 rules out. The model is multiplicative, so a smothered elite shooter is still a bad shot; each of the seven terms `06` §3.1 names has a test that moves only that term. Difficulty enters through exactly one number — `timingAssist`, which scales the *player's* release window — and never appears in the probability model (INV-1). Player and CPU share the meter; the CPU's release is a seeded target hold. **Feel note:** untested by hand — the meter has no HUD until T-2.10, so the timing is currently a number rather than a feeling. Headless, a game runs 75–52 on ~135 shots at ~46%, which is the right shape and the wrong shot chart: nearly everything is at the rim because shot selection is still a placeholder (T-2.8). |
-| T-2.4 | Passing: aimed, lead passes, interceptions, turnovers | M | `todo` | | | | |
+| T-2.4 | Passing: aimed, lead passes, interceptions, turnovers | M | `done` | | `tests/unit/sports/basketball/passing.test.ts`, `tests/integration/sports/basketball-match.test.ts` | `auto` | Unlike a shot, a pass is *flown* rather than resolved at release: whether it arrives depends on where five defenders happen to be while it is in the air, so interceptions fall out of proximity — which is also what makes jumping a lane something a player can do rather than a die the sim rolls for them. The lead is solved in two iterations, because one uses the receiver's current position and is wrong exactly when the lead matters. Two bugs found headless: a defender draped over the passer was inside catching range the instant the ball left the hand (there is now a six-step delay — taking it out of someone's hands is a *steal*, T-2.7), and a pass spends ten-odd steps inside a defender's reach, so each defender now gets one read per pass rather than ten. Interceptions went from 37% of passes to ~5%. Difficulty's only lever is the pass-assist cone width (INV-1). |
 | T-2.5 | Dribbling & driving: handling control, contact absorption, blow-by | L | `todo` | | | | |
 | T-2.6 | Rebounding: height/vertical/strength/box-out/timing contest | M | `todo` | | | | |
 | T-2.7 | Defence: marking, contest, steal, block, foul model, free throws | L | `todo` | | | | |
@@ -341,6 +339,7 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 | 2026-07-27 | T-2.2 | No eight-second backcourt count | At 4× clock compression it gives a ball-handler two real seconds to cover fourteen real metres — not a rule, a guaranteed turnover. It cost one team 79 of them in the first headless game. `06` §3.1 asks for the *backcourt violation*, which is the over-and-back rule, and that is implemented. |
 | 2026-07-27 | T-2.3 | A shot's outcome is drawn at release; the trajectory is then aimed to match it | The alternative — fly the ball and let collision decide — makes the make rate a property of the physics tuning rather than of the athlete's ratings, which `06` §3.1 explicitly rules out. The ball still travels a real arc and a miss still caroms off a real rim. |
 | 2026-07-27 | T-2.3 | Placeholder shot selection got two small tweaks it did not strictly need | Without a pull-up behaviour for perimeter roles, every possession was a drive and the three-point half of the shooting model never ran in a real match. Both tweaks are T-2.8's to replace. |
+| 2026-07-27 | T-2.4 | A pass is flown and resolved by proximity; a shot is resolved at release | They fail differently. A shot's outcome depends only on the shooter's circumstances at release, so drawing it there keeps the make rate a property of the athlete. A pass's outcome depends on where the defence is *during* the flight, which cannot be known at release without simulating it. |
 
 ---
 
