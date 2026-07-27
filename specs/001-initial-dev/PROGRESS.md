@@ -12,20 +12,20 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** Gate 1 evaluation
-- **Status:** in_progress
-- **Started:** 2026-07-27
-- **Branch commit:** (see `git log` on `claude/phase-1-token-optimizations-g7sjm3`)
-- **Done so far:** all thirteen Phase-1 tasks are `done`. Remaining for the gate: run the full
-  suite and the benchmark, record the numbers, and evaluate the Gate 1 criteria in `03`.
-- **Next step:** append the Gate 1 record below — determinism evidence, the 22-entity benchmark
-  numbers, and an honest note on what could not be checked without a device or a deployed build.
-- **Files touched:** src/engine/**/*.ts, src/sports/**/*.ts, tools/bench.ts and their tests
-- **Blockers:** none for the gate itself. **Pre-existing, unrelated:** `pnpm test:coverage` fails
-  two `12` §2 thresholds (`src/storage/**` functions, `src/ui/**` lines), identically at Gate 0's
-  merge commit b924762 — Phase-0 debt, raised with the user 2026-07-27.
-- **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27). Formatting
-  is hook-handled (`CLAUDE.md` §11).
+- **Task:** — (none; Phase 1 complete, Gate 1 recorded)
+- **Status:** —
+- **Started:** —
+- **Branch commit:** —
+- **Done so far:** Phase 0 and Phase 1 are `done`. See the Gate 1 record below for what passed,
+  what was deferred, and why.
+- **Next step:** Phase 2 — Basketball · Live, starting with T-2.1 (court geometry, zones, arc,
+  key, hoop, boundaries), which depends on T-1.11 (`done`).
+- **Files touched:** —
+- **Blockers:** none.
+- **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
+  branches locally with `pnpm verify`, `pnpm bench`, and `pnpm e2e`. Formatting and auto-fixable
+  lint are handled by hooks (`CLAUDE.md` §11); never spend a turn on them. In this sandbox the
+  E2E suite needs `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`.
 
 
 > **Resuming after an interruption:** read this block, `git log --oneline -20`, then continue from
@@ -39,7 +39,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
-| 1 | Engine core | 13 | 13 | `in_progress` | — |
+| 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
@@ -334,6 +334,70 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 ---
 
 ## Gate records
+
+### Gate 1 — Engine core
+
+- **Date:** 2026-07-27
+- **Result:** **passed on everything measurable here; one criterion deferred to Phase 2** (below).
+- **Branch:** `claude/phase-1-token-optimizations-g7sjm3`
+
+**Checks run**
+
+| Check | Result |
+|---|---|
+| Typecheck (`tsc -b`, strict) | clean |
+| Lint (ESLint incl. INV-2/3/4/15 rules) + Prettier | clean |
+| Unit / property / integration / invariant / sim suite | **777 passing, 40 files** |
+| Coverage against `12` §2 thresholds | **passing** — overall 90.95% lines, 94.79% functions |
+| E2E + a11y (Playwright, headless Chromium) | **28 passing**, incl. all sixteen `11` §9 scenarios |
+| Bundle budget (`12` §6) | initial JS 9.5 KB / 200 KB · install 91.7 KB / 6 MB |
+| Simulation budget (`12` §6) | **23 entities, sim step p95 0.029 ms / 4 ms budget** |
+| Traceability + PROGRESS checks | clean |
+
+**Gate 1 criteria (`03`)**
+
+| Criterion | Result |
+|---|---|
+| The test sport runs 22 entities at 60 Hz sim | **met** — 23 entities (11 per side plus the ball) at a p95 sim step of 0.029 ms, which is ~1/570th of the 16.7 ms a 60 Hz frame allows |
+| ≥55 fps render on target hardware | **deferred** — the renderer, camera, and perf monitor exist and are unit-tested, but nothing mounts them into a running match screen until Phase 2's Live host. There is no honest fps number to record yet, and a fabricated one would be worse than none |
+| Two runs of the same seed and inputs produce byte-identical state hashes | **met** — `tests/sim/determinism.test.ts` asserts identical hashes step-for-step (not merely at the end) across several seeds, and a recorded match replayed through `InputPlayer` reproduces the live hash sequence exactly |
+
+**Coverage debt paid down.** Gate 0 was recorded as passing, but `pnpm test:coverage` would have
+failed it: `src/storage/**` functions sat at 90.54% (needs 95%) and `src/ui/**` lines at 59.97%
+(needs 70%), because the four Phase-0 screens had no component-state tests and the storage failure
+paths had none either. CI had never run on GitHub, so nothing caught it. `12` §2 forbids lowering a
+threshold to make a build pass, so the gap was closed with real tests rather than a config edit:
+`tests/unit/ui/screens.test.ts`, `tests/unit/ui/app-updates.test.ts`,
+`tests/unit/storage/caches-build.test.ts`, and `tests/integration/storage/idb-queries.test.ts`.
+
+**Bugs found by writing the tests, not by review**
+
+1. **The ball never settled.** Treating "airborne" as `z > radius` alone gave every bounce one
+   gravity-free step of rise, because the step after impact sees the ball exactly at ground height.
+   The injected energy was enough for a permanent low limit cycle. Fixed to `z > radius || vz > 0`.
+2. **`nextPeriod()` before kick-off silently started the match at period 2**, because `preMatch →
+   live` is a legal transition — the one `start()` uses. Methods now guard themselves as well as
+   the transition table does.
+3. **Magnus force accelerated the ball**, because the second velocity component read the
+   half-updated first one. A pass that speeds up in flight is the kind of bug that surfaces as "the
+   ball feels wrong" rather than as a failure.
+
+**Not run, and why**
+
+- **Manual device matrix (`12` §7).** No physical device is available to this session. T-1.9's input
+  layer in particular owes a real-phone pass: thumb feel and the <100 ms input-to-screen latency in
+  US-2.1 are not things a unit test can answer. Recorded against T-1.9 rather than waved through.
+- **Visual regression and Playwright component tests (`12` §1).** Not yet created — Phase 0 covered
+  the primitives with unit tests instead. They become meaningful with Phase 2's match screen, and
+  should be stood up there rather than backfilled against a UI that is about to change.
+- **Tag and deploy (`CLAUDE.md` §5.7).** Deliberately not done from a feature branch: deploy is
+  tag-triggered from `main`, and the branch is not merged. Should follow the merge.
+
+**Feel note.** Not applicable to Phase 1 — nothing here is played directly. The nearest thing to a
+feel signal is that the test sport's athletes visibly accelerate, lean into each other, and lose the
+ball in a scramble, all from ratings rather than from special cases. That is the property Phase 2
+needs, and it is there.
+
 
 ### Gate 0 — Foundation, PWA shell, update & offline lifecycle
 
