@@ -12,17 +12,17 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-1.9 — Input layer: floating joystick, context buttons, handedness mirror, keyboard, gamepad
+- **Task:** T-1.10 — Match state machine + `SportEvent` bus
 - **Status:** in_progress
 - **Started:** 2026-07-27
 - **Branch commit:** (see `git log` on `claude/phase-1-token-optimizations-g7sjm3`)
-- **Done so far:** T-1.1 … T-1.8 `done` (PRNG, loop, world, movement, collision, ball, renderer,
-  camera)
-- **Next step:** `src/engine/input/` per `04` §6 and `10` §4 — one `InputFrame` per sim step,
-  produced from touch, keyboard, or gamepad, so the sim never learns which device it came from
-  (which is also what makes T-1.12's input recording work).
+- **Done so far:** T-1.1 … T-1.9 `done` (PRNG, loop, world, movement, collision, ball, renderer,
+  camera, input)
+- **Next step:** `src/engine/match/` per `04` §6 and `09` §5 — `PreMatch → Live → Stoppage →
+  PeriodBreak → Final` plus the event bus every mode emits into. INV-9 means no consumer may
+  branch on which mode produced an event, so the event shape carries no mode field at all.
 - **Files touched:** src/engine/{rng,loop,world}.ts, src/engine/physics/*.ts,
-  src/engine/render/{renderer,camera}.ts and their tests
+  src/engine/render/*.ts, src/engine/input/*.ts and their tests
 - **Blockers:** none. **Pre-existing, unrelated:** `pnpm test:coverage` fails two `12` §2
   thresholds (`src/storage/**` functions, `src/ui/**` lines), identically at Gate 0's merge commit.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27). Formatting
@@ -40,7 +40,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
-| 1 | Engine core | 13 | 8 | `in_progress` | — |
+| 1 | Engine core | 13 | 9 | `in_progress` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
@@ -51,7 +51,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **26** | | |
+| | **Total** | **170** | **27** | | |
 
 ---
 
@@ -92,7 +92,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-1.6 | Ball physics: position + height, gravity, bounce, spin/curve, possession attach/detach | L | `done` | | `tests/unit/engine/ball.test.ts` | `auto` | The ball lives in the same `World` as the athletes (using `z`/`vz`), so neighbour queries find it for free, and it is flagged `INTANGIBLE` so contact resolution never shoves an athlete off their line as it rolls past. Possession is a state the *ball* holds, not a flag on an athlete: exactly one carrier can exist, so "who has it" is unambiguous and losing it is one assignment. A carried ball does not integrate — it is placed ahead of its carrier, which feels better than simulating a constrained dribble. **Bug found and fixed in test:** treating "airborne" as `z > radius` alone gave every bounce one gravity-free step of rise, injecting enough energy for a permanent low limit cycle — the ball never settled. Airborne is now `z > radius || vz > 0`. Spin is yaw-only (one axis covers curving passes, crosses, and hooks); Magnus reads pre-update velocity so a pass cannot accelerate in flight. `launchVelocity()` solves the vertical component exactly rather than iterating, so the same pass request always produces the same pass. |
 | T-1.7 | Canvas 2D renderer: layers, batching, LOD, off-screen static layers, debug overlay | L | `done` | | `tests/unit/engine/renderer.test.ts` | `auto` | Everything works against `Canvas2D`, the subset of the real context actually used, so layer and LOD policy is unit-tested against a recording double instead of a real canvas — 29 tests, no jsdom. Layer order is fixed and named, not caller-controlled: "why is the ball behind the crowd" is not a bug worth having twice. The HUD layer alone draws in screen space. Three fill-rate levers in payoff order: blit a static field drawn once into an off-screen canvas (keyed on court + theme + size, so a theme switch redraws and nothing else does); batch draws sharing a style so the context changes state once per batch rather than per entity; and drop detail by distance. LOD is *ratio*-based against the viewport half-diagonal, so it behaves the same on a phone and a tablet and at every zoom. `FrameStats` reports commands, style changes, and the LOD split — the numbers T-1.13's budget check needs. |
 | T-1.8 | Camera: ball follow, smoothing, dynamic zoom, bounds clamp, shake (reduced-motion aware) | M | `done` | | `tests/unit/engine/camera.test.ts` | `auto` | Render-side only: it advances on frame time and nothing in `physics/` or a sport may read it — a camera that influenced the sim would make what you see change what happens. Smoothing uses `1 − e^(−rate·dt)` rather than `gap × rate × dt`, so a 30 fps device and a 120 fps device see identical motion; the naive form lags more on the slower device, which is the one that can least afford to look worse. Lookahead leads the ball so the player sees where play is going. The bounds clamp centres an axis the viewport is wider than, rather than jamming the field against one edge. Shake is seeded (INV-2 — an unseeded shake makes two replays of one match visibly different) and under reduced motion is skipped entirely rather than scaled down, along with the lookahead lead: `10` §6 exists for people motion makes ill, and a small shake is still motion. |
-| T-1.9 | Input layer: floating joystick, context buttons, handedness mirror, keyboard, gamepad | L | `todo` | | | | |
+| T-1.9 | Input layer: floating joystick, context buttons, handedness mirror, keyboard, gamepad | L | `done` | | `tests/unit/engine/input.test.ts` | `auto` — 42 tests; **still needs a real phone** for thumb feel and the <100 ms US-2.1 latency check | Three devices reduce to one `InputFrame`, so nothing downstream can tell which produced it — that is what makes US-2.6 free rather than a second control path, and what makes T-1.12's recording a recording of the game rather than of a thumb. Sources are fed plain data (key codes, pointer coordinates, a gamepad snapshot), never DOM events, so every mapping rule is tested with no browser. Stick feel: floating origin, deadzone *rescaled* rather than stepped (otherwise the first responsive pixel jumps to 18% speed), and the origin drags along past full deflection so a thumb that wanders mid-sprint keeps control — the single most-noticed difference between a virtual stick that feels good and one that does not. Handedness mirrors zones and button positions from one code path, not two layouts. Device precedence is last-used-wins: a player with a pad plugged in who reaches for the screen gets the screen, with no setting to find. Keyboard diagonals are normalised. |
 | T-1.10 | Match state machine + `SportEvent` bus (the contract all three modes emit) | M | `todo` | | | | |
 | T-1.11 | `SportModule` interface (`04` §5, `09` §5) + a trivial test sport proving the seam | M | `todo` | | | | |
 | T-1.12 | Input recording + golden-seed determinism tests in CI (INV-8) | M | `todo` | | | | |
