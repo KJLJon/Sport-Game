@@ -11,6 +11,9 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  // Tests run under a base path that is deliberately *not* this repository's name. Anything that
+  // hardcodes the real one fails here rather than in production (INV-4).
+  base: '/test-scope/',
   define: {
     __BUILD_HASH__: JSON.stringify('test'),
   },

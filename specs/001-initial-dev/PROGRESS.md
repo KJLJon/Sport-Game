@@ -12,14 +12,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-0.11 — `ScopedStorage`: namespaced IndexedDB, localStorage, Cache Storage (INV-3)
+- **Task:** T-0.5 — Web app manifest with base-path `id`/`scope`/`start_url` and a full icon set
 - **Status:** todo (next up)
 - **Started:** —
 - **Branch commit:** —
 - **Done so far:** —
-- **Next step:** `src/storage/scope.ts` first (`04` §3) — every other Phase 0 task depends on the
-  namespace helpers, including the service worker's cache names. Then T-0.5 (manifest) and T-0.6
-  (service worker), which is why T-0.11 is being taken out of numeric order.
+- **Next step:** A Vite plugin that emits `manifest.webmanifest` with base-path-derived
+  `id`/`scope`/`start_url` (`04` §2), plus the generated icon set including maskable. Then T-0.6,
+  the service worker, which is the substantial one.
 - **Files touched:** —
 - **Blockers:** Awaiting the user's answers to [`08-open-questions.md`](./08-open-questions.md);
   working assumptions are recorded there, so none of them block Phase 0.
@@ -38,7 +38,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
-| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 4 | `in_progress` | — |
+| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 5 | `in_progress` | — |
 | 1 | Engine core | 13 | 0 | `todo` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
@@ -70,7 +70,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-0.8 | Update application: waiting-worker banner, safe-point auto-update, single-reload guard, `minSupportedVersion` force | L | `todo` | | | | |
 | T-0.9 | Offline integrity self-check and self-heal; offline-readiness UI; "download everything for offline" | L | `todo` | | | | |
 | T-0.10 | Repair flow — caches and SW only, IndexedDB untouched (INV-13); "check for update now"; version display | M | `todo` | | | | |
-| T-0.11 | `ScopedStorage`: namespaced IndexedDB, localStorage, and Cache Storage behind one module (INV-3) | M | `todo` | | | | |
+| T-0.11 | `ScopedStorage`: namespaced IndexedDB, localStorage, and Cache Storage behind one module (INV-3) | M | `done` | | `tests/unit/storage/{scope,prefs,caches}.test.ts`, `tests/integration/storage/idb.test.ts`, `tests/invariants/inv-03-namespaced-storage.test.ts` | `auto` | **Taken out of numeric order** — T-0.5/T-0.6 need the cache-name helpers. `scope.ts` is the only place a storage name is built. Prefs degrade to an in-memory store rather than throwing in Safari private mode. Cache deletion always filters on the namespace, so a sibling PWA on the same origin survives Repair (PWA-15). The INV-3 test checks the source as text, so an inline lint disable can't hide a violation. Vitest now runs under `base: '/test-scope/'`, so anything hardcoding the real repo name fails in CI. |
 | T-0.12 | Storage persistence request, quota/usage display, denial warning + backup prompt | S | `todo` | | | | |
 | T-0.13 | Schema versioning + migration runner with pre-migration snapshot and rollback | M | `todo` | | | | |
 | T-0.14 | Install UX: `beforeinstallprompt` capture, custom button, iOS-only A2HS instructions | M | `todo` | | | | |
