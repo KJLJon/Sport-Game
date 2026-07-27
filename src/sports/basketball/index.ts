@@ -165,7 +165,9 @@ import {
   checkOutOfBounds,
   completeRestart,
   createRulesState,
+  gameClockSeconds,
   grantPossession,
+  inBonus,
   isFouledOut,
   markRestartReady,
   onBasketMade,
@@ -252,6 +254,8 @@ export interface BasketballState extends SportState {
   step: number;
   /** The rule book. */
   readonly rules: RulesState;
+  /** Steps since the current period started, which is what the game clock counts. */
+  periodStep: number;
   /** Steps the inbounder has held the ball at the spot, waiting to put it in play. */
   restartSetup: number;
   /** The athlete taking the pending restart, or `NO_ENTITY`. */
@@ -438,6 +442,7 @@ export const basketball: SportModule<BasketballState> = {
       playerSide: setup.playerSide,
       controlled,
       step: 0,
+      periodStep: 0,
       rules: createRulesState(rng.fork('tip').int(0, 1) === 0 ? 0 : 1),
       restartSetup: 0,
       inbounder: NO_ENTITY,
@@ -457,6 +462,7 @@ export const basketball: SportModule<BasketballState> = {
   ): readonly SportEvent[] {
     const events: SportEvent[] = [];
     state.step++;
+    state.periodStep++;
 
     const ball = state.ballState;
 
@@ -525,6 +531,38 @@ export const basketball: SportModule<BasketballState> = {
   isFinished(): boolean {
     // The match clock decides; basketball has no early finish.
     return false;
+  },
+
+  /**
+   * What the presentation layer is allowed to know (`modes/live/match.ts`).
+   *
+   * The HUD reading `state.rules.shotClock` directly would put basketball's field names in shared UI
+   * and break INV-5 the moment a second sport arrives. This is the sport's side of that contract:
+   * generic names, generic units, nothing basketball-shaped escaping.
+   */
+  status(state: BasketballState) {
+    const rules = state.rules;
+    return {
+      actionClock: shotClockSeconds(rules),
+      teamFouls: [rules.teamFouls[0], rules.teamFouls[1]] as [number, number],
+      bonus: [inBonus(rules, 0), inBonus(rules, 1)] as [boolean, boolean],
+      possession: rules.possession,
+      controlled: state.controlled,
+      stoppage:
+        rules.freeThrows !== null
+          ? 'free throw'
+          : rules.restart !== null
+            ? rules.restart.reason
+            : null,
+      meter: state.meter === null ? null : Math.min(1, state.meter.charge / SHOT_IDEAL_HOLD),
+      periodClock: gameClockSeconds(state.periodStep, 1),
+    };
+  },
+
+  /** Called by the mode host when a new period starts, so the sport can reset what it owns. */
+  startPeriod(state: BasketballState, period: number): void {
+    state.periodStep = 0;
+    onPeriodStart(state.rules, period, state.step);
   },
 };
 

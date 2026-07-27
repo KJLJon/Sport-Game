@@ -13,24 +13,18 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 ## In-flight
 
 - **Task:** T-2.10 — Match HUD: score, clocks, fouls, live box score, minimap, off-screen indicators
-- **Status:** todo (not started)
-- **Started:** —
+- **Status:** in_progress
+- **Started:** 2026-07-27
 - **Branch commit:** (see `git log`)
 - **Done so far:**
-  - [x] T-2.1 court · T-2.2 rules · T-2.3 shooting · T-2.4 passing · T-2.5 dribbling ·
-        T-2.6 rebounding · T-2.7 defence · T-2.8 baseline CPU · T-2.9 control switching (all `done`)
-- **Next step:** everything the HUD needs is already computed and emitted, which is the point of
-  having done the sim first: `rules.gameClockSeconds()` / `formatClock()` / `shotClockSeconds()`,
-  `rules.teamFouls` / `personalFouls` / `inBonus()`, and the whole `SportEvent` stream for the box
-  score. `basketball.hud` carries `showShotClock`, `showPossession`, and the context button labels.
-  The controlled-athlete indicator is the one piece of T-2.9 that was left for this task, and
-  `BasketballEvent.CONTROL_SWITCH` is emitted for it to flash on.
-  `03` marks this one `sonnet` — worth delegating now that the design system (T-0.4) and the
-  event stream are both settled.
-- **Files touched:** src/sports/basketball/*.ts
-- **Blockers:** none. **Nothing in Phase 2 has been played by hand yet** — there is no HUD and no
-  screen, so every feel note so far is "unknown". That is the gap T-2.10 and T-2.11 close, and the
-  gate cannot be honestly evaluated before then.
+  - [x] The Live mode host — `src/modes/live/match.ts` and `box-score.ts` — plus the `SportStatus`
+        seam member the HUD reads instead of reaching into `state.rules` (INV-5)
+  - [ ] HUD drawing: score, clocks, fouls, minimap, off-screen indicators, controlled marker
+  - [ ] The match screen that mounts it
+- **Next step:** `src/modes/live/hud.ts` draws from `MatchView` alone; the screen wiring is
+  `src/ui/screens/live.ts`.
+- **Files touched:** src/modes/live/*.ts, src/sports/types.ts, src/sports/basketball/index.ts
+- **Blockers:** none.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
   branches locally with `pnpm verify`, `pnpm bench`, and `pnpm e2e`. Formatting and auto-fixable
   lint are handled by hooks (`CLAUDE.md` §11); never spend a turn on them. In this sandbox the
