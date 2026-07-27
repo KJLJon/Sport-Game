@@ -72,19 +72,28 @@ describe('a basketball match', () => {
   });
 
   it('never lets a possession outlive the shot clock', () => {
-    const { events } = play('quarter', BASKETBALL_RULES.periodSteps);
+    const world = arena();
+    const { state, rng } = createBasketballMatch(world, 'quarter');
+    const empty = new Map();
+    const max = gameSecondsToSteps(24);
 
-    // The clock restarts on every reset — an offensive rebound legitimately extends a possession —
-    // so a span is measured from the last reset, not from the last inbound.
-    let armedAt: number | null = null;
-    for (const e of events) {
-      const kind = e.sportKind ?? e.kind;
-      if (kind === BasketballEvent.SHOT_CLOCK_RESET) armedAt = e.step;
-      else if (kind === BasketballEvent.SHOT_CLOCK_VIOLATION) {
-        expect(armedAt).not.toBeNull();
-        expect(e.step - (armedAt as number)).toBeLessThanOrEqual(gameSecondsToSteps(24) + 2);
-        armedAt = null;
-      }
+    // Event spans cannot measure this: the clock stops for every dead ball, so wall-clock steps and
+    // shot-clock steps are different quantities. Counting the steps it actually *ran* for is what
+    // the rule is about.
+    let ranFor = 0;
+    let previous = state.rules.shotClock;
+
+    for (let i = 0; i < BASKETBALL_RULES.periodSteps; i++) {
+      basketball.step(state, world, empty, STEP, rng);
+
+      expect(state.rules.shotClock).toBeGreaterThanOrEqual(0);
+      expect(state.rules.shotClock).toBeLessThanOrEqual(max);
+
+      if (state.rules.shotClock > previous) ranFor = 0;
+      else if (state.rules.shotClock < previous) ranFor++;
+      previous = state.rules.shotClock;
+
+      expect(ranFor).toBeLessThanOrEqual(max);
     }
   });
 
@@ -141,11 +150,33 @@ describe('a basketball match', () => {
     const { events } = play('flow', BASKETBALL_RULES.periodSteps);
     const shots = of(events, EventKind.SHOT).length;
     const scores = of(events, EventKind.SCORE).length;
-    const rebounds = of(events, EventKind.REBOUND).length;
+    const rebounds = of(events, EventKind.REBOUND);
 
     // Not every miss is rebounded — some go out of bounds — but most are.
-    expect(rebounds).toBeGreaterThan((shots - scores) * 0.4);
-    expect(rebounds).toBeLessThanOrEqual(shots - scores);
+    expect(rebounds.length).toBeGreaterThan((shots - scores) * 0.4);
+    expect(rebounds.length).toBeLessThanOrEqual(shots - scores);
+  });
+
+  it('says how each rebound was won, and splits them plausibly', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const rebounds = of(events, EventKind.REBOUND);
+
+    let offensive = 0;
+    for (const rebound of rebounds) {
+      const detail = rebound.detail ?? {};
+      expect(['offensive', 'defensive']).toContain(detail.kind);
+      expect(typeof detail.boxedOut).toBe('boolean');
+      expect(detail.timing as number).toBeGreaterThanOrEqual(0);
+      expect(detail.timing as number).toBeLessThanOrEqual(1);
+      if (detail.kind === 'offensive') offensive++;
+    }
+
+    // Both boards are live. The offensive share is high — around half — because nobody boxes out
+    // yet: the defence has no reason to put a body between the shooter and the rim until T-2.7,
+    // so the team driving the basket is simply nearer the ball. The *contest* is right; the
+    // *positioning* is what T-2.7 fixes and T-2.13 balances.
+    expect(offensive).toBeGreaterThan(0);
+    expect(offensive / rebounds.length).toBeLessThan(0.65);
   });
 
   it('still ends a stalled possession on the shot clock', () => {

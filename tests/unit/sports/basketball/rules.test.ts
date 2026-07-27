@@ -105,6 +105,7 @@ describe('the shot clock', () => {
       BasketballEvent.SHOT_CLOCK_VIOLATION,
       EventKind.TURNOVER,
       BasketballEvent.RESTART,
+      BasketballEvent.SHOT_CLOCK_RESET,
     ]);
     expect(events[1]?.side).toBe(0);
     expect(state.restart).toMatchObject({ side: 1, kind: RestartKind.THROW_IN });
@@ -175,6 +176,7 @@ describe('advancing the ball', () => {
       BasketballEvent.BACKCOURT_VIOLATION,
       EventKind.TURNOVER,
       BasketballEvent.RESTART,
+      BasketballEvent.SHOT_CLOCK_RESET,
     ]);
     expect(state.restart?.side).toBe(1);
   });
@@ -197,6 +199,7 @@ describe('out of bounds', () => {
       BasketballEvent.OUT_OF_BOUNDS,
       EventKind.TURNOVER,
       BasketballEvent.RESTART,
+      BasketballEvent.SHOT_CLOCK_RESET,
     ]);
     expect(state.restart).toMatchObject({ side: 1, x: 9, y: 0 });
   });
@@ -258,6 +261,7 @@ describe('restarts', () => {
       BasketballEvent.INBOUND_VIOLATION,
       EventKind.TURNOVER,
       BasketballEvent.RESTART,
+      BasketballEvent.SHOT_CLOCK_RESET,
     ]);
     expect(state.restart?.side).toBe(1);
   });
@@ -312,7 +316,7 @@ describe('period starts and made baskets', () => {
   it('gives the conceding side the ball on its own baseline', () => {
     const state = createRulesState(0);
     const events = onBasketMade(state, 0, 40);
-    expect(sportKinds(events)).toEqual([BasketballEvent.RESTART]);
+    expect(sportKinds(events)).toEqual([BasketballEvent.RESTART, BasketballEvent.SHOT_CLOCK_RESET]);
     expect(state.restart).toMatchObject({ kind: RestartKind.AFTER_SCORE, side: 1 });
     // Side 1 defends the high-x basket, so it inbounds from that baseline.
     expect(state.restart?.x).toBe(COURT.length);

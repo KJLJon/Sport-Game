@@ -76,6 +76,15 @@ import {
   type BodyRatings,
   type HandlerRatings,
 } from './dribbling.ts';
+import {
+  REBOUNDING,
+  contenderWeight,
+  isBoxedOut,
+  jumpTiming,
+  pickRebounder,
+  type Contender,
+  type RebounderRatings,
+} from './rebounding.ts';
 import type {
   ActionIntent,
   MatchSetup,
@@ -224,6 +233,9 @@ const LATE_CLOCK_SECONDS = 6;
 /** Steps of hold that make a perfect release — mirrored from `SHOOTING.idealHoldSteps`. */
 const SHOT_IDEAL_HOLD = 30;
 
+/** Above this the ball is still on its way down and nobody has a hand on it. */
+const REBOUND_MAX_HEIGHT = 2.6;
+
 /** Where a perimeter ball-handler stops rather than driving — comfortably behind the arc. */
 const PULL_UP_DISTANCE = 7.9;
 
@@ -351,7 +363,7 @@ export const basketball: SportModule<BasketballState> = {
 
     // A ball in flight is nobody's to catch — that is what makes a shot a shot.
     if (ball.carrier === NO_ENTITY && state.shot === null && state.pass === null) {
-      events.push(...collectLooseBall(state, world));
+      events.push(...collectLooseBall(state, world, rng));
     }
 
     stepBall(world, ball, dt, DEFAULT_BALL_PHYSICS);
@@ -960,7 +972,8 @@ type AthleteRatings = ShooterRatings &
   ReceiverRatings &
   InterceptorRatings &
   HandlerRatings &
-  BodyRatings;
+  BodyRatings &
+  RebounderRatings;
 
 /** Seeded ratings, biased by role — guards shoot and pass, bigs finish. Replaced at T-3.17. */
 function rollRatings(rng: Rng, roleIndex: number): AthleteRatings {
@@ -979,6 +992,8 @@ function rollRatings(rng: Rng, roleIndex: number): AthleteRatings {
     interiorD: rng.int(perimeter ? 35 : 58, perimeter ? 68 : 90),
     agility: rng.int(perimeter ? 60 : 35, perimeter ? 92 : 70),
     strength: rng.int(perimeter ? 35 : 60, perimeter ? 70 : 92),
+    vertical: rng.int(perimeter ? 45 : 55, perimeter ? 88 : 92),
+    rebounding: rng.int(perimeter ? 25 : 58, perimeter ? 60 : 92),
   };
 }
 
@@ -1231,10 +1246,16 @@ function nearestAthleteOf(
 }
 
 /** A loose ball goes to the nearest athlete in reach. Lowest id wins a tie, so scrambles resolve. */
-function collectLooseBall(state: BasketballState, world: World): SportEvent[] {
+function collectLooseBall(state: BasketballState, world: World, rng: Rng): SportEvent[] {
   const ball = state.ballState;
-  let taker = NO_ENTITY;
 
+  // A live rebound is a contest, not a race. Everyone with a claim gets weighed.
+  if (state.reboundLive) {
+    const contest = contestRebound(state, world, rng);
+    if (contest !== null) return contest;
+  }
+
+  let taker = NO_ENTITY;
   world.forEach((id) => {
     if (taker !== NO_ENTITY) return;
     if ((world.kind[id] as number) !== Kind.ATHLETE) return;
@@ -1242,20 +1263,99 @@ function collectLooseBall(state: BasketballState, world: World): SportEvent[] {
   });
 
   if (taker === NO_ENTITY) return [];
-
   const side = state.sides.get(taker);
   if (side === undefined) return [];
 
-  attach(world, ball, taker);
+  return takeLooseBall(state, world, taker, side, false);
+}
+
+/**
+ * The rebound. Everyone within reach of the ball is weighed on the five things `06` §3.1 names and
+ * one of them comes down with it.
+ *
+ * Returns `null` when nobody is close enough yet, so the caller can fall through to an ordinary
+ * loose-ball pickup once the rebound window has passed.
+ */
+function contestRebound(state: BasketballState, world: World, rng: Rng): SportEvent[] | null {
+  const ball = state.ballState;
+  if (ball.catchCooldown > 0) return null;
+  if ((world.z[ball.entity] as number) > REBOUND_MAX_HEIGHT) return null;
+
+  const ballX = world.x[ball.entity] as number;
+  const ballY = world.y[ball.entity] as number;
+
+  const nearby: { id: EntityId; side: CourtSide; ratings: AthleteRatings; distance: number }[] = [];
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    const side = state.sides.get(id);
+    const ratings = state.ratings.get(id);
+    if (side === undefined || ratings === undefined) return;
+
+    const distance = Math.hypot((world.x[id] as number) - ballX, (world.y[id] as number) - ballY);
+    if (distance <= REBOUNDING.reach) nearby.push({ id, side, ratings, distance });
+  });
+
+  if (nearby.length === 0) return null;
+  // Nobody has a hand on it yet; wait rather than awarding it from across the paint.
+  if (!nearby.some((c) => c.distance <= CATCH_REACH)) return null;
+
+  const contenders: Contender[] = nearby.map((c) => {
+    const self = { x: world.x[c.id] as number, y: world.y[c.id] as number };
+    const basket = attackedBasket(c.side);
+    const boxedOut = nearby.some(
+      (other) =>
+        other.side !== c.side &&
+        isBoxedOut(
+          self,
+          { x: world.x[other.id] as number, y: world.y[other.id] as number },
+          basket,
+        ),
+    );
+    const timing = jumpTiming(c.ratings, rng);
+    return {
+      athlete: c.id,
+      side: c.side,
+      boxedOut,
+      timing,
+      weight: contenderWeight(c.ratings, c.distance, boxedOut, timing),
+    };
+  });
+
+  const winner = pickRebounder(contenders, rng);
+  if (winner === null) return null;
+
+  return takeLooseBall(state, world, winner.athlete, winner.side, true, winner);
+}
+
+/** Hands a loose ball to somebody and says what kind of gain it was. */
+function takeLooseBall(
+  state: BasketballState,
+  world: World,
+  taker: EntityId,
+  side: CourtSide,
+  rebound: boolean,
+  contender?: Contender,
+): SportEvent[] {
+  attach(world, state.ballState, taker);
   state.beaten.clear();
+  state.contactWith = NO_ENTITY;
+
   const wasOffence = state.rules.possession === side;
-  const rebound = state.reboundLive;
   state.reboundLive = false;
 
   const events: SportEvent[] = [];
   if (rebound) {
-    // The contest itself is T-2.6; the event is already true and downstream stats want it.
-    events.push(event(EventKind.REBOUND, state.step, side, { actor: taker }));
+    events.push(
+      event(EventKind.REBOUND, state.step, side, {
+        actor: taker,
+        detail: {
+          kind: wasOffence ? 'offensive' : 'defensive',
+          ...(contender === undefined
+            ? {}
+            : { boxedOut: contender.boxedOut, timing: round3(contender.timing) }),
+        },
+      }),
+    );
   }
 
   const reset = rebound

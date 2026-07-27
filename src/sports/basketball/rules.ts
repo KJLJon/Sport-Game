@@ -451,6 +451,11 @@ export function awardRestart(state: RulesState, restart: Restart, step: number):
       x: restart.x,
       y: restart.y,
     }),
+    // A restart resets the shot clock, and the HUD has to be told so — a dead ball that comes back
+    // showing the old count is the kind of bug players notice before any test does.
+    sportEvent(step, restart.side, BasketballEvent.SHOT_CLOCK_RESET, {
+      value: Math.round(stepsToGameSeconds(state.shotClock)),
+    }),
   ];
 }
 
