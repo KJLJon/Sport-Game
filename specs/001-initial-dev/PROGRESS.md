@@ -12,24 +12,25 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-1.4 — Movement & steering from attributes
+- **Task:** T-1.5 — Collision & contact contests weighted by strength/agility
 - **Status:** in_progress
 - **Started:** 2026-07-27
 - **Branch commit:** (see `git log` on `claude/phase-1-token-optimizations-g7sjm3`)
 - **Done so far:**
-  - [x] T-1.1 seeded PRNG · T-1.2 fixed-timestep loop · T-1.3 world + spatial hash
-  - [ ] Movement integration from accel / max speed / turn rate
-  - [ ] Steering behaviours: seek, arrive, pursue, avoid
-- **Next step:** `src/engine/physics/movement.ts` per `04` §6 — attribute-driven integration
-  writing straight into the `World` arrays, with steering as pure functions over positions and
-  velocities so they are testable without a world.
-- **Files touched:** src/engine/{rng,loop,world}.ts and their tests
+  - [x] T-1.1 PRNG · T-1.2 loop · T-1.3 world + spatial hash · T-1.4 movement + steering
+  - [ ] Circle-circle resolution over the spatial hash
+  - [ ] Contact contests weighted by strength and agility
+- **Next step:** `src/engine/physics/collision.ts` per `04` §6 — mass-weighted positional
+  resolution plus a seeded contest resolver taking the `Rng`, so contact outcomes are replayable.
+- **Files touched:** src/engine/{rng,loop,world}.ts, src/engine/physics/{movement,steering}.ts
+  and their tests
 - **Blockers:** none. **Pre-existing, unrelated:** `pnpm test:coverage` fails two `12` §2
-  thresholds (`src/storage/**` functions 90.54%, `src/ui/**` lines 59.97%) and failed identically
-  at the Gate 0 merge commit b924762. Phase-0 debt; raised with the user 2026-07-27.
-- **Notes:** Each session works on the branch it is assigned; this one is
-  `claude/phase-1-token-optimizations-g7sjm3`. Formatting and auto-fixable lint are handled by
-  hooks (`CLAUDE.md` §11) — never spend a turn on them.
+  thresholds (`src/storage/**` functions 90.54%, `src/ui/**` lines 59.97%), identically at the
+  Gate 0 merge commit b924762. Phase-0 debt; raised with the user 2026-07-27.
+- **Notes:** **CI now runs on `main` and `workflow_dispatch` only** (user request, 2026-07-27 —
+  Actions minutes are a real budget). Feature branches are verified locally with `pnpm verify`
+  and `pnpm e2e`; use `workflow_dispatch` to run the full matrix against a branch before merge.
+  Formatting and auto-fixable lint are handled by hooks (`CLAUDE.md` §11).
 
 
 > **Resuming after an interruption:** read this block, `git log --oneline -20`, then continue from
@@ -43,7 +44,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
-| 1 | Engine core | 13 | 3 | `in_progress` | — |
+| 1 | Engine core | 13 | 4 | `in_progress` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
@@ -54,7 +55,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **21** | | |
+| | **Total** | **170** | **22** | | |
 
 ---
 
@@ -90,7 +91,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-1.1 | Seeded PRNG + lint rule banning `Math.random` in `engine/`, `sports/` (INV-2) | S | `done` | | `tests/unit/engine/rng.test.ts`, `tests/invariants/inv-02-no-math-random.test.ts` | `auto` | sfc32 seeded through splitmix32, all int32 ops so two engines produce byte-identical streams; a float generator could not promise that. `fork(label)` derives from seed + label, **not** from the parent's position, so adding a draw in one subsystem cannot shift another's results — that is what makes determinism survive refactors. `snapshot()`/`restore()` carry the pending Box–Muller spare, so a replay checkpoint resumes mid-pair. A golden-seed test pins the first eight values: changing the algorithm invalidates every recorded replay, so it should be a deliberate decision. `randomSeed()` is the one non-deterministic call, and it uses `crypto.getRandomValues`. The lint rule was already in place from T-0.1; INV-2's test scans `engine/`, `sports/`, `modes/` as text (an inline disable cannot hide a substring) and also asserts the lint rule still covers all three directories. |
 | T-1.2 | Fixed-timestep loop (60 Hz) with accumulator, render interpolation, pause/step/time-scale | M | `done` | | `tests/unit/engine/loop.test.ts` | `auto` | Split in two: `Clock` holds the accumulator and *only* the timing policy, `createLoop` converts frame timestamps into deltas. Everything worth testing is therefore testable with no browser, no timers, and no waiting — the frame source is injected. Two clamps, not one: `maxFrameMs` (250) throws away a backgrounded tab's minutes before they reach the accumulator, and `maxStepsPerFrame` (5) is the spiral-of-death guard, which discards the backlog rather than banking it. `alpha` holds still while paused so a paused frame renders identically instead of shimmering. Resume does not clear the accumulator — the driver drops the paused wall time instead, so resuming never bursts. Step size is fixed at every time scale: slow motion changes how much time accumulates, never what the sim sees. Verified at 30/60/120 fps that simulated time matches to within one step. |
 | T-1.3 | Entity model: struct-of-arrays state, spatial hash for neighbour queries | L | `done` | | `tests/unit/engine/world.test.ts` | `auto` | SoA typed arrays: the hot loops touch one field across all entities, and typed arrays give the GC nothing to collect mid-match (`01` R2). Uniform grid rebuilt per step by counting sort — O(n + cells), allocation-free, and simpler than incremental updates at 22 entities. Two determinism decisions: `spawn` claims the *lowest* free slot, not the most recently freed, so a replay assigns the same ids; and the grid is filled in ascending id order, so query results come out id-ordered without a sort (INV-8). Queries write into a caller-owned `Int32Array` and stop at its length, so the hot path allocates nothing. Distances are 2D on purpose — a ball 3 m up is still near the athlete catching it. Correctness is checked against brute force over 40 random 22-entity layouts, plus cell-boundary and out-of-field cases. |
-| T-1.4 | Movement & steering from attributes: accel, max speed, turn rate, seek/arrive/pursue/avoid | L | `todo` | | | | |
+| T-1.4 | Movement & steering from attributes: accel, max speed, turn rate, seek/arrive/pursue/avoid | L | `done` | | `tests/unit/engine/{movement,steering}.test.ts` | `auto` | The engine never sees attributes: `movementProfile()` takes *derived ratings* (1–99, the output of `05` §3) and returns metres and seconds, so the sport seam stays honest. Three limits do all the work — top speed 4.0–8.5 m/s, acceleration 3–9 m/s², turn rate 4–12 rad/s — and `MOVEMENT_TUNING` is the single feel-tuning surface. Integration order is rotate → change speed → move: rotating the current velocity rather than snapping to the desired one is what makes a joystick flick read as a body turning. A near-stationary athlete may pivot freely, otherwise starting off feels sticky. Steering behaviours are pure functions writing into caller-owned vectors (zero allocation). Two deliberate choices: separation weights by `1 − d/r` rather than `1/d²`, because inverse-square makes touching athletes fire apart like a bug; and `avoid()` returns `false` when no dodge is needed, so callers fall through to real intent instead of blending a zero vector. |
 | T-1.5 | Collision & contact contests weighted by strength/agility | L | `todo` | | | | |
 | T-1.6 | Ball physics: position + height, gravity, bounce, spin/curve, possession attach/detach | L | `todo` | | | | |
 | T-1.7 | Canvas 2D renderer: layers, batching, LOD, off-screen static layers, debug overlay | L | `todo` | | | | |

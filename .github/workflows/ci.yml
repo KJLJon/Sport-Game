@@ -1,16 +1,20 @@
 ## @spec 001-initial-dev · @phase 0 · @task T-0.15 · @design 04-architecture.md §10, 12 §6
 ##
-## Runs on every push and pull request. Typecheck, lint, the full unit suite with coverage
-## thresholds, the traceability and PROGRESS checks, the bundle-size budget, and the Playwright
-## E2E suite against a real static build under the deployed base path — because base-path and
-## service-worker bugs only reproduce there.
+## Runs on pushes to `main` only, plus on demand. Typecheck, lint, the full unit suite with
+## coverage thresholds, the traceability and PROGRESS checks, the bundle-size budget, and the
+## Playwright E2E suite against a real static build under the deployed base path — because
+## base-path and service-worker bugs only reproduce there.
+##
+## Deliberately *not* on every feature branch or pull request: Actions minutes are a real budget
+## on this account, and the same checks run locally as `pnpm verify` (plus `pnpm e2e`), which is
+## where a session is expected to catch its own failures. `workflow_dispatch` is the escape hatch
+## for running the full matrix against a branch before it merges.
 
 name: CI
 
 on:
   push:
-    branches: ['**']
-  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
