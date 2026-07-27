@@ -12,19 +12,22 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-2.2 — Basketball rules: quarters, game clock, shot clock, possession, out-of-bounds,
-  restarts
+- **Task:** T-2.3 — Shooting: hold-release meter, arc trajectory, make probability from ratings ×
+  distance × pressure × release
 - **Status:** in_progress
 - **Started:** 2026-07-27
 - **Branch commit:** (see `git log`)
 - **Done so far:**
-  - [x] T-2.1 — court geometry, zones, arc, key, hoop, boundaries (`done`)
-  - [ ] Quarter and game clock wired to `MatchStateMachine`
-  - [ ] Shot clock with the reset rules
-  - [ ] Possession, out-of-bounds detection, and restarts
-- **Next step:** write `src/sports/basketball/rules.ts` on top of `court.ts`, then the
-  `SportModule` shell in `src/sports/basketball/index.ts`.
-- **Files touched:** src/sports/basketball/court.ts, src/sports/basketball/court-render.ts
+  - [x] T-2.1 — court geometry (`done`)
+  - [x] T-2.2 — rules, clocks, possession, out-of-bounds, restarts (`done`)
+  - [ ] Release-timing meter with a rating-driven window
+  - [ ] Arc trajectory through the engine's ball physics
+  - [ ] Make-probability model (distance × pressure × release × movement)
+  - [ ] Scoring wired to `onBasketMade` and the match clock
+- **Next step:** `src/sports/basketball/shooting.ts`, following `06` §3.1's shooting model and
+  `05` §3.1's weights. `rules.onBasketMade()` is already written and unused — wiring it is the
+  last step of the task.
+- **Files touched:** src/sports/basketball/{court,court-render,rules,weights,index}.ts
 - **Blockers:** none.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
   branches locally with `pnpm verify`, `pnpm bench`, and `pnpm e2e`. Formatting and auto-fixable
@@ -44,7 +47,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
-| 2 | Basketball · Live | 13 | 1 | `in_progress` | v0.1 |
+| 2 | Basketball · Live | 13 | 2 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
@@ -54,7 +57,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **32** | | |
+| | **Total** | **170** | **33** | | |
 
 ---
 
@@ -106,7 +109,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
 | T-2.1 | Court geometry, zones, arc, key, hoop, boundaries | M | `done` | | `tests/unit/sports/basketball/{court,court-render}.test.ts` | `auto` | FIBA dimensions in metres (28 × 15), origin at a corner, `goals[side]` is the basket that side *defends* — same convention as the seam. The three-point test is deliberately two rules, not one: beyond the arc **or** outside the straight corner lines, because a distance-only test scores the corner three as a two. World bounds equal court bounds, so an inbounder stands on the line rather than a metre behind it; nothing in the rules depends on that metre. `court-render.ts` draws the line art from the same constants, and its test asserts the arc's radius and sweep match the rules' — the one piece of art with a derived shape. |
-| T-2.2 | Basketball rules: quarters, game clock, shot clock, possession, out-of-bounds, restarts | L | `todo` | | | | |
+| T-2.2 | Basketball rules: quarters, game clock, shot clock, possession, out-of-bounds, restarts | L | `done` | | `tests/unit/sports/basketball/rules.test.ts`, `tests/integration/sports/basketball-match.test.ts` | `auto` | Clock compression is 4× — a three-real-minute quarter showing 12:00 (`06` §3.1) — and it is *derived* from the two quarter figures rather than authored, so the pair can never disagree. Every duration is written in game seconds, the number on the HUD, and converted to steps in one place. The shot clock is therefore 24 on screen and six real seconds in the hand, which gives ~23 possessions a quarter. Two bugs found in the first headless run: the five-second inbound count was running while the inbounder was still sprinting the length of the court (it now starts when they *have* the ball, which is the real rule), and the setup counter was not reset on a new restart, so violations cascaded. Simplification: every restart gives a fresh 24, where the real rules sometimes keep the remaining clock. Fouls, free throws, and the bonus are T-2.7 — the state shape has room for them. |
 | T-2.3 | Shooting: hold-release meter, arc trajectory, make probability from ratings × distance × pressure × release | L | `todo` | | | | |
 | T-2.4 | Passing: aimed, lead passes, interceptions, turnovers | M | `todo` | | | | |
 | T-2.5 | Dribbling & driving: handling control, contact absorption, blow-by | L | `todo` | | | | |
@@ -332,8 +335,10 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 
 | Date | Task | Decision | Rationale |
 |---|---|---|---|
-
-*(None yet.)*
+| 2026-07-27 | T-2.1 | FIBA court dimensions (28 × 15 m), not NBA | The world already works in metres; FIBA's numbers are metric by definition rather than by conversion, so no constant in the file is a rounded foot. |
+| 2026-07-27 | T-2.1 | World bounds equal court bounds — an inbounder stands *on* the line, not behind it | Keeps `world.clampToBounds` the whole out-of-bounds containment story for athletes. Nothing in the rules depends on that metre, and an offset coordinate space would have to be undone everywhere. |
+| 2026-07-27 | T-2.2 | Clock compression is 4× (3 real minutes shown as 12:00) and derived from the two quarter figures | `06` §3.1 fixes both ends; deriving the ratio means a future tuning change to either cannot leave them inconsistent. |
+| 2026-07-27 | T-2.2 | Every restart gives a fresh 24, where the real rules sometimes retain the clock | The retention cases all depend on *why* the ball went out, which needs the foul model (T-2.7). Revisit at the balance pass (T-2.13) if possessions feel long. |
 
 ---
 
