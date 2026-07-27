@@ -13,15 +13,22 @@
 import type { Plugin } from 'vite';
 import { generateIcons } from './icons.ts';
 import { MANIFEST_FILE_NAME, serialiseManifest } from './manifest.ts';
+import { VERSION_FILE_NAME, buildVersionInfo, serialiseVersionInfo } from './version.ts';
 
 export interface PwaAssetsOptions {
   /** The resolved base path, with leading and trailing slashes. */
   readonly base: string;
+  readonly buildHash: string;
+  /** Semantic version from `package.json`. */
+  readonly packageVersion: string;
 }
 
 export function pwaAssets(options: PwaAssetsOptions): Plugin {
   const { base } = options;
   const icons = generateIcons();
+  const version = serialiseVersionInfo(
+    buildVersionInfo(options.buildHash, options.packageVersion, process.env),
+  );
 
   /** Path a request should match, e.g. `/Sport-Game/icons/icon-192.png` → `icons/icon-192.png`. */
   const strip = (url: string): string => {
@@ -36,6 +43,14 @@ export function pwaAssets(options: PwaAssetsOptions): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const requested = strip(req.url ?? '');
+
+        if (requested === VERSION_FILE_NAME) {
+          // Never cached, anywhere — that is the whole point of this file (`11` §2).
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(version);
+          return;
+        }
 
         if (requested === MANIFEST_FILE_NAME) {
           res.setHeader('Content-Type', 'application/manifest+json');
@@ -60,6 +75,8 @@ export function pwaAssets(options: PwaAssetsOptions): Plugin {
         fileName: MANIFEST_FILE_NAME,
         source: serialiseManifest(base),
       });
+
+      this.emitFile({ type: 'asset', fileName: VERSION_FILE_NAME, source: version });
 
       for (const icon of icons) {
         this.emitFile({ type: 'asset', fileName: icon.fileName, source: icon.source });

@@ -15,15 +15,20 @@ import { resolveBasePath } from './tools/base-path.ts';
 import { buildHash } from './tools/build-hash.ts';
 import { pwaAssets } from './tools/vite-plugin-pwa-assets.ts';
 import { serviceWorker } from './tools/vite-plugin-sw.ts';
+import pkg from './package.json' with { type: 'json' };
 
 const base = resolveBasePath(process.env);
 const hash = buildHash(process.env);
 
 export default defineConfig({
   base,
-  plugins: [pwaAssets({ base }), serviceWorker({ base, buildHash: hash })],
+  plugins: [
+    pwaAssets({ base, buildHash: hash, packageVersion: pkg.version }),
+    serviceWorker({ base, buildHash: hash }),
+  ],
   define: {
     __BUILD_HASH__: JSON.stringify(hash),
+    __APP_VERSION__: JSON.stringify(pkg.version),
   },
   resolve: {
     alias: {

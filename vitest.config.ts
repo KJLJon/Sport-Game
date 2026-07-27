@@ -16,6 +16,7 @@ export default defineConfig({
   base: '/test-scope/',
   define: {
     __BUILD_HASH__: JSON.stringify('test'),
+    __APP_VERSION__: JSON.stringify('0.0.0'),
   },
   resolve: {
     alias: {
