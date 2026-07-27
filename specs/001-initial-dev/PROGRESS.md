@@ -12,23 +12,27 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** — (none; Phase 2 complete, Gate 2 evaluated and **not passed** — see the Gate 2 record)
-- **Status:** —
-- **Started:** —
+- **Task:** T-3.2 — Attribute system: budget rules, sandbox flag, random roll
+- **Status:** in_progress
+- **Started:** 2026-07-27
 - **Branch commit:** (see `git log`)
-- **Done so far:** All thirteen Phase 2 tasks are `done`. Every automatable gate check is green.
-- **Next step:** Gate 2 is blocked on two things only a human with a phone can do — the `12` §7
-  device matrix, and the gate's own "fun enough to play twice". Tagging and deploying is deliberately
-  *not* done: it is outward-facing and wants a decision, not an assumption. Once the device pass is
-  recorded, Phase 3 (athletes, cross-sport ratings, roster) starts with T-3.1; note that T-3.17 is
-  what finally replaces the seeded placeholder ratings in `sports/basketball/index.ts` with real
-  athletes.
-- **Files touched:** —
-- **Blockers:** the device matrix and the deploy decision. Both are recorded in the Gate 2 record.
+- **Done so far:**
+  - [x] T-3.1 — schema, store indexes, repository (done, committed)
+  - [ ] Budget validation and the sandbox flag
+  - [ ] Seeded random roll by rarity band
+  - [ ] The athlete factory every other creation path goes through
+- **Next step:** write `src/athletes/tuning.ts` (the `05` numbers) and `src/athletes/attributes.ts`
+  (budget + roll), against `05` §2.1 and §4.
+- **Files touched:** src/athletes/types.ts, src/athletes/repository.ts, src/storage/idb.ts
+- **Blockers:** none for Phase 3. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
+  top of that debt, deliberately, and Gate 3 inherits it.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
   branches locally with `pnpm verify`, `pnpm bench`, and `pnpm e2e`. Formatting and auto-fixable
   lint are handled by hooks (`CLAUDE.md` §11); never spend a turn on them. In this sandbox the
-  E2E suite needs `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`.
+  E2E suite needs `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`. `src/athletes/**` is held to 95%
+  lines/functions/statements — write the tests with the code, not after.
+  T-3.17 is what finally replaces `rollRatings()` and the local `AthleteRatings` type in
+  `sports/basketball/index.ts` with real athletes; run `pnpm balance` after it and after T-3.6.
 
 
 > **Resuming after an interruption:** read this block, `git log --oneline -20`, then continue from
@@ -44,7 +48,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
-| 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
+| 3 | Athletes, cross-sport ratings, roster | 17 | 1 | `in_progress` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
@@ -53,7 +57,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **44** | | |
+| | **Total** | **170** | **45** | | |
 
 ---
 
@@ -122,8 +126,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-3.1 | Athlete schema, IndexedDB store, indexes, repository | M | `todo` | | | | |
-| T-3.2 | Attribute system: the eleven attributes, budget rules, sandbox flag, random roll | M | `todo` | | | | |
+| T-3.1 | Athlete schema, IndexedDB store, indexes, repository | M | `done` | | `tests/unit/athletes/types.test.ts`, `tests/integration/storage/athletes.test.ts` | `auto` — repository exercised against real IndexedDB | Schema written against `05` §2 field for field; bounds live beside it, the creation *budget* does not (that is T-3.2's, in `tuning.ts`). **Bug found:** the `athletes` store's `byName` index from T-0.11 pointed at `name`, a property no athlete has, so it indexed nothing — the roster browser would have sorted on an empty index. Now `byDisplayName`. IndexedDB has no "alter index", so `openDatabase` now reconciles: creates what is missing, drops what is undeclared, rebuilds a changed key path. `DB_VERSION` 1 → 2; no entry in the *data* chain, since an index is derived and a backup carries none. Search normalises accents, so `ibrahimovic` finds `Ibrahimović`. |
+| T-3.2 | Attribute system: the eleven attributes, budget rules, sandbox flag, random roll | M | `in_progress` | | | | |
 | T-3.3 | Derivation engine: weight matrix, physical modifiers, unit-tested invariants | L | `todo` | | | | |
 | T-3.4 | Familiarity model: per-sport familiarity, penalty curve, growth from minutes | L | `todo` | | | | |
 | T-3.5 | Sport skill XP: levels, sub-skills, event-driven awards, diminishing returns | L | `todo` | | | | |
