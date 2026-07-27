@@ -25,7 +25,14 @@
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { CanvasHost, type CanvasSize } from '../../app/canvas-host.ts';
 import { Camera } from '../../engine/render/camera.ts';
-import { Renderer, type Canvas2D, type OffscreenLayer } from '../../engine/render/renderer.ts';
+import {
+  Detail,
+  Renderer,
+  type Canvas2D,
+  type OffscreenLayer,
+} from '../../engine/render/renderer.ts';
+import { drawAthlete, drawBall, paletteFor } from '../../sports/basketball/art.ts';
+import { BasketballAudio } from './audio.ts';
 import { createLoop, type Loop } from '../../engine/loop.ts';
 import { InputRouter, TouchInput } from '../../engine/input/sources.ts';
 import {
@@ -67,9 +74,6 @@ export function readSafeArea(window: Window, element: Element): SafeArea {
     left: read('--safe-left'),
   };
 }
-
-/** Team colours, and a marking so the two are told apart without relying on hue (INV-11). */
-const TEAM_FILL: readonly [string, string] = ['#4d8ef7', '#f26d4d'];
 
 export function liveScreen(options: LiveScreenOptions): Screen {
   let loop: Loop | null = null;
@@ -135,10 +139,29 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       overlay.className = 'live__overlay';
       root.appendChild(overlay);
 
+      const audio = new BasketballAudio(null);
+      const stopAudio = audio.attach(match.bus);
+      listeners.push(stopAudio);
+
+      /**
+       * WebAudio refuses to start before a user gesture, so the context is built on the first
+       * pointer or key and never at mount. Once is enough — the flag is what stops every subsequent
+       * tap from constructing another one.
+       */
+      let audioStarted = false;
+      const startAudio = (): void => {
+        if (audioStarted) return;
+        audioStarted = true;
+        const Ctor = (window as unknown as { AudioContext?: new () => unknown }).AudioContext;
+        if (Ctor === undefined) return;
+        audio.setContext(new Ctor() as never);
+      };
+
       const settings: MatchSettings = { leftHanded: false, sound: true };
       const applySettings = (): void => {
         controlLayout = { ...controlLayout, leftHanded: settings.leftHanded };
         touch.setLayout(controlLayout, defaultButtons(controlLayout));
+        audio.setMuted(!settings.sound);
       };
 
       let paused = false;
@@ -148,6 +171,7 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         // Releasing held input is not optional: a joystick still held when the menu opens would
         // keep steering an athlete nobody is watching.
         if (paused) input.releaseAll();
+        audio.setMuted(paused || !settings.sound);
         renderOverlay();
       };
 
@@ -199,6 +223,7 @@ export function liveScreen(options: LiveScreenOptions): Screen {
 
       const onKey = (rawEvent: Event): void => {
         const e = rawEvent as KeyboardEvent;
+        startAudio();
         if (e.key === 'Escape') {
           if (match.finished) return;
           setPaused(!paused);
@@ -288,7 +313,7 @@ function draw(
 
   renderer.submit('field', (c, v) => sport.render.drawField(c, sport.field, v));
   renderer.submit('entities', (c) => drawEntities(c, match, view.status.controlled));
-  renderer.submit('ball', (c) => drawBall(c, world, ball));
+  renderer.submit('ball', (c) => drawBallEntity(c, world, ball));
   renderer.submit('effects', (c, v) =>
     sport.render.drawOverlay(c, match.sportState as never, world, v),
   );
@@ -309,73 +334,45 @@ function draw(
   renderer.render(ctx, transform);
 }
 
-/** Athlete bodies. Generic on purpose — a top-down athlete is not sport-specific (INV-5). */
+/**
+ * Athlete bodies and the ball, through the sport's own art (T-2.12).
+ *
+ * This was generic inline drawing until the art pass landed. It is worth being explicit about why it
+ * moved: a top-down athlete looked sport-agnostic, but the *kit* is not — team markings, the
+ * controlled-athlete ring, and the ball's colour are all things a sport should own, and duplicating
+ * them here meant two places to change and one of them silently wrong.
+ */
 function drawEntities(ctx: Canvas2D, match: LiveMatch, controlled: EntityId): void {
   const world = match.world;
+  const palette = paletteFor('dark');
 
   world.forEach((id) => {
     if (world.kind[id] === 1) return;
-    const x = world.x[id] as number;
-    const y = world.y[id] as number;
-    const side = (world.team[id] as Side) === 1 ? 1 : 0;
-    const radius = world.radius[id] as number;
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
-    ctx.beginPath();
-    ctx.arc(x, y + 0.12, radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = TEAM_FILL[side];
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Away side gets a stripe, so the two teams differ in marking and not only in hue (INV-11).
-    if (side === 1) {
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 0.07;
-      ctx.beginPath();
-      ctx.moveTo(x - radius * 0.7, y);
-      ctx.lineTo(x + radius * 0.7, y);
-      ctx.stroke();
-    }
-
-    // Facing, so a player can read where an athlete is about to go.
-    const facing = world.facing[id] as number;
-    ctx.strokeStyle = '#0b0d11';
-    ctx.lineWidth = 0.06;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + Math.cos(facing) * radius, y + Math.sin(facing) * radius);
-    ctx.stroke();
-
-    if (id === controlled) {
-      ctx.strokeStyle = '#f2ede4';
-      ctx.lineWidth = 0.09;
-      ctx.beginPath();
-      ctx.arc(x, y, radius + 0.22, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    const team = (world.team[id] as Side) === 1 ? 1 : 0;
+    drawAthlete(
+      ctx,
+      world.x[id] as number,
+      world.y[id] as number,
+      world.facing[id] as number,
+      palette.teams[team],
+      Detail.FULL,
+      { team, controlled: id === controlled, radius: world.radius[id] as number },
+    );
   });
 }
 
-/** The ball, with a shadow that shrinks as it rises — height, on a view that has no height. */
-function drawBall(ctx: Canvas2D, world: LiveMatch['world'], ball: EntityId): void {
+/** The ball, with the height cue the art pass owns. */
+function drawBallEntity(ctx: Canvas2D, world: LiveMatch['world'], ball: EntityId): void {
   if (ball === NO_ENTITY) return;
-  const x = world.x[ball] as number;
-  const y = world.y[ball] as number;
-  const z = world.z[ball] as number;
-  const radius = world.radius[ball] as number;
-
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-  ctx.beginPath();
-  ctx.arc(x, y, Math.max(0.05, radius * (1 - Math.min(0.7, z / 4))), 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#f2903d';
-  ctx.beginPath();
-  ctx.arc(x, y - z * 0.35, radius, 0, Math.PI * 2);
-  ctx.fill();
+  drawBall(
+    ctx,
+    world.x[ball] as number,
+    world.y[ball] as number,
+    world.z[ball] as number,
+    paletteFor('dark'),
+    Detail.FULL,
+    { radius: world.radius[ball] as number },
+  );
 }
 
 /** The floating stick and the context buttons (`06` §2). Targets are ≥44 px by construction. */

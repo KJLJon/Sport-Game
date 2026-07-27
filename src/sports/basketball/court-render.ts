@@ -2,34 +2,39 @@
  * @spec    001-initial-dev
  * @phase   2 — Basketball · Live
  * @task    T-2.1 — Court geometry, zones, arc, key, hoop, boundaries
+ * @task    T-2.12 — Basketball art & audio pass
  * @story   US-3.1 — Play a 5v5 basketball match
+ * @story   US-2.3 — See the whole field on a small screen
  * @design  10-ui-ux.md §3.1 (tokens), 04-architecture.md §5 (the sport module seam)
  *
  * Purpose: draws the court's line art from the same numbers the rules use. Every mark here reads
  * `COURT`, so a court that plays differently from how it looks is not a bug this file can have.
  *
- * The art pass (T-2.12) replaces the palette and adds texture; the geometry stays here.
+ * The art pass (T-2.12) supplies the palette — `art.ts`'s copy of `10` §3.1's tokens — and nothing
+ * else changes: not one literal here is a geometry number, so restyling this file can never quietly
+ * move a line the rules disagree with.
  */
 import type { Canvas2D, ViewTransform } from '../../engine/render/renderer.ts';
 import type { FieldGeometry } from '../types.ts';
 import { CENTRE_X, CENTRE_Y, COURT, CORNER_ARC_X, attackedBasket, type Side } from './court.ts';
-
-/** Placeholder palette until T-2.12. Deliberately flat, so geometry errors are obvious. */
-const PALETTE = {
-  floor: '#8a5a2b',
-  paint: '#9c4a2f',
-  line: '#f2ede4',
-  rim: '#e2622c',
-} as const;
+import { paletteFor, type Theme } from './art.ts';
 
 const LINE_WIDTH = 0.05;
 
-export function drawCourt(ctx: Canvas2D, field: FieldGeometry): void {
-  ctx.fillStyle = PALETTE.floor;
+/**
+ * `theme` defaults dark (`10` §3.1's dark-first default) so the current call site —
+ * `sport.render.drawField(ctx, field)`, which does not yet thread a theme through
+ * `SportRenderer` — keeps compiling and painting correctly. Wiring a live theme through requires a
+ * `SportRenderer.drawField` signature change, which is `sports/types.ts`'s call, not this file's.
+ */
+export function drawCourt(ctx: Canvas2D, field: FieldGeometry, theme: Theme = 'dark'): void {
+  const palette = paletteFor(theme).court;
+
+  ctx.fillStyle = palette.floor;
   ctx.fillRect(0, 0, field.width, field.height);
 
-  ctx.strokeStyle = PALETTE.line;
-  ctx.fillStyle = PALETTE.paint;
+  ctx.strokeStyle = palette.line;
+  ctx.fillStyle = palette.paint;
   ctx.lineWidth = LINE_WIDTH;
 
   ctx.strokeRect(0, 0, COURT.length, COURT.width);
@@ -43,19 +48,23 @@ export function drawCourt(ctx: Canvas2D, field: FieldGeometry): void {
   ctx.arc(CENTRE_X, CENTRE_Y, COURT.centreCircleRadius, 0, Math.PI * 2);
   ctx.stroke();
 
-  drawHalf(ctx, 0);
-  drawHalf(ctx, 1);
+  drawHalf(ctx, 0, palette);
+  drawHalf(ctx, 1, palette);
 }
 
 /** One end of the court. `side` here is the side that *attacks* this end, per `court.ts`. */
-function drawHalf(ctx: Canvas2D, side: Side): void {
+function drawHalf(
+  ctx: Canvas2D,
+  side: Side,
+  palette: ReturnType<typeof paletteFor>['court'],
+): void {
   const basket = attackedBasket(side);
   // +1 when this end is at low x, so every offset below is "into the court from this baseline".
   const inward = side === 0 ? -1 : 1;
   const baseline = side === 0 ? COURT.length : 0;
 
   const keyX = Math.min(baseline, baseline + inward * COURT.freeThrowFromBaseline);
-  ctx.fillStyle = PALETTE.paint;
+  ctx.fillStyle = palette.paint;
   ctx.fillRect(keyX, CENTRE_Y - COURT.keyWidth / 2, COURT.freeThrowFromBaseline, COURT.keyWidth);
   ctx.strokeRect(keyX, CENTRE_Y - COURT.keyWidth / 2, COURT.freeThrowFromBaseline, COURT.keyWidth);
 
@@ -104,11 +113,11 @@ function drawHalf(ctx: Canvas2D, side: Side): void {
   ctx.lineTo(boardX, CENTRE_Y + COURT.backboardWidth / 2);
   ctx.stroke();
 
-  ctx.strokeStyle = PALETTE.rim;
+  ctx.strokeStyle = palette.rim;
   ctx.beginPath();
   ctx.arc(basket.x, basket.y, COURT.rimRadius, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.strokeStyle = PALETTE.line;
+  ctx.strokeStyle = palette.line;
 }
 
 /** Cache key for the static field layer — the court is fixed, so only the viewport can change it. */

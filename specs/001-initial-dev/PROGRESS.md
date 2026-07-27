@@ -44,7 +44,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
-| 2 | Basketball · Live | 13 | 11 | `in_progress` | v0.1 |
+| 2 | Basketball · Live | 13 | 12 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
@@ -54,7 +54,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **42** | | |
+| | **Total** | **170** | **43** | | |
 
 ---
 
@@ -320,7 +320,7 @@ Records subagent use, per `CLAUDE.md` §7.3.
 
 | Date | Task | Agent / model | Scope (files owned) | Outcome |
 |---|---|---|---|---|
-| 2026-07-27 | T-2.12 | `general-purpose` / `sonnet` | `src/sports/basketball/art.ts`, `src/sports/basketball/court-render.ts`, `src/modes/live/audio.ts` and their tests — nothing else | In flight at the time of writing; reviewed and committed by the main session, never by the agent. |
+| 2026-07-27 | T-2.12 | `general-purpose` / `sonnet` | `src/sports/basketball/art.ts`, `src/sports/basketball/court-render.ts`, `src/modes/live/audio.ts` and their tests — nothing else | **Good.** Stayed exactly in scope, wrote resolving spec headers, and its `@design` references all check out against the specs (`06` §9, `10` §11) — verified against the documents, not against its own summary (§7.3 rule 6). It also flagged a real ambiguity rather than guessing quietly (no "shot missed" event exists; it used `rebound` and documented why). The main session reviewed the diff, ran the suite and the browser E2E, and made the commit. |
 
 ---
 
@@ -346,6 +346,7 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 | 2026-07-27 | T-2.8 | The shot bar is a possession's *continuation* value, not its total value | Set at league-average efficiency it means only above-average shots are ever taken, which cannot be true of an average. Declining a shot burns clock and risks a turnover, so what remains is worth less than the possession was. |
 | 2026-07-27 | T-2.9 | Auto-switch is an assist, not a difficulty setting | `06` §2 lists it beside aim and pass assist, tunable independently. Modelling it as difficulty would make it a thing the player cannot choose separately, which is the opposite of what the spec asks for. |
 | 2026-07-27 | T-2.9 | With auto-switch off, the player is *not* switched to the ball-carrier | Off means off. The alternative reading — always follow the ball — makes the setting do nothing on offence, which is most of the game. |
+| 2026-07-27 | T-2.12 | **Raised, not fixed: the `@invariant` IDs in spec headers do not match `12` §3's table.** Headers across Phases 0–2 use `INV-5` for "no sport-specific branching in engine core" and `INV-11` for "no information by colour alone" — but in `12` §3, INV-5 is the pack-economy rule and INV-11 is cross-mode outcome parity. Those two meanings come from **CLAUDE.md §8's** numbered constraint list, which is a *different* numbering from the INV table. | The convention was set in Phase 1 (`src/sports/types.ts`, `testsport/index.ts`) and this session followed it, so 26 references across 13 files are consistent with each other and inconsistent with `12` §3. Every use carries its meaning in parentheses, so no reader is actually misled — which is why this is recorded rather than mass-edited mid-phase. It needs one decision (renumber the headers, or give CLAUDE.md §8's list its own prefix such as `C-4`/`C-11`) and one mechanical pass. Raised with the user at the Phase 2 gate. |
 | 2026-07-27 | T-2.10 | Built the Live mode host, which `03` has no task for | The HUD needs something to be a HUD *of*. `03` implies the host in T-2.10/T-2.11 without naming it; rather than invent a task ID, it is recorded against both. |
 | 2026-07-27 | T-2.10 | T-2.10 was not delegated despite `03` marking it `sonnet` | The host underneath it is the sport-module seam, which `CLAUDE.md` §7.2 says never to delegate — and once the host exists the HUD is thin. T-2.12 was delegated instead. |
 | 2026-07-27 | T-2.11 | In-match settings are handedness and sound only | Everything else `06` §2 lists — aim assist, pass assist, auto-switch strength, timing forgiveness — needs the settings store and the difficulty seam from Phase 7. A toggle that quietly does nothing is worse than no toggle. |
