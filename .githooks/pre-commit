@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+#
+# spec 001-initial-dev · CLAUDE.md §12 — format and auto-fix before the commit lands.
+#
+# Formatting is machine work, so no session should ever spend a review round on it. This hook
+# runs Prettier and `eslint --fix` over the *staged* files only, re-stages what changed, and
+# fails the commit if ESLint still reports an error it could not fix.
+#
+# Enabled by `pnpm install` (the `prepare` script points core.hooksPath at .githooks/).
+# Escape hatch: `SKIP_HOOKS=1 git commit …`.
+
+set -euo pipefail
+
+if [ "${SKIP_HOOKS:-}" = "1" ]; then
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# Added / copied / modified / renamed. Deletions have nothing to format.
+staged=()
+while IFS= read -r -d '' file; do
+  staged+=("$file")
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+if [ ${#staged[@]} -eq 0 ]; then
+  exit 0
+fi
+
+lintable=()
+for file in "${staged[@]}"; do
+  case "$file" in
+    *.ts | *.tsx | *.js | *.mjs | *.cjs) lintable+=("$file") ;;
+  esac
+done
+
+if [ ! -d node_modules ]; then
+  echo "pre-commit: node_modules missing — run pnpm install. Skipping format." >&2
+  exit 0
+fi
+
+pnpm exec prettier --write --ignore-unknown --log-level warn -- "${staged[@]}"
+
+if [ ${#lintable[@]} -gt 0 ]; then
+  pnpm exec eslint --fix --no-warn-ignored \
+    --cache --cache-location node_modules/.cache/eslint/ -- "${lintable[@]}"
+fi
+
+# Re-stage what the formatters rewrote. Note this also stages any unstaged edits to those same
+# files — a deliberate trade for `git add -p` users, who have SKIP_HOOKS=1.
+git add -- "${staged[@]}"
