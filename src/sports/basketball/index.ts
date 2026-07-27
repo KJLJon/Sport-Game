@@ -20,7 +20,7 @@
  */
 import { createRng, type Rng } from '../../engine/rng.ts';
 import type { InputFrame } from '../../engine/input/types.ts';
-import { Button, isHeld, wasPressed, wasReleased } from '../../engine/input/types.ts';
+import { Button, EMPTY_FRAME, isHeld, wasPressed, wasReleased } from '../../engine/input/types.ts';
 import { EventKind, event, type SportEvent } from '../../engine/match/events.ts';
 import { NO_ENTITY, type EntityId, type World } from '../../engine/world.ts';
 import {
@@ -64,6 +64,18 @@ import {
   type PasserRatings,
   type ReceiverRatings,
 } from './passing.ts';
+import {
+  Contact,
+  DRIBBLING,
+  blowByChance,
+  canBlowBy,
+  fumbleBall,
+  fumbleChance,
+  resolveContact,
+  staggerFactor,
+  type BodyRatings,
+  type HandlerRatings,
+} from './dribbling.ts';
 import type {
   ActionIntent,
   MatchSetup,
@@ -147,6 +159,12 @@ export interface BasketballState extends SportState {
   pass: PassInFlight | null;
   /** True between a miss and whoever collects it — what makes the next catch a rebound. */
   reboundLive: boolean;
+  /** Steps of reduced speed per athlete — a beaten defender, or a carrier stood up by contact. */
+  readonly stagger: Map<EntityId, number>;
+  /** Defenders the carrier has already tried to beat this possession, so a drive is one attempt. */
+  readonly beaten: Set<EntityId>;
+  /** The defender the carrier is currently leaning on, so contact resolves once per collision. */
+  contactWith: EntityId;
   readonly playerSide: 0 | 1 | -1;
   controlled: EntityId;
   step: number;
@@ -290,6 +308,9 @@ export const basketball: SportModule<BasketballState> = {
       shot: null,
       pass: null,
       reboundLive: false,
+      stagger: new Map(),
+      beaten: new Set(),
+      contactWith: NO_ENTITY,
       playerSide: setup.playerSide,
       controlled,
       step: 0,
@@ -322,6 +343,7 @@ export const basketball: SportModule<BasketballState> = {
     world.reindex();
 
     events.push(...advanceRestart(state, world, rng));
+    events.push(...driveDribbling(state, world, inputs, rng));
     events.push(...driveShooting(state, world, inputs, rng));
     events.push(...drivePassing(state, world, inputs, rng));
     events.push(...resolveFlight(state, world, rng));
@@ -372,6 +394,147 @@ export const basketball: SportModule<BasketballState> = {
     return false;
   },
 };
+
+/**
+ * Everything that can happen to the ball while somebody is carrying it: losing the handle, meeting
+ * a body, and getting past one.
+ *
+ * All three are per-step draws, because a drive is two seconds of sustained pressure rather than an
+ * event — the model has to be able to say "he lost it halfway in".
+ */
+function driveDribbling(
+  state: BasketballState,
+  world: World,
+  inputs: ReadonlyMap<EntityId, InputFrame>,
+  rng: Rng,
+): SportEvent[] {
+  for (const [id, steps] of state.stagger) {
+    if (steps <= 1) state.stagger.delete(id);
+    else state.stagger.set(id, steps - 1);
+  }
+
+  const carrier = state.ballState.carrier;
+  if (carrier === NO_ENTITY || state.rules.restart !== null) {
+    state.contactWith = NO_ENTITY;
+    return [];
+  }
+  // A planted shooter is not dribbling.
+  if (state.meter !== null) return [];
+
+  const side = state.sides.get(carrier);
+  const ratings = state.ratings.get(carrier);
+  const profile = state.profiles.get(carrier);
+  if (side === undefined || ratings === undefined || profile === undefined) return [];
+
+  const pressure = contestOn(state, world, carrier, side);
+  const speed = Math.hypot(world.vx[carrier] as number, world.vy[carrier] as number);
+  const sprinting = isHeld(inputs.get(carrier) ?? EMPTY_FRAME, Button.MODIFIER);
+
+  if (rng.bool(fumbleChance(ratings, pressure, speed, profile.maxSpeed, sprinting))) {
+    fumbleBall(world, state.ballState, carrier, rng);
+    registerTouch(state.rules, side);
+    state.reboundLive = false;
+    return [
+      event(EventKind.SPORT, state.step, side, {
+        sportKind: BasketballEvent.FUMBLE,
+        actor: carrier,
+      }),
+    ];
+  }
+
+  return resolveDefenderContact(state, world, carrier, side, ratings, rng);
+}
+
+/** The nearest defender in the carrier's way: beaten, absorbed, or a wall. */
+function resolveDefenderContact(
+  state: BasketballState,
+  world: World,
+  carrier: EntityId,
+  side: CourtSide,
+  ratings: AthleteRatings,
+  rng: Rng,
+): SportEvent[] {
+  const target = carryTarget(state, world, carrier, side);
+
+  let defender = NO_ENTITY;
+  let gap = Infinity;
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    if (state.sides.get(id) === side) return;
+    const d = Math.hypot(
+      (world.x[id] as number) - (world.x[carrier] as number),
+      (world.y[id] as number) - (world.y[carrier] as number),
+    );
+    if (d < gap) {
+      gap = d;
+      defender = id;
+    }
+  });
+
+  if (defender === NO_ENTITY) return [];
+  const defenderRatings = state.ratings.get(defender);
+  if (defenderRatings === undefined) return [];
+
+  // One attempt per defender per possession, so a drive is a move rather than a dice tower.
+  if (!state.beaten.has(defender) && canBlowBy(world, carrier, defender, target.x, target.y)) {
+    state.beaten.add(defender);
+    if (rng.bool(blowByChance(ratings, defenderRatings))) {
+      state.stagger.set(defender, DRIBBLING.blowByStaggerSteps);
+      return [
+        event(EventKind.SPORT, state.step, side, {
+          sportKind: BasketballEvent.BLOW_BY,
+          actor: carrier,
+          target: defender,
+        }),
+      ];
+    }
+  }
+
+  const touching =
+    gap <=
+    (world.radius[carrier] as number) +
+      (world.radius[defender] as number) +
+      DRIBBLING.contactMargin;
+
+  // Contact is a collision, not a state: it resolves on the step the two bodies meet and not on
+  // each of the eighty steps they then spend leaning on each other.
+  if (!touching) {
+    if (state.contactWith === defender) state.contactWith = NO_ENTITY;
+    return [];
+  }
+  if (state.contactWith === defender) return [];
+  state.contactWith = defender;
+
+  const closing = Math.hypot(
+    (world.vx[carrier] as number) - (world.vx[defender] as number),
+    (world.vy[carrier] as number) - (world.vy[defender] as number),
+  );
+  const result = resolveContact(ratings, defenderRatings, closing, rng);
+
+  if (result.kind === Contact.ABSORBED) return [];
+
+  state.stagger.set(carrier, DRIBBLING.contactStaggerSteps);
+  world.vx[carrier] = (world.vx[carrier] as number) * result.speedFactor;
+  world.vy[carrier] = (world.vy[carrier] as number) * result.speedFactor;
+
+  const events: SportEvent[] = [
+    event(EventKind.SPORT, state.step, side, {
+      sportKind: BasketballEvent.CONTACT,
+      actor: carrier,
+      target: defender,
+      // T-2.7's foul model reads this; nothing here decides whether a whistle blows.
+      detail: { outcome: result.kind, severity: round3(result.severity) },
+    }),
+  ];
+
+  if (result.kind === Contact.STRIPPED) {
+    fumbleBall(world, state.ballState, carrier, rng);
+    registerTouch(state.rules, side);
+    state.reboundLive = false;
+  }
+
+  return events;
+}
 
 /**
  * Charges and releases shots.
@@ -792,7 +955,12 @@ function nearestOpponentDistance(
 }
 
 /** Everything an athlete's basketball actions read. Real athletes replace this at T-3.17. */
-type AthleteRatings = ShooterRatings & PasserRatings & ReceiverRatings & InterceptorRatings;
+type AthleteRatings = ShooterRatings &
+  PasserRatings &
+  ReceiverRatings &
+  InterceptorRatings &
+  HandlerRatings &
+  BodyRatings;
 
 /** Seeded ratings, biased by role — guards shoot and pass, bigs finish. Replaced at T-3.17. */
 function rollRatings(rng: Rng, roleIndex: number): AthleteRatings {
@@ -808,6 +976,9 @@ function rollRatings(rng: Rng, roleIndex: number): AthleteRatings {
     passing: rng.int(perimeter ? 55 : 40, perimeter ? 90 : 72),
     ballHandling: rng.int(perimeter ? 60 : 35, perimeter ? 92 : 68),
     perimeterD: rng.int(perimeter ? 50 : 35, perimeter ? 88 : 70),
+    interiorD: rng.int(perimeter ? 35 : 58, perimeter ? 68 : 90),
+    agility: rng.int(perimeter ? 60 : 35, perimeter ? 92 : 70),
+    strength: rng.int(perimeter ? 35 : 60, perimeter ? 70 : 92),
   };
 }
 
@@ -896,6 +1067,10 @@ function moveEveryone(
         desired,
       );
     }
+
+    const slowed = staggerFactor(state.stagger.get(id) ?? 0);
+    desired.x *= slowed;
+    desired.y *= slowed;
 
     integrate(world, id, profile, desired, dt);
     world.clampToBounds(id, world.radius[id] as number);
@@ -1072,6 +1247,7 @@ function collectLooseBall(state: BasketballState, world: World): SportEvent[] {
   if (side === undefined) return [];
 
   attach(world, ball, taker);
+  state.beaten.clear();
   const wasOffence = state.rules.possession === side;
   const rebound = state.reboundLive;
   state.reboundLive = false;

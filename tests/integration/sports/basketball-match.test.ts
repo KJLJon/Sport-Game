@@ -180,6 +180,25 @@ describe('a basketball match', () => {
     expect(turnovers.length).toBeGreaterThanOrEqual(intercepts.length);
   });
 
+  it('makes carrying the ball cost something', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
+    const contacts = of(events, BasketballEvent.CONTACT);
+    const blowBys = of(events, BasketballEvent.BLOW_BY);
+
+    // Drives meet bodies, and some of them get past.
+    expect(contacts.length).toBeGreaterThan(3);
+    expect(blowBys.length).toBeGreaterThan(0);
+
+    // Contact resolves on the collision, not on every step two bodies lean on each other.
+    expect(contacts.length).toBeLessThan(BASKETBALL_RULES.periodSteps / 20);
+
+    for (const contact of contacts) {
+      const severity = (contact.detail ?? {}).severity as number;
+      expect(severity).toBeGreaterThanOrEqual(0);
+      expect(severity).toBeLessThanOrEqual(1);
+    }
+  });
+
   it('keeps every athlete on the court', () => {
     const { world } = play('bounds', 3000);
     world.forEach((id) => {
