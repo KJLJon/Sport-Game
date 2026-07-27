@@ -358,9 +358,21 @@ function resetToCentre(world: World, state: TestSportState, rng: Rng): void {
   world.invalidateIndex();
 }
 
-/** Builds a match ready to step — used by the determinism tests and the perf harness. */
-export function createTestMatch(world: World, seed: string, playerSide: 0 | 1 | -1 = -1) {
+/**
+ * Builds a match ready to step — used by the determinism tests and the perf harness.
+ *
+ * `squadSize` exists for the benchmark, which runs the 11-per-side load `12` §6 budgets rather
+ * than this sport's own three.
+ */
+export function createTestMatch(
+  world: World,
+  seed: string,
+  playerSide: 0 | 1 | -1 = -1,
+  squadSize?: number,
+) {
   const rng = createRng(seed);
-  const state = testSport.createState({ seed, playerSide }, world, rng);
+  const setup: MatchSetup =
+    squadSize === undefined ? { seed, playerSide } : { seed, playerSide, squadSize };
+  const state = testSport.createState(setup, world, rng);
   return { state, rng: rng.fork('sim') };
 }

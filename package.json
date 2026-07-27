@@ -24,7 +24,8 @@
     "trace": "tsx tools/spec-trace.ts",
     "progress:check": "tsx tools/progress-check.ts",
     "verify": "pnpm typecheck && pnpm lint && pnpm test",
-    "budget": "tsx tools/budget.ts"
+    "budget": "tsx tools/budget.ts",
+    "bench": "tsx tools/bench.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
