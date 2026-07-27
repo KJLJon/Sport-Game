@@ -13,7 +13,7 @@
  * The derivation engine that consumes this is T-3.3; the physical modifiers are declared here for
  * the same reason the weights are, and applied there.
  */
-import type { RatingWeightTable } from '../types.ts';
+import type { PhysicalModifiers, PositionWeightTable, RatingWeightTable } from '../types.ts';
 
 /**
  * Rows sum to 1.0. A missing attribute is a zero — written out rather than implied, so a row that
@@ -76,3 +76,71 @@ export const BASKETBALL_HEIGHT_MODIFIERS: Readonly<Record<string, number>> = {
 
 /** The height the modifiers are measured from. */
 export const BASKETBALL_REFERENCE_HEIGHT_CM = 195;
+
+/** The same table in the shape the derivation engine consumes (T-3.3). */
+export const BASKETBALL_PHYSICAL: PhysicalModifiers = {
+  heightCm: {
+    reference: BASKETBALL_REFERENCE_HEIGHT_CM,
+    perUnit: BASKETBALL_HEIGHT_MODIFIERS,
+  },
+};
+
+/**
+ * Position → derived-rating weights, for overall and position fit (`05` §3.4). Rows sum to 1.0.
+ *
+ * `05` gives the formula but not this table, so these are starting values in the same sense as
+ * everything else in `05`: a point guard is judged mostly on handling, passing, and the perimeter;
+ * a centre almost entirely on the paint. What matters for the feature is that the *shape* differs
+ * enough between positions that a fit warning means something — a centre played at point guard
+ * should fall well under the 0.85 threshold, and there is a test that says so.
+ *
+ * @spec-ref 05-data-model.md §3.4
+ */
+export const BASKETBALL_POSITION_WEIGHTS: PositionWeightTable = {
+  PG: {
+    ballHandling: 0.25,
+    passing: 0.25,
+    threePoint: 0.15,
+    midRange: 0.1,
+    perimeterD: 0.15,
+    courtSpeed: 0.1,
+  },
+  SG: {
+    threePoint: 0.25,
+    midRange: 0.2,
+    ballHandling: 0.12,
+    passing: 0.08,
+    perimeterD: 0.18,
+    courtSpeed: 0.1,
+    finishing: 0.07,
+  },
+  SF: {
+    finishing: 0.18,
+    threePoint: 0.18,
+    midRange: 0.12,
+    perimeterD: 0.18,
+    rebounding: 0.12,
+    ballHandling: 0.08,
+    courtSpeed: 0.07,
+    passing: 0.07,
+  },
+  PF: {
+    finishing: 0.2,
+    interiorD: 0.22,
+    rebounding: 0.25,
+    midRange: 0.1,
+    threePoint: 0.08,
+    passing: 0.05,
+    courtSpeed: 0.05,
+    perimeterD: 0.05,
+  },
+  C: {
+    finishing: 0.22,
+    interiorD: 0.28,
+    rebounding: 0.3,
+    midRange: 0.05,
+    passing: 0.05,
+    courtSpeed: 0.05,
+    freeThrow: 0.05,
+  },
+};

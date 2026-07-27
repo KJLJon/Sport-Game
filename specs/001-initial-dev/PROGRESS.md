@@ -12,21 +12,23 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-3.3 — Derivation engine: weight matrix, physical modifiers, unit-tested invariants
+- **Task:** T-3.4 — Familiarity model: per-sport familiarity, penalty curve, growth from minutes
 - **Status:** in_progress
 - **Started:** 2026-07-27
 - **Branch commit:** (see `git log`)
 - **Done so far:**
   - [x] T-3.1 — schema, store indexes, repository
   - [x] T-3.2 — budget, sandbox, seeded roll, the athlete factory
-  - [ ] Weight matrix for basketball and soccer (`05` §3.1, §3.2), in `tuning.ts`
-  - [ ] `deriveRatings()` — raw → familiarity gate → skill bonus
-  - [ ] Overall and position fit (`05` §3.4)
-  - [ ] Invariant tests: rows sum to 1.0, monotonic in every weighted attribute, 1–99
-- **Next step:** add the two weight tables to `src/athletes/tuning.ts`, then write
-  `src/athletes/derivation.ts` implementing `05` §3's three stages. Familiarity *growth* is T-3.4;
-  T-3.3 only reads the current value through `famMult`.
-- **Files touched:** src/athletes/{types,repository,tuning,attributes,create}.ts, src/storage/idb.ts
+  - [x] T-3.3 — derivation, physical modifiers, overall and position fit
+  - [ ] `familiarityGain()` from minutes, with the age factor and sport complexity
+  - [ ] Caps: 100 for the primary sport, 95 for any other
+  - [ ] The "~15 matches to competent, ~50 to the cap" shape, asserted rather than assumed
+- **Next step:** write `src/athletes/familiarity.ts` against `05` §3.3's growth formula, with the
+  complexity table in `tuning.ts`. The *penalty curve* is already in `derivation.ts`
+  (`familiarityMultiplier`) — T-3.4 adds the growth half and the caps.
+- **Files touched:** src/athletes/{types,repository,tuning,attributes,create,derivation}.ts,
+  src/sports/types.ts, src/sports/basketball/{weights,index}.ts, src/sports/soccer/weights.ts,
+  src/storage/idb.ts
 - **Blockers:** none for Phase 3. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
   top of that debt, deliberately, and Gate 3 inherits it.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
@@ -51,7 +53,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
-| 3 | Athletes, cross-sport ratings, roster | 17 | 2 | `in_progress` | v0.2 |
+| 3 | Athletes, cross-sport ratings, roster | 17 | 3 | `in_progress` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
@@ -60,7 +62,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **46** | | |
+| | **Total** | **170** | **47** | | |
 
 ---
 
@@ -131,8 +133,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 |---|---|---|---|---|---|---|---|
 | T-3.1 | Athlete schema, IndexedDB store, indexes, repository | M | `done` | | `tests/unit/athletes/types.test.ts`, `tests/integration/storage/athletes.test.ts` | `auto` — repository exercised against real IndexedDB | Schema written against `05` §2 field for field; bounds live beside it, the creation *budget* does not (that is T-3.2's, in `tuning.ts`). **Bug found:** the `athletes` store's `byName` index from T-0.11 pointed at `name`, a property no athlete has, so it indexed nothing — the roster browser would have sorted on an empty index. Now `byDisplayName`. IndexedDB has no "alter index", so `openDatabase` now reconciles: creates what is missing, drops what is undeclared, rebuilds a changed key path. `DB_VERSION` 1 → 2; no entry in the *data* chain, since an index is derived and a backup carries none. Search normalises accents, so `ibrahimovic` finds `Ibrahimović`. |
 | T-3.2 | Attribute system: the eleven attributes, budget rules, sandbox flag, random roll | M | `done` | | `tests/unit/athletes/attributes.test.ts`, `tests/unit/athletes/create.test.ts` | `auto` — roll checked as a property across all five rarities | `tuning.ts` holds every `05` number so a balance pass never touches logic. Sandbox is a *flag, not a refusal*: `judgeCreation` returns the reason and points at Settings, because `05` §2.1 is explicit that the make-Messi fantasy stays available. The roll draws each attribute around the band average and then settles to the exact total; the settle step picks its ±1 targets from the RNG rather than walking in order, because "first attribute with room" is a systematic bias toward `speed` — the same shape as an id-order tie-break. There is a test for it. `fitToBudget` scales only the headroom above the floor, so a shooter stays a shooter. `createAthlete` clamps rather than throws and omits absent optionals entirely (`exactOptionalPropertyTypes`, and an `undefined` value is a real IndexedDB key). |
-| T-3.3 | Derivation engine: weight matrix, physical modifiers, unit-tested invariants | L | `in_progress` | | | | |
-| T-3.4 | Familiarity model: per-sport familiarity, penalty curve, growth from minutes | L | `todo` | | | | |
+| T-3.3 | Derivation engine: weight matrix, physical modifiers, unit-tested invariants | L | `done` | | `tests/unit/athletes/derivation.test.ts` | `auto` — hand-checked against `05` §3.1 plus properties over 500 random cases | No `if (sport === …)` anywhere: every sport-specific number arrives as a table from the sport module, so a new sport is a new table rather than an edit. The seam gained `physicalModifiers` and `positionWeights` (both optional). **Two judgement calls, both recorded in the decisions table below:** `05` §3.4 gives the position-fit *formula* but no position-weight table, so basketball's is new; and `05` §3.2 gives soccer's weights but no physical modifiers, so soccer's are read off §2.1's prose at half basketball's magnitude. **`src/sports/soccer/weights.ts` exists before Phase 6's soccer module, deliberately** — data only, no `SportModule`. T-3.9 has nothing to compare against otherwise, and a derivation engine tested against one table is one written for that table; soccer's twelve differently-shaped rows are what prove it generic. Properties asserted: monotonic in every weighted attribute, always integer 1–99, never above the athlete's own ceiling, projections through identical arithmetic. |
+| T-3.4 | Familiarity model: per-sport familiarity, penalty curve, growth from minutes | L | `in_progress` | | | | |
 | T-3.5 | Sport skill XP: levels, sub-skills, event-driven awards, diminishing returns | L | `todo` | | | | |
 | T-3.6 | Behavioural coupling: familiarity → decision noise, control error, reaction penalty in-sim | M | `todo` | | | | |
 | T-3.7 | Profile editor: fields, presets/sliders/roll with live budget meter, photo capture + downscale | L | `todo` | | | | |
@@ -337,6 +339,10 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 
 | Date | Task | Decision | Rationale |
 |---|---|---|---|
+| 2026-07-27 | T-3.1 | The `athletes` store's name index is `byDisplayName` on `displayName`, and `openDatabase` now reconciles indexes | T-0.11's `byName` pointed at `name`, which no athlete has, so it indexed nothing and would have failed silently in the roster browser. IndexedDB cannot alter an index, so the fix has to be a drop-and-recreate; making the upgrade path reconcile against the spec means the next such drift is corrected rather than merely detectable. `DB_VERSION` 1 → 2, no data-chain entry — an index is derived data. |
+| 2026-07-27 | T-3.3 | Basketball's position-weight table (`05` §3.4) is new, not quoted | `05` §3.4 gives the fit *formula* and the 0.85 warning threshold but no `positionWeight` table for any sport. Written to `05`'s own standard — starting values for a balance pass — and shaped so the positions differ enough that the warning means something; a centre at point guard falls well under 0.85, and there is a test asserting it. |
+| 2026-07-27 | T-3.3 | Soccer's physical modifiers are read off `05` §2.1's prose, at half basketball's magnitude | `05` §3.2 gives soccer's weights but no modifier table. §2.1 says height helps goalkeeping and hurts low-centre-of-gravity agility, which in soccer is heading and goalkeeping up, dribbling down. Halved because soccer's height spread is narrower and basketball's per-cm figure would swamp the weighted sum. Revisit when Phase 6 can actually play it. |
+| 2026-07-27 | T-3.3 | `src/sports/soccer/weights.ts` ships in Phase 3, ahead of Phase 6's soccer module | Data only — no `SportModule`, nothing registered. Two reasons: T-3.9 projects ratings for unplayed sports and with only basketball in the build has nothing to project *to*, and a derivation engine tested against a single table is one written for that table. Soccer's twelve differently-shaped rows are the evidence it is generic. |
 | 2026-07-27 | T-2.1 | FIBA court dimensions (28 × 15 m), not NBA | The world already works in metres; FIBA's numbers are metric by definition rather than by conversion, so no constant in the file is a rounded foot. |
 | 2026-07-27 | T-2.1 | World bounds equal court bounds — an inbounder stands *on* the line, not behind it | Keeps `world.clampToBounds` the whole out-of-bounds containment story for athletes. Nothing in the rules depends on that metre, and an offset coordinate space would have to be undone everywhere. |
 | 2026-07-27 | T-2.2 | Clock compression is 4× (3 real minutes shown as 12:00) and derived from the two quarter figures | `06` §3.1 fixes both ends; deriving the ratio means a future tuning change to either cannot leave them inconsistent. |

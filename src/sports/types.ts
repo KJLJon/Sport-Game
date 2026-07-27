@@ -69,6 +69,29 @@ export interface Goal {
  */
 export type RatingWeightTable = Readonly<Record<string, Readonly<Record<string, number>>>>;
 
+/**
+ * A body adjustment applied *after* the weighted sum (`05` §2.1, §3.1): height and weight are not
+ * attributes, so they cannot be weighted alongside them, and a tall athlete's rebounding advantage
+ * is a flat bonus rather than a share of a budget.
+ */
+export interface PhysicalModifierTable {
+  /** The size at which every modifier is zero. */
+  readonly reference: number;
+  /** Derived rating → rating points per unit above `reference`. Negative penalises size. */
+  readonly perUnit: Readonly<Record<string, number>>;
+}
+
+export interface PhysicalModifiers {
+  readonly heightCm?: PhysicalModifierTable;
+  readonly weightKg?: PhysicalModifierTable;
+}
+
+/**
+ * Position → weights over the sport's *derived ratings*, for overall and position fit (`05` §3.4).
+ * Rows sum to 1.0, so an overall lands on the same 1–99 scale as the ratings it is built from.
+ */
+export type PositionWeightTable = Readonly<Record<string, Readonly<Record<string, number>>>>;
+
 /** Positions and their default field placement, as fractions of the field. */
 export interface RoleTable {
   readonly roles: readonly {
@@ -169,6 +192,10 @@ export interface SportModule<S extends SportState = SportState> {
 
   readonly field: FieldGeometry;
   readonly ratingWeights: RatingWeightTable;
+  /** Height and weight adjustments (`05` §3.1). Absent when the sport has no opinion about size. */
+  readonly physicalModifiers?: PhysicalModifiers;
+  /** Keyed by `roles.roles[].id`. Absent when every position wants the same athlete. */
+  readonly positionWeights?: PositionWeightTable;
   readonly roles: RoleTable;
 
   /** Populates the world and returns the sport's own state. */

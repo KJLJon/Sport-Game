@@ -68,3 +68,19 @@ export const ROLL = {
   weightKg: { mean: 83, spread: 6, perCm: 0.75 },
   age: { min: 18, max: 34 },
 } as const;
+
+/**
+ * The derivation curve (`05` §3, §3.4). `famMult(f) = 0.55 + 0.45 × (f/100)^0.75`, so a total
+ * novice plays at 55% of their ceiling and a fully familiar athlete at 100%.
+ *
+ * @spec-ref 05-data-model.md §3
+ */
+export const DERIVATION = {
+  familiarityFloor: 0.55,
+  familiarityRange: 0.45,
+  familiarityExponent: 0.75,
+  /** Sub-skill 0–20 → 0–15 rating points. */
+  subSkillPoints: 0.75,
+  /** Under this, the lineup editor warns rather than blocks (`05` §3.4). */
+  positionFitWarning: 0.85,
+} as const;

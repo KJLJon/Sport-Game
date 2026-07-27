@@ -155,7 +155,7 @@ import {
   type Side as CourtSide,
 } from './court.ts';
 import { courtKey, drawCourt } from './court-render.ts';
-import { BASKETBALL_WEIGHTS } from './weights.ts';
+import { BASKETBALL_PHYSICAL, BASKETBALL_POSITION_WEIGHTS, BASKETBALL_WEIGHTS } from './weights.ts';
 import {
   BASKETBALL_RULES,
   BasketballEvent,
@@ -358,6 +358,8 @@ export const basketball: SportModule<BasketballState> = {
   rules: BASKETBALL_RULES,
   field: basketballCourt,
   ratingWeights: BASKETBALL_WEIGHTS,
+  physicalModifiers: BASKETBALL_PHYSICAL,
+  positionWeights: BASKETBALL_POSITION_WEIGHTS,
   roles,
   ai,
   render,
