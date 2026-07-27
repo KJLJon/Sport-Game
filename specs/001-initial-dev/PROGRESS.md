@@ -12,15 +12,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-1.11 — `SportModule` interface + a trivial test sport proving the seam
+- **Task:** T-1.12 — Input recording + golden-seed determinism tests in CI (INV-8)
 - **Status:** in_progress
 - **Started:** 2026-07-27
 - **Branch commit:** (see `git log` on `claude/phase-1-token-optimizations-g7sjm3`)
-- **Done so far:** T-1.1 … T-1.10 `done` (PRNG, loop, world, movement, collision, ball, renderer,
-  camera, input, match machine + event bus)
-- **Next step:** `src/sports/types.ts` per `04` §5 and `09` §5, plus a deliberately trivial test
-  sport under `src/sports/testsport/` that exercises the whole seam without being a real game.
-- **Files touched:** src/engine/**/*.ts and their tests
+- **Done so far:** T-1.1 … T-1.11 `done` — the engine plus the seam and a playable test sport
+- **Next step:** `src/engine/match/recorder.ts` and `tests/sim/` — record `(seed, setup, inputs)`,
+  replay it, and hash quantised state so two runs are compared byte-for-byte rather than by eye.
+- **Files touched:** src/engine/**/*.ts, src/sports/{types.ts,testsport/index.ts} and their tests
 - **Blockers:** none. **Pre-existing, unrelated:** `pnpm test:coverage` fails two `12` §2
   thresholds (`src/storage/**` functions, `src/ui/**` lines), identically at Gate 0's merge commit.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27). Formatting
@@ -38,7 +37,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
-| 1 | Engine core | 13 | 10 | `in_progress` | — |
+| 1 | Engine core | 13 | 11 | `in_progress` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
@@ -49,7 +48,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **28** | | |
+| | **Total** | **170** | **29** | | |
 
 ---
 
@@ -92,7 +91,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-1.8 | Camera: ball follow, smoothing, dynamic zoom, bounds clamp, shake (reduced-motion aware) | M | `done` | | `tests/unit/engine/camera.test.ts` | `auto` | Render-side only: it advances on frame time and nothing in `physics/` or a sport may read it — a camera that influenced the sim would make what you see change what happens. Smoothing uses `1 − e^(−rate·dt)` rather than `gap × rate × dt`, so a 30 fps device and a 120 fps device see identical motion; the naive form lags more on the slower device, which is the one that can least afford to look worse. Lookahead leads the ball so the player sees where play is going. The bounds clamp centres an axis the viewport is wider than, rather than jamming the field against one edge. Shake is seeded (INV-2 — an unseeded shake makes two replays of one match visibly different) and under reduced motion is skipped entirely rather than scaled down, along with the lookahead lead: `10` §6 exists for people motion makes ill, and a small shake is still motion. |
 | T-1.9 | Input layer: floating joystick, context buttons, handedness mirror, keyboard, gamepad | L | `done` | | `tests/unit/engine/input.test.ts` | `auto` — 42 tests; **still needs a real phone** for thumb feel and the <100 ms US-2.1 latency check | Three devices reduce to one `InputFrame`, so nothing downstream can tell which produced it — that is what makes US-2.6 free rather than a second control path, and what makes T-1.12's recording a recording of the game rather than of a thumb. Sources are fed plain data (key codes, pointer coordinates, a gamepad snapshot), never DOM events, so every mapping rule is tested with no browser. Stick feel: floating origin, deadzone *rescaled* rather than stepped (otherwise the first responsive pixel jumps to 18% speed), and the origin drags along past full deflection so a thumb that wanders mid-sprint keeps control — the single most-noticed difference between a virtual stick that feels good and one that does not. Handedness mirrors zones and button positions from one code path, not two layouts. Device precedence is last-used-wins: a player with a pad plugged in who reaches for the screen gets the screen, with no setting to find. Keyboard diagonals are normalised. |
 | T-1.10 | Match state machine + `SportEvent` bus (the contract all three modes emit) | M | `done` | | `tests/unit/engine/match.test.ts` | `auto` | INV-9 is enforced by *omission*: `SportEvent` has no `mode` field, so a consumer physically cannot branch on which mode produced an event — a shape decision rather than a code-review rule. Time is counted in simulation steps, never wall-clock, so a replay and a live match produce identical clocks (INV-8). One machine serves all three modes: Playbook advances it a turn at a time, an arcade session drives a single-period instance. A stoppage still consumes total time (replays line up) but only advances the period clock when the sport says so — basketball stops, soccer does not. Bus listeners are synchronous and in subscription order (an achievement that fires "later" cannot be part of a deterministic replay), and one listener throwing is contained rather than taking the match down. Methods guard themselves as well as the transition table: `preMatch → live` is a legal edge, so `nextPeriod()` before kick-off would otherwise silently start the match at period 2. |
-| T-1.11 | `SportModule` interface (`04` §5, `09` §5) + a trivial test sport proving the seam | M | `todo` | | | | |
+| T-1.11 | `SportModule` interface (`04` §5, `09` §5) + a trivial test sport proving the seam | M | `done` | | `tests/unit/sports/seam.test.ts` | `auto` — 18 tests including a full two-half match played through the state machine | The seam is entirely *pull*-shaped: the engine calls the sport, never the reverse. A sport that could reach into the loop, renderer, or bus would slowly acquire engine responsibilities and the seam would rot into a suggestion. `SportRegistry` is a map, not a switch — the mechanical form INV-5 takes is that there is nowhere in the engine to write `if (sport === 'basketball')`. `step()` *returns* events rather than emitting them, so the caller orders them against the clock and a headless balance run needs no bus at all. Playbook/Arcade adapters (`09` §5) are deferred to Phases 4–5 rather than stubbed. The test sport (`src/sports/testsport/`) is deliberately trivial — chase a ball, carry it into a goal — because a bug in a simple sport is an engine bug, whereas a bug in basketball might be basketball's. It is T-1.12's determinism fixture and Gate 1's subject. |
 | T-1.12 | Input recording + golden-seed determinism tests in CI (INV-8) | M | `todo` | | | | |
 | T-1.13 | Perf harness: fps/frame-time/entity overlay + CI budget check on a headless benchmark | M | `todo` | | | | |
 
