@@ -83,8 +83,15 @@ export interface ShotInput {
  * @spec-ref 06-game-design.md §3.1 — rating × distance × pressure × movement × release × composure
  */
 export const SHOOTING = {
-  /** Make chance at the rim for a 50-rated shooter, clean, set, perfect release. */
-  baseAtRim: 0.68,
+  /**
+   * Make chance at the rim for a 50-rated shooter, clean, set, perfect release.
+   *
+   * Raised from 0.68 by the balance pass (T-2.13). The original was picked by asking "what should a
+   * perfect shot go in at" and never checked against what a *typical* shot in a real possession
+   * looks like once the penalty stack below is applied to it — which came out at 30% from the
+   * field, against a real game's 46%.
+   */
+  baseAtRim: 0.78,
   /** Exponential falloff length in metres. */
   falloffMetres: 13,
   /** Extra per-metre penalty past this distance, which is what makes a heave a heave. */
@@ -95,10 +102,16 @@ export const SHOOTING = {
   ratingFloor: 0.7,
   ratingSpan: 0.6,
 
-  /** Release multiplier is `releaseFloor + (1 − releaseFloor) × quality`. */
-  releaseFloor: 0.55,
+  /**
+   * Release multiplier is `releaseFloor + (1 − releaseFloor) × quality`.
+   *
+   * Also raised by T-2.13: at 0.55, a merely-decent release cost a fifth of the shot, and since
+   * almost every shot is a merely-decent release the penalty was not a skill gradient, it was a
+   * flat tax on shooting.
+   */
+  releaseFloor: 0.72,
   /** A fully smothered shot loses this share of its chance. */
-  contestWeight: 0.45,
+  contestWeight: 0.36,
 
   movement: { set: 1, offDribble: 0.92, fadeaway: 0.85 } as Readonly<
     Record<ShotMovementName, number>

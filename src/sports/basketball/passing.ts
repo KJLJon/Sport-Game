@@ -70,6 +70,11 @@ export const PASSING = {
   /** Reach for taking a pass out of the air, and the height it can be taken at. */
   catchReach: 1.15,
   catchHeight: 2.3,
+  /**
+   * A defender's reach is shorter than a receiver's. A receiver is *going* to the ball; a defender
+   * is reaching across a lane at something travelling at twelve metres a second.
+   */
+  interceptReach: 0.8,
 
   /** Control floor and span for a receiver's catch draw. */
   catchFloor: 0.55,
@@ -77,15 +82,30 @@ export const PASSING = {
   /** A fast ball is harder to hold. */
   catchSpeedPenalty: 0.02,
 
-  /** An interceptor's chance, from their defensive rating. */
-  interceptFloor: 0.1,
-  interceptSpan: 0.35,
   /**
-   * Steps of flight before a pass can be picked off. Without it, the defender already draped over
-   * the passer is inside catching range the instant the ball leaves the hand, and every pass out of
-   * pressure is an interception. Taking it out of someone's hands is a steal, which is T-2.7's.
+   * An interceptor's chance, from their defensive rating.
+   *
+   * Small, and it has to be. Once man marking exists every receiver has a defender beside them and
+   * every lane passes near somebody, so a defender who reaches the ball is the common case, not the
+   * exception — at a floor of 0.10 and a span of 0.35 the balance run threw 19% of all passes
+   * straight to the defence. A pass into a covered lane is mostly *completed* in real basketball.
+   */
+  interceptFloor: 0.03,
+  interceptSpan: 0.12,
+  /**
+   * The window, in steps of flight, during which a pass can be picked off.
+   *
+   * Both ends matter and for different reasons. Too early and the defender already draped over the
+   * passer is in catching range the instant the ball leaves the hand — that is a *steal*, which is
+   * `defence.ts`'s. Too late and the receiver's own marker, standing next to them by construction
+   * once man defence exists, gets a free roll on every single pass: five hundred headless games
+   * threw 19% of passes straight to the defence and deflected half the rest.
+   *
+   * Between those, a defender is genuinely in the lane, which is the only place an interception is
+   * a read rather than a consequence of standing somewhere.
    */
   interceptDelaySteps: 6,
+  interceptTailSteps: 9,
 
   /** Steps after the ball should have arrived before a pass stops being a pass. */
   graceSteps: 30,
@@ -283,7 +303,7 @@ export function interceptControl(ratings: InterceptorRatings): number {
 
 /** Whether an athlete can get a hand to the ball this step. */
 export function canIntercept(world: World, ball: BallState, athlete: EntityId): boolean {
-  return canCatch(world, ball, athlete, PASSING.catchReach, PASSING.catchHeight);
+  return canCatch(world, ball, athlete, PASSING.interceptReach, PASSING.catchHeight);
 }
 
 /** Speed of the ball right now, for the catch and intercept draws. */

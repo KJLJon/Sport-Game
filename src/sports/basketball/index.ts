@@ -337,8 +337,11 @@ const CPU_STEAL_CHANCE_PER_STEP = 0.006;
  * the shot hangs for half a second and every step is another chance — and because T-2.8's help
  * defence puts a defender near the shooter far more often than the man-only version did. At 0.05
  * a headless game produced thirteen blocks; with help rotations the same number gave twenty-one.
+ * The balance pass (T-2.13) halved it again: at 0.009 the five-hundred-game run blocked 8.8% of all
+ * field-goal attempts, which is roughly twice a real game and was holding the whole floor's
+ * shooting percentage below its band on its own.
  */
-const CPU_BLOCK_CHANCE_PER_STEP = 0.009;
+const CPU_BLOCK_CHANCE_PER_STEP = 0.0045;
 
 /** Steps a free-throw shooter takes to set before the ball goes up. */
 const FREE_THROW_SETUP_STEPS = 25;
@@ -438,12 +441,16 @@ export const basketball: SportModule<BasketballState> = {
       autoSwitch: true,
       previousPossession: -1,
       // One side plays a 2-3 zone, chosen by the match seed, so both schemes get exercised.
-      zoneSide: rng.fork('scheme').int(0, 2) === 0 ? (rng.fork('scheme').int(0, 1) as 0 | 1) : -1,
+      //
+      // One fork, two draws. Forking twice with the same label gives two *identical* streams, so
+      // the second draw was a deterministic function of the first — and the answer was always
+      // side 0. Every zone in five hundred headless games was played by the home team.
+      zoneSide: pickScheme(rng.fork('scheme')),
       playerSide: setup.playerSide,
       controlled,
       step: 0,
       periodStep: 0,
-      rules: createRulesState(rng.fork('tip').int(0, 1) === 0 ? 0 : 1),
+      rules: createRulesState(rng.fork('tip').bool() ? 1 : 0),
       restartSetup: 0,
       inbounder: NO_ENTITY,
       scratch: new Int32Array(64),
@@ -1445,18 +1452,29 @@ function resolvePass(state: BasketballState, world: World, rng: Rng): SportEvent
   const speed = ballSpeed(world, state.ballState);
   const events: SportEvent[] = [];
 
-  const jumpable = state.step - pass.releaseStep >= PASSING.interceptDelaySteps;
+  const flown = state.step - pass.releaseStep;
+  const remaining = pass.expireStep - PASSING.graceSteps - state.step;
+  const jumpable = flown >= PASSING.interceptDelaySteps && remaining >= PASSING.interceptTailSteps;
 
   for (const wantOpponent of [true, false]) {
     if (wantOpponent && !jumpable) continue;
+    // Nearest to the ball, for the same reason the loose-ball pickup is: entity order is team
+    // order, so "the first one who can reach it" quietly means "the home team".
     let taker = NO_ENTITY;
+    let nearest = Infinity;
+    const ballX = world.x[state.ballState.entity] as number;
+    const ballY = world.y[state.ballState.entity] as number;
     world.forEach((id) => {
-      if (taker !== NO_ENTITY) return;
       if ((world.kind[id] as number) !== Kind.ATHLETE) return;
       const isOpponent = state.sides.get(id) !== pass.side;
       if (isOpponent !== wantOpponent) return;
       if (id === pass.passer || pass.contested.includes(id)) return;
-      if (canIntercept(world, state.ballState, id)) taker = id;
+      if (!canIntercept(world, state.ballState, id)) return;
+      const d = Math.hypot((world.x[id] as number) - ballX, (world.y[id] as number) - ballY);
+      if (d < nearest) {
+        nearest = d;
+        taker = id;
+      }
     });
     if (taker === NO_ENTITY) continue;
 
@@ -1544,6 +1562,18 @@ function rollRatings(rng: Rng, roleIndex: number): AthleteRatings {
 
 function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+/**
+ * Which side, if any, plays a 2-3 zone this match. Roughly one match in three.
+ *
+ * `bool()`, not `int(0, 1)`. The engine's `int` range is half-open — `[min, max)` — so `int(0, 1)`
+ * is the constant zero, not a coin flip. Used as one it gave the home side every zone in the
+ * balance run, and the zone loses; the same mistake gave the home side every opening tip.
+ */
+function pickScheme(rng: Rng): 0 | 1 | -1 {
+  if (!rng.bool(1 / 3)) return -1;
+  return rng.bool() ? 1 : 0;
 }
 
 /** Absolute court position for a role fraction, measured from the end `side` defends. */
@@ -1980,7 +2010,7 @@ function advanceRestart(state: BasketballState, world: World, rng: Rng): SportEv
     state.restartSetup++;
     if (state.restartSetup < RESTART_SETUP_STEPS) return [];
 
-    const winner: CourtSide = rng.int(0, 1) === 0 ? 0 : 1;
+    const winner: CourtSide = rng.bool() ? 1 : 0;
     state.rules.arrow = winner === 0 ? 1 : 0;
     state.restartSetup = 0;
 
@@ -2076,11 +2106,21 @@ function collectLooseBall(state: BasketballState, world: World, rng: Rng): Sport
     if (contest !== null) return contest;
   }
 
+  // Nearest, not first. Taking the first athlete in entity order looks like a harmless tie-break
+  // until you notice entity order *is* team order: the home side spawns first, so it won every
+  // simultaneous scramble in the match, and the balance run showed it as a 73% home win rate.
   let taker = NO_ENTITY;
+  let nearest = Infinity;
+  const ballX = world.x[ball.entity] as number;
+  const ballY = world.y[ball.entity] as number;
   world.forEach((id) => {
-    if (taker !== NO_ENTITY) return;
     if ((world.kind[id] as number) !== Kind.ATHLETE) return;
-    if (canCatch(world, ball, id, CATCH_REACH, 2.2)) taker = id;
+    if (!canCatch(world, ball, id, CATCH_REACH, 2.2)) return;
+    const d = Math.hypot((world.x[id] as number) - ballX, (world.y[id] as number) - ballY);
+    if (d < nearest) {
+      nearest = d;
+      taker = id;
+    }
   });
 
   if (taker === NO_ENTITY) return [];
