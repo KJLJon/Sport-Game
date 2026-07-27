@@ -4,7 +4,7 @@
  * @task    T-1.8 — Camera: ball follow, smoothing, dynamic zoom, bounds clamp, shake
  * @story   US-2.3 — See the whole field on a small screen
  * @design  04-architecture.md §6 (rendering), 10-ui-ux.md §6 (reduced motion), 01-plan.md R2
- * @invariant INV-2 (shake is seeded, never Math.random), INV-8 (camera never feeds the sim)
+ * @invariant INV-2 (shake draws from the seeded PRNG), INV-8 (the camera never feeds the sim)
  *
  * Purpose: decides what the player can see, which on a phone is the single biggest readability
  * lever there is (`01` R2). It follows the ball, leads it slightly so the player sees where play
@@ -214,8 +214,8 @@ export class Camera {
       return;
     }
 
-    // Seeded, like everything else that looks random. A camera that used Math.random would make
-    // two replays of the same match visibly different, which undermines trusting a replay at all.
+    // Seeded, like everything else that looks random. An unseeded source here would make two
+    // replays of the same match visibly different, which undermines trusting a replay at all.
     const angle = (rng?.next() ?? 0) * Math.PI * 2;
     this.shakeX = Math.cos(angle) * this.shakeMagnitude;
     this.shakeY = Math.sin(angle) * this.shakeMagnitude;
