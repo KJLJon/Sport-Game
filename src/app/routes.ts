@@ -28,6 +28,14 @@ function stub(
   };
 }
 
+/**
+ * A seed for a fresh match. The clock is a *source* of a seed, not a draw inside the simulation —
+ * everything downstream forks from it deterministically, which is what INV-8 is about.
+ */
+function newMatchSeed(): string {
+  return `m${Date.now().toString(36)}`;
+}
+
 export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
   {
     pattern: '/',
@@ -43,10 +51,19 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
   },
   {
     pattern: '/play/live',
-    value: stub('play-live', 'Live', 'Real-time matches you control directly.', 'Phase 2', {
+    value: {
+      id: 'play-live',
+      title: 'Live',
       chrome: 'bare',
       orientation: 'landscape',
-    }),
+      load: async () => {
+        const [{ liveScreen }, { basketball }] = await Promise.all([
+          import('../modes/live/screen.ts'),
+          import('../sports/basketball/index.ts'),
+        ]);
+        return liveScreen({ sport: basketball, seed: newMatchSeed(), playerSide: 0 });
+      },
+    },
   },
   {
     pattern: '/play/playbook',

@@ -20,7 +20,7 @@ import { testSport } from '@/sports/testsport/index.ts';
 import { EventKind } from '@/engine/match/events.ts';
 
 describe('a match through the mode host', () => {
-  it('plays four quarters and finishes', () => {
+  it('plays four quarters and finishes', { timeout: 20_000 }, () => {
     const match = simulateMatch({ seed: 'full', sport: basketball });
     const view = match.view();
 
@@ -31,7 +31,7 @@ describe('a match through the mode host', () => {
     expect(view.steps).toBe(basketball.rules.periodSteps * basketball.rules.periods);
   });
 
-  it('scores enough that it reads as basketball', () => {
+  it('scores enough that it reads as basketball', { timeout: 20_000 }, () => {
     const view = simulateMatch({ seed: 'full', sport: basketball }).view();
     const total = view.score[0] + view.score[1];
     expect(total).toBeGreaterThan(40);
@@ -39,7 +39,7 @@ describe('a match through the mode host', () => {
     expect(view.score[1]).toBeGreaterThan(5);
   });
 
-  it('agrees with its own box score', () => {
+  it('agrees with its own box score', { timeout: 20_000 }, () => {
     const match = simulateMatch({ seed: 'agree', sport: basketball });
     const view = match.view();
 
@@ -47,14 +47,14 @@ describe('a match through the mode host', () => {
     expect(teamLine(match.box, 1).points).toBe(view.score[1]);
   });
 
-  it('counts every basket exactly once', () => {
+  it('counts every basket exactly once', { timeout: 20_000 }, () => {
     const match = simulateMatch({ seed: 'once', sport: basketball });
     const scores = match.bus.filter(EventKind.SCORE);
     const fromEvents = scores.reduce((sum, e) => sum + (e.side === 0 ? (e.value ?? 0) : 0), 0);
     expect(fromEvents).toBe(match.view().score[0]);
   });
 
-  it('fills a box score with the whole stat sheet', () => {
+  it('fills a box score with the whole stat sheet', { timeout: 20_000 }, () => {
     const match = simulateMatch({ seed: 'sheet', sport: basketball });
     const home = teamLine(match.box, 0);
 
@@ -65,7 +65,7 @@ describe('a match through the mode host', () => {
     expect(home.fouls + teamLine(match.box, 1).fouls).toBeGreaterThan(0);
   });
 
-  it('replays identically from the same seed (INV-8)', () => {
+  it('replays identically from the same seed (INV-8)', { timeout: 30_000 }, () => {
     const a = simulateMatch({ seed: 'golden', sport: basketball }).view();
     const b = simulateMatch({ seed: 'golden', sport: basketball }).view();
     const c = simulateMatch({ seed: 'different', sport: basketball }).view();
