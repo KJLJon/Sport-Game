@@ -38,6 +38,13 @@ export default defineConfig({
       exclude: ['src/**/*.d.ts', 'src/main.ts', 'src/pwa/sw.ts', 'src/ui/gallery/**'],
       // `12` §2 — enforced in CI; never lowered to make a build pass.
       thresholds: {
+        // `12` §2's overall floor. It was missing until the Phase 2 gate went looking for it.
+        lines: 85,
+        statements: 85,
+        functions: 85,
+        branches: 80,
+        // Rules bugs are the most player-visible thing in the game (`12` §2).
+        'src/sports/*/rules.ts': { lines: 90, functions: 90, branches: 80, statements: 90 },
         'src/athletes/**': { lines: 95, functions: 95, branches: 85, statements: 95 },
         'src/economy/**': { lines: 95, functions: 95, branches: 85, statements: 95 },
         'src/achievements/**': { lines: 95, functions: 95, branches: 85, statements: 95 },

@@ -12,20 +12,19 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-2.12 — Basketball art & audio pass
-- **Status:** in_progress (delegated — see the delegation log)
-- **Started:** 2026-07-27
+- **Task:** — (none; Phase 2 complete, Gate 2 evaluated and **not passed** — see the Gate 2 record)
+- **Status:** —
+- **Started:** —
 - **Branch commit:** (see `git log`)
-- **Done so far:**
-  - [x] T-2.1–T-2.9 (all `done`), plus T-2.10 and T-2.11
-  - [ ] T-2.12 art & audio — running in a subagent, output not yet reviewed or committed
-  - [ ] T-2.13 balance pass
-- **Next step:** review the subagent's diff against `06`/`10` (not against its own summary,
-  `CLAUDE.md` §7.3 rule 6), run the full suite, then commit. Then T-2.13: a `tools/balance.ts`
-  script, **not** a vitest test — five hundred headless games is a `pnpm balance` run, the way
-  `pnpm bench` is.
-- **Files touched:** src/modes/live/*.ts, src/app/routes.ts, src/ui/components.css
-- **Blockers:** none.
+- **Done so far:** All thirteen Phase 2 tasks are `done`. Every automatable gate check is green.
+- **Next step:** Gate 2 is blocked on two things only a human with a phone can do — the `12` §7
+  device matrix, and the gate's own "fun enough to play twice". Tagging and deploying is deliberately
+  *not* done: it is outward-facing and wants a decision, not an assumption. Once the device pass is
+  recorded, Phase 3 (athletes, cross-sport ratings, roster) starts with T-3.1; note that T-3.17 is
+  what finally replaces the seeded placeholder ratings in `sports/basketball/index.ts` with real
+  athletes.
+- **Files touched:** —
+- **Blockers:** the device matrix and the deploy decision. Both are recorded in the Gate 2 record.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
   branches locally with `pnpm verify`, `pnpm bench`, and `pnpm e2e`. Formatting and auto-fixable
   lint are handled by hooks (`CLAUDE.md` §11); never spend a turn on them. In this sandbox the
@@ -357,6 +356,69 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 ---
 
 ## Gate records
+
+### Gate 2 — Basketball · Live (v0.1)
+
+- **Date:** 2026-07-27
+- **Result:** **NOT PASSED — automatable checks all green, blocked on human verification.**
+  Seven of the nine `CLAUDE.md` §5 steps are satisfied. The two that are not need a phone and a
+  person, and neither can honestly be signed off from here.
+
+**What passed**
+
+| § | Check | Result |
+|---|---|---|
+| 1 | Every task `done` or `cut` | ✅ 13/13 `done`, none cut |
+| 2 | Full suite green | ✅ 1 069 unit/integration/invariant/determinism across 60 files; 32 E2E in headless Chromium, including 4 new match tests and the axe audit of the paused screen |
+| 3 | Coverage thresholds (`12` §2) | ✅ 91.2% overall against ≥85%. **Two thresholds `12` §2 requires were not being enforced at all** — the overall floor and `src/sports/*/rules` ≥90% — and were added at this gate rather than noticed later. `rules.ts` is at 100%. |
+| 4 | No `12` §3 invariant regressed | ✅ 22 invariant tests green |
+| 6 | Gate criteria in `03` | ⚠️ partly — see below |
+| — | Perf budget (`12` §6) | ✅ 0.074 ms mean sim step against a 4 ms budget, 23 entities |
+| — | Size budget | ✅ 25.4 KB initial JS / 200 KB; 179 KB install / 6 MB |
+
+**What did not**
+
+| § | Check | Why not |
+|---|---|---|
+| 5 | Manual device matrix (`12` §7) | No device available to this session. Nothing in Phase 2 has been touched by a thumb: every "feel note" in the table above is honestly recorded as unknown, and the release-timing meter — the mechanic the whole shooting model hangs on — has never been *felt*. |
+| 7 | Tag, deploy, verify install-from-scratch and offline on a real device | Not done, deliberately. Deploying is outward-facing and hard to reverse; it wants a decision rather than an assumption. The verification half needs the device from §5 anyway. |
+| 6 | "…and it's fun enough to play twice" | A human judgement. The machine half of `03`'s gate criterion — *a full basketball game is playable end to end against the CPU, offline, from the installed app* — is evidenced: the E2E suite mounts a match in a real browser, watches the canvas change between frames, opens the pause menu, reads the box score as markup, and quits cleanly; the PWA lifecycle suite already covers offline and install-from-scratch for the shell. The other half is not something a test can claim. |
+
+**The balance run, in full** (`pnpm balance`, 500 matches, 1 000 team-games):
+
+| | Value | Band |
+|---|---|---|
+| Points per team | 75.5 | 55–125 |
+| Field-goal attempts | 78.7 | 45–110 |
+| Field-goal % | 36.5% | 33–55% |
+| Effective FG% | 44.5% | 40–58% |
+| Three-point % | 30.7% | 25–45% |
+| Three-point share of attempts | 51.9% | 8–55% |
+| Free-throw % | 68.7% | 55–85% |
+| Rebounds per team | 45.6 | 20–60 |
+| Offensive rebound share | 44.4% | 15–45% |
+| Turnovers per team | 21.8 | 6–30 |
+| Personal fouls per team | 11.8 | 4–30 |
+| Steals per team | 9.5 | 2–18 |
+| Blocks per team | 4.5 | 0.5–12 |
+| Home win rate | 44.2% | 35–65% |
+| Ties | 0.0% | 0–2% (overtime resolves them) |
+
+**Deferred, with reasons**
+
+- **The away side wins 55.8% over 500 matches** (≈2.6σ). Two structural causes were found and
+  fixed at T-2.13 — an entity-order tie-break that was really a team-order tie-break, and
+  `Rng.int(0, 1)` used as a coin flip when the range is half-open — but a small residual survives
+  and I could not localise it. `T-7.10` verifies win-rate bands by design and is the right place to
+  finish it.
+- **Offensive rebounds are 44.4% of all rebounds**, at the very top of the band. Box-out
+  positioning exists (`defence.boxOutSpot`) but is weak against an offence that crashes.
+- **`src/modes/live/screen.ts` is at 37% line coverage.** Its mount-and-loop path is covered by the
+  four browser E2E tests, which vitest cannot see. Not gamed with a shim; recorded as-is.
+- **Spec-header `@invariant` IDs do not match `12` §3's table** — see the implementation-decisions
+  table. Needs one decision from the user and one mechanical pass.
+
+---
 
 ### Gate 1 — Engine core
 
