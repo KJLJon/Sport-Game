@@ -8,20 +8,24 @@
     "node": ">=22"
   },
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "vite",
     "build": "tsc -b --noEmit && vite build",
     "preview": "vite preview --port 4173 --strictPort",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint . && prettier --check .",
     "lint:fix": "eslint . --fix && prettier --write .",
-    "test": "vitest run",
+    "format": "prettier --write .",
+    "test": "vitest run --reporter=dot",
+    "test:verbose": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "trace": "tsx tools/spec-trace.ts",
     "progress:check": "tsx tools/progress-check.ts",
     "verify": "pnpm typecheck && pnpm lint && pnpm test",
-    "budget": "tsx tools/budget.ts"
+    "budget": "tsx tools/budget.ts",
+    "bench": "tsx tools/bench.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

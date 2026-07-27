@@ -12,8 +12,9 @@ truth for **what** to build. This file is the source of truth for **how** to bui
 Run this every time, including mid-phase resumes. It takes two minutes and prevents duplicated or
 conflicting work.
 
-1. `git fetch origin && git status` — confirm you are on `claude/multi-sport-pwa-game-50k7u7` and up
-   to date. Create the branch from the default branch if it doesn't exist.
+1. `git fetch origin && git status` — confirm you are on the branch this session was assigned (each
+   session gets its own `claude/…` feature branch) and up to date. Create it from the default branch
+   if it doesn't exist.
 2. Read [`specs/001-initial-dev/PROGRESS.md`](./specs/001-initial-dev/PROGRESS.md) — specifically the
    **In-flight** block at the top. If a task is `in_progress`, that is your work; resume from its
    checkpoint notes.
@@ -103,7 +104,7 @@ results, the tag deployed, and anything deferred with a reason.
 loses nothing.
 
 - Commit at every checkpoint (§2), at minimum every 30 minutes of work.
-- Push immediately after each commit: `git push -u origin claude/multi-sport-pwa-game-50k7u7`.
+- Push immediately after each commit: `git push -u origin <this session's branch>`.
   On network failure retry up to 4 times with 2s/4s/8s/16s backoff.
 - Always commit and push before ending a turn, before a phase gate, and before spawning subagents.
 - Never push to any other branch.
@@ -280,7 +281,49 @@ that's more useful than a green checkmark.
 
 ---
 
-## 11. Quick reference
+## 11. Token discipline
+
+A session's budget is spent on thinking about the game, not on watching tool output scroll past.
+These are enforced by tooling, not willpower.
+
+### 11.1 Never format or fix lint by hand
+
+Two hooks make formatting invisible:
+
+- **`.claude/settings.json`** — a `PostToolUse` hook on `Write|Edit` runs `tools/format-file.sh`
+  (Prettier, then `eslint --fix`) on the file just written. Nothing unformatted ever reaches a
+  review round. If it appears not to fire, the settings watcher didn't pick the file up at session
+  start — open `/hooks` once, or rely on the git hook below.
+- **`.githooks/pre-commit`** — enabled by `pnpm install` (the `prepare` script sets
+  `core.hooksPath`). Formats and auto-fixes staged files, re-stages them, and fails the commit on
+  any ESLint error it could not fix. Escape hatch: `SKIP_HOOKS=1 git commit …`.
+
+So: never run Prettier manually, never hand-fix a formatting diff, and never spend a turn on
+`import type` ordering. If a commit is rejected, the remaining errors are real ones worth reading.
+
+### 11.2 Prefer the quiet command
+
+| Instead of | Run | Why |
+|---|---|---|
+| `pnpm test` (per-file listing) | `pnpm -s test` | Dot reporter; failures still print in full |
+| three separate checks | `pnpm -s verify` | One call: typecheck → lint → test |
+| `cat`-ing a whole spec file | `grep -n` for the section, then read the range | Spec files run to hundreds of lines |
+| re-reading all of `PROGRESS.md` | read the **In-flight** block plus your task's row | The rest is history |
+
+`pnpm test:verbose` still exists for when the per-file breakdown is what you actually need.
+
+### 11.3 Read narrowly, write once
+
+- Read the spec sections a task cites, not the whole document. `03` names them per task.
+- One `Read` with an `offset`/`limit` beats three full-file reads.
+- Batch independent tool calls into a single message — parallel calls cost one round trip.
+- Delegate fan-out reading to `Explore` (§7); it returns conclusions rather than file dumps.
+- Write the file right the first time: check the spec header format in a neighbouring module
+  before writing a new one, not after lint rejects it.
+
+---
+
+## 12. Quick reference
 
 | Thing | Where |
 |---|---|
@@ -289,5 +332,5 @@ that's more useful than a green checkmark.
 | Task list and phases | `specs/001-initial-dev/03-phases-and-tasks.md` |
 | Why a decision was made | `specs/001-initial-dev/07-decisions.md` |
 | Open questions | `specs/001-initial-dev/08-open-questions.md` |
-| Branch | `claude/multi-sport-pwa-game-50k7u7` |
+| Branch | The branch named in this session's instructions — one feature branch per session |
 | Deploy | Tagged releases only, via GitHub Actions to Pages |
