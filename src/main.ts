@@ -9,7 +9,9 @@
  * Purpose: application entry point. Mounts the shell and, once the PWA layer exists, registers
  * the service worker. Deliberately thin — everything testable lives in a module it calls.
  */
+import './ui/tokens.css';
 import './app/shell.css';
+import './ui/components.css';
 import { Router } from './app/router.ts';
 import { AppShell } from './app/shell.ts';
 import { ROUTES, TABS } from './app/routes.ts';

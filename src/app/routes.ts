@@ -80,6 +80,20 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
       load: async () => (await import('../ui/screens/settings.ts')).settingsScreen(),
     },
   },
+  // Dev-only. `import.meta.env.DEV` is statically false in a production build, so the branch and
+  // the dynamic import behind it are both tree-shaken away.
+  ...(import.meta.env.DEV
+    ? [
+        {
+          pattern: '/dev/ui',
+          value: {
+            id: 'dev-gallery',
+            title: 'Component gallery',
+            load: async () => (await import('../ui/gallery/gallery.ts')).galleryScreen(),
+          } satisfies ScreenDefinition,
+        },
+      ]
+    : []),
 ];
 
 /** `10` §7 — bottom tabs are Play · Squad · Store · Progress. Settings lives in the header. */
