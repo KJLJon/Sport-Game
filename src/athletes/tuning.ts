@@ -84,3 +84,34 @@ export const DERIVATION = {
   /** Under this, the lineup editor warns rather than blocks (`05` §3.4). */
   positionFitWarning: 0.85,
 } as const;
+
+/**
+ * Familiarity growth (`05` §3.3):
+ * `gain = 0.9 × minutes × (1 − familiarity/100)^1.3 × ageFactor / sportComplexity`.
+ *
+ * @spec-ref 05-data-model.md §3.3
+ */
+export const FAMILIARITY = {
+  rate: 0.9,
+  headroomExponent: 1.3,
+  primaryCap: 100,
+  secondaryCap: 95,
+
+  ageBase: 1.25,
+  ageReference: 22,
+  agePerYear: 0.02,
+  ageFactorMin: 0.55,
+  ageFactorMax: 1.25,
+
+  /** Sports not listed learn at basketball's rate — a new sport is a table entry, not a branch. */
+  defaultComplexity: 1,
+  complexity: {
+    basketball: 1,
+    soccer: 1.15,
+    football: 1.3,
+    hockey: 1.4,
+  } as Readonly<Record<string, number>>,
+
+  /** Ceiling on "how many matches until…" answers, so a projection cannot run forever. */
+  projectionLimit: 2_000,
+} as const;
