@@ -88,13 +88,16 @@
   --surface-2: #eef1f5;
   --text-hi: #0d1319;
   --text-lo: #5a6673;
-  --accent: #0f9d58;
+  /* Darker than `10` §3.1's starting values: the audit in T-0.16 found #0F9D58 and #1668C1 below
+     the AA 4.5:1 line both as text on surface-0 and as a fill behind white. These clear it. */
+  --accent: #0b7a43;
   --accent-alt: #e08600;
   --danger: #d93636;
-  --info: #1668c1;
+  --info: #0f5aab;
 
   --on-accent: #ffffff;
-  --on-accent-alt: #ffffff;
+  /* Amber is too light to carry white text at any usable saturation, so its ink stays dark. */
+  --on-accent-alt: #241700;
   --on-danger: #ffffff;
   --on-info: #ffffff;
 
@@ -114,12 +117,12 @@
     --surface-2: #eef1f5;
     --text-hi: #0d1319;
     --text-lo: #5a6673;
-    --accent: #0f9d58;
+    --accent: #0b7a43;
     --accent-alt: #e08600;
     --danger: #d93636;
-    --info: #1668c1;
+    --info: #0f5aab;
     --on-accent: #ffffff;
-    --on-accent-alt: #ffffff;
+    --on-accent-alt: #241700;
     --on-danger: #ffffff;
     --on-info: #ffffff;
     --border: #d6dce4;

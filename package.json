@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b --noEmit && vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --port 4173 --strictPort",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint . && prettier --check .",
     "lint:fix": "eslint . --fix && prettier --write .",
@@ -20,9 +20,11 @@
     "e2e": "playwright test",
     "trace": "tsx tools/spec-trace.ts",
     "progress:check": "tsx tools/progress-check.ts",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test"
+    "verify": "pnpm typecheck && pnpm lint && pnpm test",
+    "budget": "tsx tools/budget.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "^9.19.0",
     "@playwright/test": "^1.50.0",
     "@types/node": "^22.13.0",

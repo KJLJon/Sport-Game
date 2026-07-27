@@ -24,7 +24,8 @@ if (root === null) {
   throw new Error('#app host is missing from index.html');
 }
 
-const router = new Router<ScreenDefinition>({ routes: ROUTES, fallbackPath: '/' });
+// No fallback: an unknown deep link gets an explicit not-found state with a way home.
+const router = new Router<ScreenDefinition>({ routes: ROUTES });
 
 const shell = new AppShell({ root, router, tabs: TABS, window });
 shell.start();

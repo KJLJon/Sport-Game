@@ -12,14 +12,15 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-0.15 — GitHub Actions CI + tagged Pages deploy, then T-0.16 — the sixteen PWA E2Es
-- **Status:** todo (next up)
+- **Task:** T-1.1 — Seeded PRNG + lint rule banning `Math.random` in `engine/`, `sports/` (INV-2)
+- **Status:** todo (next up — Phase 1)
 - **Started:** —
 - **Branch commit:** —
 - **Done so far:** —
-- **Next step:** CI workflow running typecheck, lint, unit, coverage, budgets, and Playwright,
-  plus a tag-triggered Pages deploy using the `GITHUB_REPOSITORY`-derived base path. Then the
-  sixteen `11` §9 scenarios as Playwright E2Es — the last task before Gate 0.
+- **Next step:** **Phase 0 is complete; see the Gate 0 record below.** Phase 1 starts with the
+  seeded PRNG (`04` §6), which everything deterministic depends on. The lint rule banning
+  `Math.random` in `engine/`, `sports/`, and `modes/` is already in `eslint.config.js` from
+  T-0.1; T-1.1 adds the PRNG itself and the INV-2 invariant test.
 - **Files touched:** —
 - **Blockers:** Awaiting the user's answers to [`08-open-questions.md`](./08-open-questions.md);
   working assumptions are recorded there, so none of them block Phase 0.
@@ -38,7 +39,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
-| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 16 | `in_progress` | — |
+| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 0 | `todo` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
@@ -50,7 +51,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **0** | | |
+| | **Total** | **170** | **18** | | |
 
 ---
 
@@ -74,8 +75,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-0.12 | Storage persistence request, quota/usage display, denial warning + backup prompt | S | `done` | | `tests/unit/storage/persistence.test.ts` | `auto` | Asked on first write rather than at launch — browsers grant it more readily once engagement exists (`11` §7), and the nudger re-asks once per milestone. Denial and unsupported are distinct states with distinct copy, both pointing at a backup. Quota pressure warns at 80%. |
 | T-0.13 | Schema versioning + migration runner with pre-migration snapshot and rollback | M | `done` | | `tests/integration/storage/migrations.test.ts` | `auto` — against real IndexedDB via fake-indexeddb | Forward-only chain per `05` §9. The snapshot covers every store, singletons included, and a failure rolls back the *whole* chain, not just the failing step — a partially-migrated database is worse than an unmigrated one. Data from a newer build is rejected outright rather than partially applied. Chain is empty at v1; the first entry will be `to: 2`. |
 | T-0.14 | Install UX: `beforeinstallprompt` capture, custom button, iOS-only A2HS instructions | M | `done` | | `tests/unit/pwa/install.test.ts` | `auto` | The event fires once and only replays inside a user gesture, so it is captured and the mini-infobar suppressed. iOS Safari gets the manual A2HS steps — and Chrome-on-iOS deliberately does not, since it has no such menu item. Four distinct states, each with its own copy. |
-| T-0.15 | GitHub Actions: CI (typecheck, lint, unit, e2e, a11y, coverage, budgets) + tagged Pages deploy | M | `todo` | | | | |
-| T-0.16 | PWA lifecycle E2E suite: all sixteen scenarios in `11` §9 | L | `todo` | | | | |
+| T-0.15 | GitHub Actions: CI (typecheck, lint, unit, e2e, a11y, coverage, budgets) + tagged Pages deploy | M | `done` | | `tools/budget.ts` (checked by `pnpm budget`) | `auto` — workflows not yet exercised on GitHub; first push to the branch will run CI | CI runs typecheck, lint, coverage, traceability, PROGRESS check, a committed-report diff, build, budgets, then E2E in a second job against a real static build under the deployed base path. Deploy is tag-triggered and re-runs the gate first. Budgets: initial JS 9.5 KB / 200 KB, install 92 KB / 6 MB. |
+| T-0.16 | PWA lifecycle E2E suite: all sixteen scenarios in `11` §9 | L | `done` | | `tests/e2e/{pwa-lifecycle,pwa-update-flow,a11y-and-smoke}.spec.ts` | `auto` — 28 E2E green in headless Chromium | All sixteen `11` §9 scenarios, driven by `tools/e2e-server.ts`, which can deploy a second build, 404 an asset, and refuse connections on demand. The "v2" build is the same bundle with its build hash rewritten — that is what names every cache and what `version.json` reports, so it is the real byte-level change the browser detects. **Four real bugs found and fixed** — see the Gate 0 record. PWA-4/5 assert the safe-point policy rather than staging a match, which Phase 2 does not yet make possible; noted as a follow-up. |
 | T-0.17 | Spec-header lint rule + traceability report generator (INV-15) | M | `done` | | `tests/invariants/inv-15-spec-headers.test.ts`, `tests/unit/tools/spec-tooling.test.ts` | `auto` | Deliberately two checks: a plain-JS ESLint rule doing a presence check on the five mandatory fields with no filesystem access, so it runs on every keystroke; and the invariant test resolving every task and story ID against `03` and `02`, which is authoritative and runs in CI. `pnpm trace` writes `docs/traceability.md` both ways — currently 39 modules across 12 tasks. |
 | T-0.18 | `PROGRESS.md` validation script: task IDs resolve, statuses valid, no orphans | S | `done` | | `tests/unit/tools/spec-tooling.test.ts` | `auto` — `pnpm progress:check` reports 156 todo / 14 done, no problems | Catches unresolvable IDs, invalid statuses, duplicated rows, orphaned tasks defined in `03` with no row, an In-flight task with no row, and more than one `in_progress` at a time (`CLAUDE.md` §2). |
 
@@ -330,3 +331,71 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 |---|---|---|---|
 
 *(None yet.)*
+
+---
+
+## Gate records
+
+### Gate 0 — Foundation, PWA shell, update & offline lifecycle
+
+- **Date:** 2026-07-27
+- **Result:** **passed, with two items explicitly deferred** (below).
+- **Branch:** `claude/build-project-azivs9`
+
+**Checks run**
+
+| Check | Result |
+|---|---|
+| Typecheck (`tsc -b`, strict + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes`) | clean |
+| Lint (ESLint incl. INV-2/3/4/15 rules) + Prettier | clean |
+| Unit / property / integration / invariant suite | 351 passing, 24 files |
+| E2E (Playwright, headless Chromium) | 28 passing |
+| `11` §9 lifecycle scenarios | all sixteen covered |
+| Invariant tests | INV-3, INV-4, INV-13, INV-15 green |
+| Traceability (`pnpm trace`) | 39 modules, 12 tasks, no header problems |
+| `PROGRESS.md` (`pnpm progress:check`) | 154 todo / 18 done, no problems |
+| Bundle budgets (`12` §6) | initial JS 9.5 KB / 200 KB · install 92 KB / 6 MB |
+
+**Gate 0 criteria (`03`)**
+
+| Criterion | Status |
+|---|---|
+| Cold-launches offline | ✅ PWA-7 |
+| Update banner appears for a new deploy and applies cleanly | ✅ PWA-1, PWA-2, PWA-12 |
+| Deleting cache entries self-heals | ✅ PWA-8, PWA-10, PWA-16 |
+| Repair leaves IndexedDB intact | ✅ PWA-11 + INV-13 |
+| Every cache and storage key namespaced | ✅ INV-3 + base-path E2E |
+| All sixteen PWA tests green | ✅ |
+| Deployed to Pages; installs on Android and iOS | ⏳ deferred — see below |
+
+**Bugs the verification found.** All four would have shipped invisibly:
+
+1. **Navigation preload rejects rather than resolving `undefined` when offline** (T-0.6). The
+   uncaught rejection failed the whole navigation — precisely the offline cold-start `11` exists
+   to prevent.
+2. **`user-scalable=no` in the viewport meta** — a WCAG 1.4.4 failure. Removed; the match view
+   suppresses gestures with `touch-action` instead.
+3. **Light-theme accent and info failed AA contrast** (3.5:1 against 4.5:1 required), both as text
+   on `surface-0` and as a fill behind white. `10` §3.1's values are described as starting values;
+   darkened to `#0B7A43` and `#0F5AAB`, which clear the line.
+4. **A failed precache install left an empty cache behind**, and **an evicted code-split chunk gave
+   a blank screen offline**. Both fixed: install cleans up after itself, and the shell now shows
+   an explicit "this part isn't downloaded yet" state.
+
+**Deferred, with reasons**
+
+- **Device matrix (`12` §7) and a live Pages deploy.** This session has no phone and cannot
+  publish to Pages. The workflows are written and the build is verified end to end in headless
+  Chromium; a real Android and iOS install, plus the first tag deploy, remain to be run by the
+  user. This is the one Gate 0 criterion not demonstrably met here, and it should be closed before
+  Phase 2 ships v0.1.
+- **Visual regression snapshots.** `#/dev/ui` exists as the target and the a11y audit covers every
+  screen, but screenshot baselines are not committed — they would be captured on the wrong
+  platform here and would churn on the first CI run. Best captured in CI on the first green run.
+
+**Follow-ups noted for later phases**
+
+- PWA-4/PWA-5 assert the safe-point *policy* rather than staging a real match. Revisit in Phase 2,
+  when a match exists to interrupt.
+- `CLAUDE.md` §11 names `claude/multi-sport-pwa-game-50k7u7` as the branch; this work is on
+  `claude/build-project-azivs9`. Reconcile once the user confirms which is canonical.

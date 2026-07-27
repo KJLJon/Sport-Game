@@ -13,7 +13,7 @@
  * This worker never reads or writes IndexedDB. The player's roster, progress, and coins live
  * there, and nothing in the update or repair path may put them at risk.
  */
-import { deleteStaleCaches, openCache } from '../storage/caches.ts';
+import { deleteCachesForBuild, deleteStaleCaches, openCache } from '../storage/caches.ts';
 import {
   NAVIGATION_TIMEOUT_MS,
   cacheKindFor,
@@ -45,12 +45,19 @@ const SHELL_URL = BASE;
 sw.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
-      const precache = await openCache('precache');
-      // `addAll` rejects if any single request fails — exactly the atomicity we want.
-      await precache.addAll(PRECACHE_URLS.map((url) => new Request(url, { cache: 'reload' })));
+      try {
+        const precache = await openCache('precache');
+        // `addAll` rejects if any single request fails — exactly the atomicity we want.
+        await precache.addAll(PRECACHE_URLS.map((url) => new Request(url, { cache: 'reload' })));
 
-      const shell = await openCache('shell');
-      await shell.add(new Request(SHELL_URL, { cache: 'reload' }));
+        const shell = await openCache('shell');
+        await shell.add(new Request(SHELL_URL, { cache: 'reload' }));
+      } catch (error) {
+        // Opening a cache creates it, so a rejected `addAll` would otherwise leave an empty one
+        // behind for this build. Remove it: a discarded worker should leave no trace.
+        await deleteCachesForBuild(['precache', 'shell']);
+        throw error;
+      }
     })(),
   );
 });

@@ -135,8 +135,12 @@ export type RouteListener<T> = (match: RouteMatch<T> | null, location: RouteLoca
 
 export interface RouterOptions<T> {
   readonly routes: readonly RouteDefinition<T>[];
-  /** Where an unmatched hash sends the player. Defaults to `/`. */
-  readonly fallbackPath?: string;
+  /**
+   * Where an unmatched hash sends the player. Omit — the default — to report no match instead,
+   * so the shell can show an explicit not-found state rather than silently rendering Home under
+   * a URL that says something else (`10` §10).
+   */
+  readonly fallbackPath?: string | null;
   /** Injected for tests; defaults to `window`. */
   readonly target?: RouterTarget;
 }
@@ -154,7 +158,7 @@ export interface RouterTarget {
  */
 export class Router<T> {
   readonly #routes: readonly RouteDefinition<T>[];
-  readonly #fallbackPath: string;
+  readonly #fallbackPath: string | null;
   readonly #target: RouterTarget;
   readonly #listeners = new Set<RouteListener<T>>();
   readonly #onHashChange = () => this.#emit();
@@ -163,7 +167,7 @@ export class Router<T> {
 
   constructor(options: RouterOptions<T>) {
     this.#routes = options.routes;
-    this.#fallbackPath = options.fallbackPath ?? '/';
+    this.#fallbackPath = options.fallbackPath ?? null;
     this.#target = options.target ?? (globalThis.window as unknown as RouterTarget);
   }
 
@@ -210,7 +214,7 @@ export class Router<T> {
     const location = this.location;
     let match = resolveRoute(this.#routes, location);
 
-    if (match === null && location.path !== this.#fallbackPath) {
+    if (match === null && this.#fallbackPath !== null && location.path !== this.#fallbackPath) {
       match = resolveRoute(this.#routes, parseHash(buildHash(this.#fallbackPath)));
     }
 

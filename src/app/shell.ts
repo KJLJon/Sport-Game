@@ -105,7 +105,17 @@ export class AppShell {
     this.#applyOrientation(match);
     this.#syncTabs(match.location.path);
 
-    const screen = await definition.load();
+    let screen: Screen;
+    try {
+      screen = await definition.load();
+    } catch {
+      // A code-split chunk the browser has evicted, with no network to re-fetch it (`11` §5.2).
+      // A blank screen would be the worst possible answer here.
+      if (token !== this.#mountToken) return;
+      this.#elements.main.replaceChildren(chunkUnavailable(this.#options));
+      return;
+    }
+
     // A second navigation may have landed while the chunk was loading.
     if (token !== this.#mountToken) return;
 
@@ -226,6 +236,28 @@ function buildTabBar(doc: Document, tabs: readonly TabDefinition[]): HTMLElement
   }
 
   return nav;
+}
+
+/** `10` §10 — the offline state, which is where a family-friendly app either holds up or not. */
+function chunkUnavailable(options: ShellOptions): HTMLElement {
+  const doc = options.root.ownerDocument;
+  const wrap = doc.createElement('section');
+  wrap.className = 'empty-state';
+  wrap.setAttribute('role', 'alert');
+
+  const heading = doc.createElement('h2');
+  heading.textContent = "This part isn't downloaded yet";
+
+  const body = doc.createElement('p');
+  body.textContent = 'Reconnect once and it will be restored. Your roster and progress are safe.';
+
+  const action = doc.createElement('a');
+  action.className = 'button button--primary';
+  action.href = '#/';
+  action.textContent = 'Go home';
+
+  wrap.append(heading, body, action);
+  return wrap;
 }
 
 function notFound(options: ShellOptions): HTMLElement {

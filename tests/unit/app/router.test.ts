@@ -181,7 +181,16 @@ describe('Router', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to home for an unknown deep link', () => {
+  it('reports no match for an unknown deep link by default', () => {
+    const router = new Router({ routes, target });
+    router.start();
+
+    target.setHash('#/does/not/exist');
+
+    expect(router.current).toBeNull();
+  });
+
+  it('falls back to home when a fallback is configured', () => {
     const router = new Router({ routes, target, fallbackPath: '/' });
     router.start();
 

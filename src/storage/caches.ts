@@ -43,6 +43,14 @@ export async function deleteStaleCaches(host: CacheHost = defaultHost()): Promis
   return stale;
 }
 
+/** Deletes the caches this build created. Used to undo a failed precache install (`11` §5.1). */
+export async function deleteCachesForBuild(
+  kinds: readonly CacheKind[],
+  host: CacheHost = defaultHost(),
+): Promise<void> {
+  await Promise.all(kinds.map((kind) => host.delete(cacheName(kind))));
+}
+
 /**
  * Deletes every cache we own, current build included. This is Repair (`11` §6) — and it must not
  * touch IndexedDB, which is where the player's roster, progress, and coins live.
