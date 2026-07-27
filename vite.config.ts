@@ -14,13 +14,14 @@ import { fileURLToPath } from 'node:url';
 import { resolveBasePath } from './tools/base-path.ts';
 import { buildHash } from './tools/build-hash.ts';
 import { pwaAssets } from './tools/vite-plugin-pwa-assets.ts';
+import { serviceWorker } from './tools/vite-plugin-sw.ts';
 
 const base = resolveBasePath(process.env);
 const hash = buildHash(process.env);
 
 export default defineConfig({
   base,
-  plugins: [pwaAssets({ base })],
+  plugins: [pwaAssets({ base }), serviceWorker({ base, buildHash: hash })],
   define: {
     __BUILD_HASH__: JSON.stringify(hash),
   },

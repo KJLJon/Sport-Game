@@ -16,6 +16,7 @@ import { Router } from './app/router.ts';
 import { AppShell } from './app/shell.ts';
 import { ROUTES, TABS } from './app/routes.ts';
 import type { ScreenDefinition } from './app/screen.ts';
+import { registerServiceWorker } from './pwa/register.ts';
 
 const root = document.querySelector<HTMLDivElement>('#app');
 
@@ -27,3 +28,7 @@ const router = new Router<ScreenDefinition>({ routes: ROUTES, fallbackPath: '/' 
 
 const shell = new AppShell({ root, router, tabs: TABS, window });
 shell.start();
+
+// Registration is deliberately after the shell is up: offline support must never delay first
+// paint, and a failed registration must never stop the app from running (`11` §3).
+void registerServiceWorker();

@@ -12,15 +12,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-0.6 — Service worker: per-class cache strategies, atomic precache, versioned caches
+- **Task:** T-0.7 — `version.json` emission + all five update-detection triggers (`11` §3)
 - **Status:** todo (next up)
 - **Started:** —
 - **Branch commit:** —
 - **Done so far:** —
-- **Next step:** `src/pwa/sw.ts` implementing `11` §2 exactly — network-only `version.json`,
-  network-first navigations with a 2.5 s timeout, cache-first hashed assets — plus the atomic
-  precache install from `11` §5.1 and stale-cache cleanup on activate. The precache manifest is
-  generated at build from the emitted asset list.
+- **Next step:** Emit `version.json` at build (never cached), then the five triggers in `11` §3:
+  launch, foreground, 15-minute timer, explicit check in Settings, and the version poll that
+  detects a mismatch even when the service-worker mechanism itself has failed.
 - **Files touched:** —
 - **Blockers:** Awaiting the user's answers to [`08-open-questions.md`](./08-open-questions.md);
   working assumptions are recorded there, so none of them block Phase 0.
@@ -39,7 +38,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
-| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 6 | `in_progress` | — |
+| 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 7 | `in_progress` | — |
 | 1 | Engine core | 13 | 0 | `todo` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
@@ -66,7 +65,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-0.3 | App shell: canvas host, hash router, safe-area layout, orientation handling | M | `done` | | `tests/unit/app/{router,shell,orientation,canvas-host}.test.ts` | `auto` | Hash routing (`04` §2 — Pages has no rewrites). Literal route segments beat `:params`. `chrome: 'bare'` drops header and tabs for Live. Rotate prompt is the iOS fallback where `orientation.lock` is absent. Screens load lazily; a superseded slow load is dropped rather than mounted late. |
 | T-0.4 | Design tokens + primitive components + dev-only component gallery route | M | `done` | | `tests/unit/ui/components.test.ts` | `auto` | Tokens from `10` §3.1–3.3, dark-first with a light theme and an OS-following default. UI scale is one `--ui-scale` multiplier on the whole type scale. Primitives: button (5 variants × 5 states), segmented, switch, rating/progress bars, familiarity ring, stars, coin pill, dialog, sheet, toast, banner, empty/error/skeleton. `#/dev/ui` is dev-only and code-split. No `innerHTML` anywhere — untrusted roster data can't inject markup (`04` §12). |
 | T-0.5 | Web app manifest generated with base-path `id`/`scope`/`start_url`, full icon set incl. maskable | M | `done` | | `tests/unit/tools/manifest.test.ts` | `auto` + icons eyeballed at 192 px, both variants | `id`/`scope`/`start_url` are all the base path, so the install is a distinct app from any sibling PWA on the account. Icons are rasterised at build by `tools/png.ts` — a ~90-line PNG encoder — rather than adding an image dependency or committing binaries; 12 sizes plus maskable 192/512, 34 kB total. A `404.html` copy of `index.html` answers deep links, since Pages has no rewrites. The dev server serves the same manifest and icons the build emits. |
-| T-0.6 | Service worker: per-class cache strategies (`11` §2), atomic precache install, versioned caches, activate cleanup | L | `todo` | | | | |
+| T-0.6 | Service worker: per-class cache strategies (`11` §2), atomic precache install, versioned caches, activate cleanup | L | `done` | | `tests/unit/pwa/strategies.test.ts`, `tests/unit/tools/precache.test.ts` | `auto` + headless Chromium: registers, precaches 20 entries, cold-loads a deep hash route with the server refusing connections | The `11` §2 table lives in pure functions in `strategies.ts` so every row is asserted without a SW environment. `sw.js` is built by a second Vite pass with the precache manifest injected from the emitted asset list; emitted unhashed at the base root, since its directory is what scopes it. **Bug found in verification:** navigation preload *rejects* rather than resolving `undefined` when offline, which failed the whole navigation — the exact offline cold-start `11` exists to prevent. Now caught. Also dropped `frame-ancestors` from the CSP meta: it is header-only and browsers log an error. |
 | T-0.7 | `version.json` emission + all five update-detection triggers (`11` §3) | M | `todo` | | | | |
 | T-0.8 | Update application: waiting-worker banner, safe-point auto-update, single-reload guard, `minSupportedVersion` force | L | `todo` | | | | |
 | T-0.9 | Offline integrity self-check and self-heal; offline-readiness UI; "download everything for offline" | L | `todo` | | | | |
