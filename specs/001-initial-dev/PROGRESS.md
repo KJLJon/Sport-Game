@@ -12,15 +12,17 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-1.8 — Camera: ball follow, smoothing, dynamic zoom, bounds clamp, shake
+- **Task:** T-1.9 — Input layer: floating joystick, context buttons, handedness mirror, keyboard, gamepad
 - **Status:** in_progress
 - **Started:** 2026-07-27
 - **Branch commit:** (see `git log` on `claude/phase-1-token-optimizations-g7sjm3`)
-- **Done so far:** T-1.1 … T-1.7 `done` (PRNG, loop, world, movement, collision, ball, renderer)
-- **Next step:** `src/engine/render/camera.ts` per `04` §6 and `10` §6 — produces the
-  `ViewTransform` the renderer consumes; reduced-motion disables shake entirely.
+- **Done so far:** T-1.1 … T-1.8 `done` (PRNG, loop, world, movement, collision, ball, renderer,
+  camera)
+- **Next step:** `src/engine/input/` per `04` §6 and `10` §4 — one `InputFrame` per sim step,
+  produced from touch, keyboard, or gamepad, so the sim never learns which device it came from
+  (which is also what makes T-1.12's input recording work).
 - **Files touched:** src/engine/{rng,loop,world}.ts, src/engine/physics/*.ts,
-  src/engine/render/renderer.ts and their tests
+  src/engine/render/{renderer,camera}.ts and their tests
 - **Blockers:** none. **Pre-existing, unrelated:** `pnpm test:coverage` fails two `12` §2
   thresholds (`src/storage/**` functions, `src/ui/**` lines), identically at Gate 0's merge commit.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27). Formatting
@@ -38,7 +40,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | Phase | Name | Tasks | Done | Status | Milestone |
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
-| 1 | Engine core | 13 | 7 | `in_progress` | — |
+| 1 | Engine core | 13 | 8 | `in_progress` | — |
 | 2 | Basketball · Live | 13 | 0 | `todo` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
@@ -49,7 +51,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **25** | | |
+| | **Total** | **170** | **26** | | |
 
 ---
 
@@ -89,7 +91,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-1.5 | Collision & contact contests weighted by strength/agility | L | `done` | | `tests/unit/engine/collision.test.ts` | `auto` | Two separate problems, kept separate: `resolveCollisions()` is deterministic geometry with no randomness at all, `contest()` is the seeded ratings decision sports build rebounds and tackles on. Contact is soft on purpose — positional correction at 40% of the overlap per step, mass-weighted — because impulse separation at 60 Hz jitters between two athletes who both want the same spot, which is most of a possession. Pairs are taken once with `a < b`, so the result never depends on visit order. Coincident athletes get a contact normal derived from their ids: INV-2 forbids a random one, and a random one would diverge a replay the moment two players stack. The contest curve is logistic over a rating difference with divisor 25 — a 20-point edge is ~65–70%, and even 99-vs-1 leaves the underdog a few percent, which is what keeps a low-rated squad playable. Separation settles to within `OVERLAP_EPSILON` (1 mm) rather than exactly zero, deliberately. |
 | T-1.6 | Ball physics: position + height, gravity, bounce, spin/curve, possession attach/detach | L | `done` | | `tests/unit/engine/ball.test.ts` | `auto` | The ball lives in the same `World` as the athletes (using `z`/`vz`), so neighbour queries find it for free, and it is flagged `INTANGIBLE` so contact resolution never shoves an athlete off their line as it rolls past. Possession is a state the *ball* holds, not a flag on an athlete: exactly one carrier can exist, so "who has it" is unambiguous and losing it is one assignment. A carried ball does not integrate — it is placed ahead of its carrier, which feels better than simulating a constrained dribble. **Bug found and fixed in test:** treating "airborne" as `z > radius` alone gave every bounce one gravity-free step of rise, injecting enough energy for a permanent low limit cycle — the ball never settled. Airborne is now `z > radius || vz > 0`. Spin is yaw-only (one axis covers curving passes, crosses, and hooks); Magnus reads pre-update velocity so a pass cannot accelerate in flight. `launchVelocity()` solves the vertical component exactly rather than iterating, so the same pass request always produces the same pass. |
 | T-1.7 | Canvas 2D renderer: layers, batching, LOD, off-screen static layers, debug overlay | L | `done` | | `tests/unit/engine/renderer.test.ts` | `auto` | Everything works against `Canvas2D`, the subset of the real context actually used, so layer and LOD policy is unit-tested against a recording double instead of a real canvas — 29 tests, no jsdom. Layer order is fixed and named, not caller-controlled: "why is the ball behind the crowd" is not a bug worth having twice. The HUD layer alone draws in screen space. Three fill-rate levers in payoff order: blit a static field drawn once into an off-screen canvas (keyed on court + theme + size, so a theme switch redraws and nothing else does); batch draws sharing a style so the context changes state once per batch rather than per entity; and drop detail by distance. LOD is *ratio*-based against the viewport half-diagonal, so it behaves the same on a phone and a tablet and at every zoom. `FrameStats` reports commands, style changes, and the LOD split — the numbers T-1.13's budget check needs. |
-| T-1.8 | Camera: ball follow, smoothing, dynamic zoom, bounds clamp, shake (reduced-motion aware) | M | `todo` | | | | |
+| T-1.8 | Camera: ball follow, smoothing, dynamic zoom, bounds clamp, shake (reduced-motion aware) | M | `done` | | `tests/unit/engine/camera.test.ts` | `auto` | Render-side only: it advances on frame time and nothing in `physics/` or a sport may read it — a camera that influenced the sim would make what you see change what happens. Smoothing uses `1 − e^(−rate·dt)` rather than `gap × rate × dt`, so a 30 fps device and a 120 fps device see identical motion; the naive form lags more on the slower device, which is the one that can least afford to look worse. Lookahead leads the ball so the player sees where play is going. The bounds clamp centres an axis the viewport is wider than, rather than jamming the field against one edge. Shake is seeded (INV-2 — an unseeded shake makes two replays of one match visibly different) and under reduced motion is skipped entirely rather than scaled down, along with the lookahead lead: `10` §6 exists for people motion makes ill, and a small shake is still motion. |
 | T-1.9 | Input layer: floating joystick, context buttons, handedness mirror, keyboard, gamepad | L | `todo` | | | | |
 | T-1.10 | Match state machine + `SportEvent` bus (the contract all three modes emit) | M | `todo` | | | | |
 | T-1.11 | `SportModule` interface (`04` §5, `09` §5) + a trivial test sport proving the seam | M | `todo` | | | | |
