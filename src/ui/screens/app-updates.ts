@@ -1,9 +1,10 @@
 /**
  * @spec    001-initial-dev
  * @phase   0 — Foundation, PWA shell, update & offline lifecycle
- * @task    T-0.9 — Offline-readiness UI, T-0.10 — Repair, "check for update now", version display
- * @story   US-1.8 — Keeps working offline, US-1.9 — A way out when the app gets stuck
- * @design  11-pwa-lifecycle.md §4, §5.3, §6; 10-ui-ux.md §7, §9 (copy tone)
+ * @task    T-0.9 — Offline-readiness UI, T-0.10 — Repair and version display,
+ *          T-0.12 — Storage persistence and quota, T-0.14 — Install UX
+ * @story   US-1.1 — Install, US-1.5 — Data survives, US-1.8 — Offline, US-1.9 — Repair
+ * @design  11-pwa-lifecycle.md §4, §5.3, §6, §7; 10-ui-ux.md §7, §8.1, §9 (copy tone)
  *
  * Purpose: Settings → App & updates. `11` §4 requires "am I actually on the new one?" to be
  * answerable at any time, so the running version, build hash, build date, and last check are all
@@ -17,6 +18,14 @@ import { pwaRuntime } from '../../pwa/boot.ts';
 import { describeReadiness } from '../../pwa/integrity.ts';
 import { REPAIR_PROMISE, repair } from '../../pwa/repair.ts';
 import { describeAge } from '../../pwa/version.ts';
+import { IOS_STEPS } from '../../pwa/install.ts';
+import {
+  describePersistence,
+  formatBytes,
+  isQuotaPressured,
+  persistenceState,
+  storageUsage,
+} from '../../storage/persistence.ts';
 
 function row(doc: Document, label: string, value: string): HTMLElement {
   return el(doc, 'div', {
@@ -118,13 +127,86 @@ export function appUpdatesScreen(): Screen {
         ],
       });
 
+      // ── Install (`10` §8.1) ────────────────────────────────────────────────
+      const installBlock = el(doc, 'section', { class: 'panel' });
+      const renderInstall = (state: string): void => {
+        const children: Node[] = [el(doc, 'h2', { class: 'panel__title', text: 'Install' })];
+
+        if (state === 'installed') {
+          children.push(
+            el(doc, 'p', { class: 'panel__note', text: 'Installed. It works offline already.' }),
+          );
+        } else if (state === 'promptable') {
+          children.push(
+            el(doc, 'p', {
+              class: 'panel__note',
+              text: 'Install it and the game opens like an app and plays offline.',
+            }),
+            button(doc, {
+              label: 'Install',
+              variant: 'primary',
+              onClick: () => void runtime?.install.promptInstall(),
+            }),
+          );
+        } else if (state === 'ios-manual') {
+          const steps = el(doc, 'ol', { class: 'steps' });
+          for (const step of IOS_STEPS) steps.appendChild(el(doc, 'li', { text: step }));
+          children.push(
+            el(doc, 'p', { class: 'panel__note', text: 'Add it to your Home Screen:' }),
+            steps,
+          );
+        } else {
+          children.push(
+            el(doc, 'p', {
+              class: 'panel__note',
+              text: 'Installing is not available in this browser yet. The game still works here.',
+            }),
+          );
+        }
+
+        installBlock.replaceChildren(...children);
+      };
+
+      // ── Storage (`11` §7) ──────────────────────────────────────────────────
+      const storageBlock = el(doc, 'section', { class: 'panel' });
+      const renderStorage = async (): Promise<void> => {
+        const state = await persistenceState();
+        const usage = await storageUsage();
+
+        storageBlock.replaceChildren(
+          el(doc, 'h2', { class: 'panel__title', text: 'Storage' }),
+          el(doc, 'p', {
+            class: state === 'granted' ? 'panel__note' : 'panel__note panel__note--strong',
+            text: describePersistence(state),
+          }),
+          usage === null
+            ? el(doc, 'p', { class: 'panel__note', text: 'Usage is not reported here.' })
+            : row(
+                doc,
+                'Used',
+                usage.quotaBytes > 0
+                  ? `${formatBytes(usage.usageBytes)} of ${formatBytes(usage.quotaBytes)}`
+                  : formatBytes(usage.usageBytes),
+              ),
+          isQuotaPressured(usage)
+            ? el(doc, 'p', {
+                class: 'panel__note panel__note--strong',
+                text: 'Storage is nearly full. Clearing old match replays will free space.',
+              })
+            : el(doc, 'span'),
+        );
+      };
+
       renderVersion();
       renderReadiness();
+      renderInstall(runtime?.install.state ?? 'unavailable');
+      void renderStorage();
 
       host.replaceChildren(
         el(doc, 'div', {
           class: 'stack',
           children: [
+            installBlock,
             versionBlock,
             el(doc, 'section', {
               class: 'panel',
@@ -136,12 +218,18 @@ export function appUpdatesScreen(): Screen {
               ],
             }),
             readinessBlock,
+            storageBlock,
             repairBlock,
           ],
         }),
       );
 
-      unsubscribe = runtime?.detector.subscribe(renderVersion) ?? null;
+      const offVersion = runtime?.detector.subscribe(renderVersion) ?? null;
+      const offInstall = runtime?.install.subscribe(renderInstall) ?? null;
+      unsubscribe = () => {
+        offVersion?.();
+        offInstall?.();
+      };
     },
 
     unmount(): void {

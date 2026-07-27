@@ -10,6 +10,8 @@
  */
 import { prefs as defaultPrefs, type Prefs } from '../storage/prefs.ts';
 import { banner as bannerComponent } from '../ui/components/feedback.ts';
+import { PersistenceNudger } from '../storage/persistence.ts';
+import { InstallController } from './install.ts';
 import { IntegrityChecker, type Readiness } from './integrity.ts';
 import { registerServiceWorker } from './register.ts';
 import { ActivityTracker } from './safe-point.ts';
@@ -21,6 +23,8 @@ export interface PwaRuntime {
   readonly detector: UpdateDetector;
   readonly controller: UpdateController;
   readonly integrity: IntegrityChecker;
+  readonly install: InstallController;
+  readonly persistence: PersistenceNudger;
   readonly activity: ActivityTracker;
   readonly runningBuild: string;
   readonly runningVersion: string;
@@ -67,6 +71,13 @@ export async function bootPwa(options: BootOptions): Promise<PwaRuntime> {
   });
 
   const integrity = new IntegrityChecker({ prefs, base: import.meta.env.BASE_URL });
+  const install = new InstallController();
+  install.start();
+
+  // `11` §7 — asked on first write rather than at launch, when the browser is most likely to say
+  // no and least likely to be asked again.
+  const persistence = new PersistenceNudger();
+  void persistence.reach('first-write');
 
   let readiness: Readiness = { kind: 'unknown' };
   const refreshReadiness = async (): Promise<Readiness> => {
@@ -84,6 +95,8 @@ export async function bootPwa(options: BootOptions): Promise<PwaRuntime> {
     detector,
     controller,
     integrity,
+    install,
+    persistence,
     activity,
     runningBuild: RUNNING_BUILD,
     runningVersion: __APP_VERSION__,
