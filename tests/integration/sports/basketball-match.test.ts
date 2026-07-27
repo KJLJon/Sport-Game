@@ -292,6 +292,77 @@ describe('a basketball match', () => {
     }
   });
 
+  it('produces a shot chart with a shape, not a pile of layups', () => {
+    const { events } = play('flow', BASKETBALL_RULES.periodSteps * 4);
+    const zones = new Map<string, number>();
+    for (const shot of of(events, EventKind.SHOT)) {
+      const zone = String((shot.detail ?? {}).zone);
+      if (zone === 'freeThrow') continue;
+      zones.set(zone, (zones.get(zone) ?? 0) + 1);
+    }
+
+    const threes =
+      (zones.get('cornerThree') ?? 0) +
+      (zones.get('wingThree') ?? 0) +
+      (zones.get('topThree') ?? 0);
+    const inside = (zones.get('restricted') ?? 0) + (zones.get('paint') ?? 0);
+    const total = [...zones.values()].reduce((a, b) => a + b, 0);
+
+    // Every zone of the floor is used, and neither extreme swallows the game.
+    expect(total).toBeGreaterThan(60);
+    expect(threes).toBeGreaterThan(total * 0.1);
+    expect(inside).toBeGreaterThan(total * 0.1);
+    expect(threes).toBeLessThan(total * 0.7);
+  });
+
+  it('spaces the floor — five athletes are not standing in the same paint', () => {
+    const world = arena();
+    const { state, rng } = createBasketballMatch(world, 'spacing');
+    const empty = new Map();
+
+    let samples = 0;
+    let spread = 0;
+    for (let i = 0; i < BASKETBALL_RULES.periodSteps; i++) {
+      basketball.step(state, world, empty, STEP, rng);
+      if (i % 120 !== 0 || state.rules.possession === -1 || !state.rules.frontcourt) continue;
+
+      const offence = state.rules.possession;
+      const xs: number[] = [];
+      const ys: number[] = [];
+      world.forEach((id) => {
+        if ((world.kind[id] as number) !== 0) return;
+        if (state.sides.get(id) !== offence) return;
+        xs.push(world.x[id] as number);
+        ys.push(world.y[id] as number);
+      });
+      if (xs.length < 5) continue;
+
+      // Width of the offence across the court: a bunched offence is a narrow one.
+      spread += Math.max(...ys) - Math.min(...ys);
+      void xs;
+      samples++;
+    }
+
+    expect(samples).toBeGreaterThan(5);
+    // A floor rather than a target: averaged over drives, cuts, and everyone getting shoved about,
+    // the offence is at least wider than the key it is attacking. Before T-2.8 it was not.
+    expect(spread / samples).toBeGreaterThan(COURT.keyWidth);
+  });
+
+  it('runs both schemes without either collapsing', () => {
+    // The scheme is drawn from the match seed, so a spread of seeds exercises both.
+    let zoneMatches = 0;
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+      const world = arena();
+      const { state, rng } = createBasketballMatch(world, seed);
+      const empty = new Map();
+      for (let i = 0; i < 1200; i++) basketball.step(state, world, empty, STEP, rng);
+      if (state.zoneSide !== -1) zoneMatches++;
+      expect([-1, 0, 1]).toContain(state.zoneSide);
+    }
+    expect(zoneMatches).toBeGreaterThan(0);
+  });
+
   it('keeps every athlete on the court', () => {
     const { world } = play('bounds', 3000);
     world.forEach((id) => {
