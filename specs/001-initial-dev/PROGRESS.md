@@ -12,19 +12,25 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-2.9 — Control switching: auto on turnover, manual cycle, controlled-athlete indicator
+- **Task:** T-2.10 — Match HUD: score, clocks, fouls, live box score, minimap, off-screen indicators
 - **Status:** todo (not started)
 - **Started:** —
 - **Branch commit:** (see `git log`)
 - **Done so far:**
   - [x] T-2.1 court · T-2.2 rules · T-2.3 shooting · T-2.4 passing · T-2.5 dribbling ·
-        T-2.6 rebounding · T-2.7 defence · T-2.8 baseline CPU (all `done`)
-- **Next step:** `BasketballState.controlled` already exists and is set once at `createState`;
-  nothing reads it and nothing changes it. T-2.9 is the switching policy plus `Button.SWITCH`
-  (already in the input layer, unused). The indicator itself needs the HUD, so it may want to land
-  alongside T-2.10.
+        T-2.6 rebounding · T-2.7 defence · T-2.8 baseline CPU · T-2.9 control switching (all `done`)
+- **Next step:** everything the HUD needs is already computed and emitted, which is the point of
+  having done the sim first: `rules.gameClockSeconds()` / `formatClock()` / `shotClockSeconds()`,
+  `rules.teamFouls` / `personalFouls` / `inBonus()`, and the whole `SportEvent` stream for the box
+  score. `basketball.hud` carries `showShotClock`, `showPossession`, and the context button labels.
+  The controlled-athlete indicator is the one piece of T-2.9 that was left for this task, and
+  `BasketballEvent.CONTROL_SWITCH` is emitted for it to flash on.
+  `03` marks this one `sonnet` — worth delegating now that the design system (T-0.4) and the
+  event stream are both settled.
 - **Files touched:** src/sports/basketball/*.ts
-- **Blockers:** none.
+- **Blockers:** none. **Nothing in Phase 2 has been played by hand yet** — there is no HUD and no
+  screen, so every feel note so far is "unknown". That is the gap T-2.10 and T-2.11 close, and the
+  gate cannot be honestly evaluated before then.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
   branches locally with `pnpm verify`, `pnpm bench`, and `pnpm e2e`. Formatting and auto-fixable
   lint are handled by hooks (`CLAUDE.md` §11); never spend a turn on them. In this sandbox the
@@ -43,7 +49,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
-| 2 | Basketball · Live | 13 | 8 | `in_progress` | v0.1 |
+| 2 | Basketball · Live | 13 | 9 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 0 | `todo` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
@@ -53,7 +59,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **39** | | |
+| | **Total** | **170** | **40** | | |
 
 ---
 
@@ -112,7 +118,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-2.6 | Rebounding: height/vertical/strength/box-out/timing contest | M | `done` | | `tests/unit/sports/basketball/rebounding.test.ts`, `tests/integration/sports/basketball-match.test.ts` | `auto` | A weighted draw, not a highest-score contest: taking the best score would mean the same five athletes rebound in the same order every time and a possession would be readable from the box score before the shot went up. Skill enters the draw squared — linear, an elite rebounder beats a guard only 60/40 with everything else equal, which does not read as elite. Better rebounders get a *narrower* timing spread rather than a bonus, which is the difference between good and lucky. **Known imbalance:** the offensive rebound share is around half, because nobody boxes out yet — the defence has no reason to put a body between shooter and rim until T-2.7, so the team driving the basket is simply nearer the ball. The contest is right; the positioning is T-2.7's and the balance is T-2.13's. Also fixed here: a restart reset the shot clock without saying so, which would have left the HUD showing the old count. |
 | T-2.7 | Defence: marking, contest, steal, block, foul model, free throws | L | `done` | | `tests/unit/sports/basketball/defence.test.ts`, `tests/unit/sports/basketball/rules.test.ts` (fouls, free throws), `tests/integration/sports/basketball-match.test.ts` | `auto` | Every defensive action carries a foul risk, and that is the design: a steal that could only succeed or fail would be free to spam, one that can also concede two shots is a decision. Ball before whistle, always — a defender who gets it cleanly has not fouled, however fast they arrived. Three bugs and one model error found headless: **(1)** the first free throw of the first game was never taken, because `arrive` with a tight slowing radius cannot decelerate a sprinting athlete in time and they orbit the spot for ever; **(2)** a first guess of `baseFoul: 0.3` produced fifty fouls and ten disqualifications in one game — every athlete on the floor fouled out; **(3)** the CPU block rate gave thirteen blocks a game, two or three times a real one, because a shot hangs half a second and every step was another chance; and **(4)** contest was computed from the nearest opponent regardless of *direction*, so a defender standing behind the shooter contested as hard as one in the shot line, and tight man defence dropped the whole floor to 25% — it is now weighted by alignment with the basket. The release meter also came down from 30 steps to 22, because at half a second the defence closed between the decision to shoot and the shot. A game now runs 62–43 with 25 fouls, 8 blocks, 29/36 from the line, and 34% from the field. **Feel note:** still nothing played by hand — no HUD until T-2.10. 34% is low and the shot chart is still rim-heavy; both are shot selection, which is T-2.8's, and the numbers are T-2.13's. Zone defence is deferred to T-2.8 with scheme selection. |
 | T-2.8 | Baseline CPU: role-based offence (spacing, cuts, screens), man defence, possession decisions | XL | `done` | | `tests/unit/sports/basketball/cpu.test.ts`, `tests/integration/sports/basketball-match.test.ts` | `auto` | Decisions are **expected points**, not thresholds. "Shoot if open and close" has to be re-tuned for every change to the shooting model; "shoot if this is worth more than what the possession is otherwise worth" re-tunes itself — and it is the only formulation that takes the corner three, because a 36% three beats a 40% two and no distance-and-openness rule will ever say so. Four things found by running it: **(1)** with five athletes properly spaced somebody always looks marginally better, so at a low pass margin the offence ping-ponged — 1 264 passes and 167 turnovers in one game; the margin plus a settle delay on the receiver cut it to ~170. **(2)** The shot bar was first set at league-average efficiency (1.06), which means only above-average shots are ever taken — arithmetically impossible, and it produced 61 attempts instead of 160. It is now the *continuation* value (0.85): declining a shot costs clock and risks a turnover, so what is left is worth less than the possession was. **(3)** The CPU valued every shot as if set and then took it on the move, which filled the shot chart with mid-range pull-ups; it now values the movement state it is actually in. **(4)** A 2-3 zone with its top pair inside the arc lost 104–32 — it now sits outside the arc and closes out on the ball, which brought it to 49–83. A game runs ~132 points on 133 attempts at 37%, 76 rebounds split 25/51, 8 blocks, and a real shot chart (36 threes, 43 mid, 54 inside). **Feel note:** still unplayed by hand; no HUD until T-2.10. The remaining scheme gap — zone still loses to man by more than it should — is T-2.13's, along with the low team scores. |
-| T-2.9 | Control switching: auto on turnover, manual cycle, controlled-athlete indicator | M | `todo` | | | | |
+| T-2.9 | Control switching: auto on turnover, manual cycle, controlled-athlete indicator | M | `done` | | `tests/unit/sports/basketball/control.test.ts`, `tests/integration/sports/basketball-match.test.ts` | `auto` | Hysteresis is the whole feature: without a margin, two athletes a hand's breadth apart trade control every few frames and the player's thumb is attached to nobody. Auto-switch is modelled as an *assist* (`06` §2 lists it beside aim and pass assist, tunable on its own), not as a difficulty setting — so with it off the player keeps whoever they picked and cycles by hand, and the only thing that overrides that is their athlete leaving the floor. The switch is published as a `SportEvent` rather than only written to state, because the HUD has to flash the indicator on it and neither it nor the audio layer can poll a field without guessing when it changed. **The indicator itself is deferred to T-2.10** — it is a HUD element and there is no HUD. |
 | T-2.10 | Match HUD: score, clocks, fouls, live box score, minimap, off-screen indicators | M | `todo` | | | | |
 | T-2.11 | Pause menu, quit, in-match settings, post-match summary with box score | M | `todo` | | | | |
 | T-2.12 | Basketball art & audio pass | L | `todo` | | | | |
@@ -344,6 +350,8 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 | 2026-07-27 | T-2.7 | Contest is weighted by direction, not just distance | A defender standing behind the shooter is not contesting the shot however close they are. Without it, tight man marking made every shot maximally contested from every angle and the whole floor shot 25%. |
 | 2026-07-27 | T-2.8 | The CPU decides by expected points rather than by rules of thumb | A threshold table has to be re-tuned for every change to the shooting model and never takes the corner three. Expected points re-tunes itself and gets the three right by construction. |
 | 2026-07-27 | T-2.8 | The shot bar is a possession's *continuation* value, not its total value | Set at league-average efficiency it means only above-average shots are ever taken, which cannot be true of an average. Declining a shot burns clock and risks a turnover, so what remains is worth less than the possession was. |
+| 2026-07-27 | T-2.9 | Auto-switch is an assist, not a difficulty setting | `06` §2 lists it beside aim and pass assist, tunable independently. Modelling it as difficulty would make it a thing the player cannot choose separately, which is the opposite of what the spec asks for. |
+| 2026-07-27 | T-2.9 | With auto-switch off, the player is *not* switched to the ball-carrier | Off means off. The alternative reading — always follow the ball — makes the setting do nothing on offence, which is most of the game. |
 | 2026-07-27 | T-2.6 | No delegation this session, despite the offer | The tasks marked `sonnet` in `03` are the HUD (T-2.10), the pause/summary screens (T-2.11), and the art pass (T-2.12). All three are out of order, and the art pass in particular has nothing to be viewed in until the HUD exists — reviewing a large diff for it would have cost more than the gameplay tasks it displaced. Worth revisiting once T-2.10 lands. |
 
 ---

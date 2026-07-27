@@ -130,6 +130,7 @@ export const BasketballEvent = {
   RESTART_READY: 'basketball.restartReady',
   RESTART_COMPLETE: 'basketball.restartComplete',
   SHOT_CLOCK_RESET: 'basketball.shotClockReset',
+  CONTROL_SWITCH: 'basketball.controlSwitch',
   STEAL: 'basketball.steal',
   BLOCK: 'basketball.block',
   BONUS: 'basketball.bonus',

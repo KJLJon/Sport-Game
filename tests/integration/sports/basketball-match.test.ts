@@ -363,6 +363,31 @@ describe('a basketball match', () => {
     expect(zoneMatches).toBeGreaterThan(0);
   });
 
+  it('keeps the player attached to somebody, and says when it changed', () => {
+    const world = arena();
+    const { state, rng } = createBasketballMatch(world, 'control', 0);
+    const empty = new Map();
+    const switches: number[] = [];
+
+    for (let i = 0; i < BASKETBALL_RULES.periodSteps; i++) {
+      for (const e of basketball.step(state, world, empty, STEP, rng)) {
+        if ((e.sportKind ?? e.kind) === BasketballEvent.CONTROL_SWITCH) switches.push(e.step);
+      }
+      // Always somebody, always on the player's own side.
+      expect(state.controlled).toBeGreaterThanOrEqual(0);
+      expect(state.sides.get(state.controlled)).toBe(0);
+    }
+
+    expect(switches.length).toBeGreaterThan(5);
+    // Not every other frame: the hysteresis margin is what stops that.
+    expect(switches.length).toBeLessThan(BASKETBALL_RULES.periodSteps / 20);
+  });
+
+  it('leaves control alone in a spectated match', () => {
+    const { events } = play('spectated', 3000);
+    expect(of(events, BasketballEvent.CONTROL_SWITCH)).toHaveLength(0);
+  });
+
   it('keeps every athlete on the court', () => {
     const { world } = play('bounds', 3000);
     world.forEach((id) => {

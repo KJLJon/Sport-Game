@@ -8,10 +8,12 @@
  * @task    T-2.6 — Rebounding: height/vertical/strength/box-out/timing contest
  * @task    T-2.7 — Defence: marking, contest, steal, block, foul model, free throws
  * @task    T-2.8 — Baseline CPU: role-based offence (spacing, cuts, screens), man defence, possession decisions
+ * @task    T-2.9 — Control switching: auto on turnover, manual cycle, controlled-athlete indicator
  * @story   US-3.1 — Play a 5v5 basketball match
  * @story   US-3.2 — Shoot, drive, pass, and rebound
  * @story   US-3.3 — Defend
  * @story   US-7.1 — Play against a CPU that plays the sport properly
+ * @story   US-2.2 — Switch which athlete I am controlling
  * @story   US-2.4 — See the state of the match at a glance
  * @design  06-game-design.md §3.1 (basketball), 04-architecture.md §5 (the sport module seam)
  * @invariant INV-2 (seeded PRNG only), INV-5 (no sport logic in the engine), INV-8 (determinism)
@@ -129,6 +131,7 @@ import {
   zoneSpot,
   type Look,
 } from './cpu.ts';
+import { cycleControlled, pickControlled, shouldAutoSwitch, type Candidate } from './control.ts';
 import type {
   ActionIntent,
   MatchSetup,
@@ -144,6 +147,7 @@ import {
   COURT,
   attackedBasket,
   basketballCourt,
+  defendedBasket,
   freeThrowSpot,
   mirrorX,
   shotValue,
@@ -239,6 +243,10 @@ export interface BasketballState extends SportState {
   zoneSide: 0 | 1 | -1;
   /** The step the current carrier took possession, so a receiver squares up before passing on. */
   receivedAt: number;
+  /** Whether control follows the ball automatically. An assist (`06` §2), not a difficulty. */
+  autoSwitch: boolean;
+  /** Possession as of the previous step, so a change can be detected rather than inferred. */
+  previousPossession: 0 | 1 | -1;
   readonly playerSide: 0 | 1 | -1;
   controlled: EntityId;
   step: number;
@@ -423,6 +431,8 @@ export const basketball: SportModule<BasketballState> = {
       screener: NO_ENTITY,
       screenSteps: 0,
       receivedAt: 0,
+      autoSwitch: true,
+      previousPossession: -1,
       // One side plays a 2-3 zone, chosen by the match seed, so both schemes get exercised.
       zoneSide: rng.fork('scheme').int(0, 2) === 0 ? (rng.fork('scheme').int(0, 1) as 0 | 1) : -1,
       playerSide: setup.playerSide,
@@ -457,6 +467,7 @@ export const basketball: SportModule<BasketballState> = {
     world.reindex();
 
     events.push(...advanceRestart(state, world, rng));
+    events.push(...driveControl(state, world, inputs));
     driveOffBall(state, world, rng);
     events.push(...driveFreeThrows(state, world, inputs, rng));
     events.push(...driveDefence(state, world, inputs, rng));
@@ -1785,6 +1796,69 @@ function screenTarget(
     { x: world.x[handler] as number, y: world.y[handler] as number },
     { x: world.x[defender] as number, y: world.y[defender] as number },
   );
+}
+
+/**
+ * Keeps the player attached to somebody worth being.
+ *
+ * The switch is published as an event rather than only written to state, because the HUD has to
+ * flash the indicator on it (T-2.10) and the audio layer has to sting it (T-2.12) — and neither of
+ * those can poll a field without guessing when it changed.
+ */
+function driveControl(
+  state: BasketballState,
+  world: World,
+  inputs: ReadonlyMap<EntityId, InputFrame>,
+): SportEvent[] {
+  if (state.playerSide === -1) return [];
+
+  const order: EntityId[] = [];
+  const candidates: Candidate[] = [];
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    if (state.sides.get(id) !== state.playerSide) return;
+    if (isFouledOut(state.rules, id)) return;
+    order.push(id);
+
+    const ball = state.ballState;
+    candidates.push({
+      athlete: id,
+      toBall: Math.hypot(
+        (world.x[id] as number) - (world.x[ball.entity] as number),
+        (world.y[id] as number) - (world.y[ball.entity] as number),
+      ),
+      toOwnBasket: Math.hypot(
+        (world.x[id] as number) - defendedBasket(state.playerSide as CourtSide).x,
+        (world.y[id] as number) - defendedBasket(state.playerSide as CourtSide).y,
+      ),
+      carrier: ball.carrier === id,
+    });
+  });
+
+  const previous = state.controlled;
+  const frame = inputs.get(previous);
+
+  if (frame !== undefined && wasPressed(frame, Button.SWITCH)) {
+    state.controlled = cycleControlled(order, previous);
+  } else {
+    const changed = shouldAutoSwitch(
+      state.previousPossession,
+      state.rules.possession,
+      state.autoSwitch,
+    );
+    state.controlled = pickControlled(candidates, changed ? NO_ENTITY : previous, state.autoSwitch);
+  }
+
+  state.previousPossession = state.rules.possession;
+  if (state.controlled === previous) return [];
+
+  return [
+    event(EventKind.SPORT, state.step, state.playerSide, {
+      sportKind: BasketballEvent.CONTROL_SWITCH,
+      actor: state.controlled,
+      ...(previous === NO_ENTITY ? {} : { target: previous }),
+    }),
+  ];
 }
 
 /**
