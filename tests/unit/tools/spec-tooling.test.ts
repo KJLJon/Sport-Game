@@ -7,7 +7,15 @@
  */
 import { describe, expect, it } from 'vitest';
 import { parseHeader, validateHeader, type KnownIds } from '../../../tools/spec-index.ts';
-import { VALID_STATUSES, check, parseInFlight, parseRows } from '../../../tools/progress-check.ts';
+import {
+  VALID_STATUSES,
+  anchorsOf,
+  check,
+  parseInFlight,
+  parseNotesLinks,
+  parseRows,
+  slug,
+} from '../../../tools/progress-check.ts';
 
 const KNOWN: KnownIds = {
   tasks: new Set(['T-0.1', 'T-0.2', 'T-1.1']),
@@ -179,5 +187,39 @@ describe('PROGRESS.md validation', () => {
 
   it('recognises exactly the five statuses from `CLAUDE.md` §3.2', () => {
     expect([...VALID_STATUSES]).toEqual(['todo', 'in_progress', 'blocked', 'done', 'cut']);
+  });
+});
+
+describe('notes links', () => {
+  const table = [
+    '| T-4.1 | Arcade framework | L | `done` | | — | `auto` | The split. [notes](./notes/phase-4.md#t-41) |',
+    '| T-4.2 | Calibration | M | `done` | | — | `auto` | No link here. |',
+    '| 2026-07-28 | T-3.4 | minutes | [phase 3 notes](./notes/phase-3.md#a-b) |',
+    '| Not a task | x |',
+  ].join('\n');
+
+  it('reads the file and anchor from every notes link, whatever the link text', () => {
+    expect(parseNotesLinks(table)).toMatchObject([
+      { task: 'T-4.1', file: 'phase-4.md', anchor: 't-41', line: 1 },
+      { file: 'phase-3.md', anchor: 'a-b', line: 3 },
+    ]);
+  });
+
+  it('slugifies a heading the way GitHub does', () => {
+    expect(slug('T-4.13')).toBe('t-413');
+    expect(slug('Gate record')).toBe('gate-record');
+    // `·` and `—` are dropped, and each surviving space becomes its own hyphen.
+    expect(slug('2026-07-28 · T-3.4 — minutes')).toBe('2026-07-28--t-34--minutes');
+  });
+
+  it('collects every heading in a notes file as an anchor', () => {
+    const notes = '# Phase 4 notes\n\n## Task notes\n\n### T-4.1\n\ntext\n\n### T-4.13\n';
+    expect(anchorsOf(notes)).toEqual(new Set(['phase-4-notes', 'task-notes', 't-41', 't-413']));
+  });
+
+  it('does not confuse one task ID with a longer one that shares its digits', () => {
+    const notes = '### T-1.13\n';
+    expect(anchorsOf(notes).has('t-113')).toBe(true);
+    expect(anchorsOf(notes).has('t-11')).toBe(false);
   });
 });

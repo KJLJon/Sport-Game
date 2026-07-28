@@ -54,6 +54,54 @@ export interface CheckResult {
   readonly counted: Readonly<Record<Status, number>>;
 }
 
+export interface NotesLink {
+  /** The row's task ID where there is one — decisions and gate rows are keyed by their own text. */
+  readonly task: string;
+  readonly file: string;
+  readonly anchor: string;
+  readonly line: number;
+}
+
+/**
+ * Reads every `./notes/phase-N.md#anchor` link in the file. Since the Phase-5 split, a task row's
+ * long-form rationale lives in the phase notes, and a link that points at nothing is the same as
+ * having deleted the rationale — so the target is checked rather than trusted.
+ */
+export function parseNotesLinks(markdown: string): NotesLink[] {
+  const out: NotesLink[] = [];
+
+  for (const [index, line] of markdown.split('\n').entries()) {
+    const task = /^\|\s*(T-\d+\.\d+)\s*\|/.exec(line)?.[1] ?? line.slice(0, 40).trim();
+    for (const link of line.matchAll(/\]\(\.\/notes\/([^)#]+)#([^)]+)\)/g)) {
+      out.push({ task, file: link[1] ?? '', anchor: link[2] ?? '', line: index + 1 });
+    }
+  }
+
+  return out;
+}
+
+/** GitHub's heading slug: lowercase, punctuation dropped, spaces to hyphens. */
+export function slug(heading: string): string {
+  return (
+    heading
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '')
+      .trim()
+      // One hyphen per space, not per run: GitHub turns `a · b` into `a--b` once `·` is dropped.
+      .replace(/\s/g, '-')
+  );
+}
+
+/** Every anchor a markdown file offers, from its headings. */
+export function anchorsOf(markdown: string): Set<string> {
+  const out = new Set<string>();
+  for (const line of markdown.split('\n')) {
+    const heading = /^#{1,6}\s+(.*)$/.exec(line)?.[1];
+    if (heading !== undefined) out.add(slug(heading.trim()));
+  }
+  return out;
+}
+
 export function check(
   markdown: string,
   knownTasks: ReadonlySet<string>,
@@ -129,17 +177,47 @@ async function main(): Promise<void> {
   ];
 
   const result = check(markdown, known.tasks, specTasks);
+  const problems = [...result.problems, ...(await checkNotesLinks(markdown))];
 
   const summary = Object.entries(result.counted)
     .map(([status, count]) => `${count} ${status}`)
     .join(', ');
   console.log(`PROGRESS.md: ${summary}`);
 
-  if (result.problems.length > 0) {
-    console.error(`\n${result.problems.length} problem(s):`);
-    for (const problem of result.problems) console.error(`  ${problem}`);
+  if (problems.length > 0) {
+    console.error(`\n${problems.length} problem(s):`);
+    for (const problem of problems) console.error(`  ${problem}`);
     process.exitCode = 1;
   }
+}
+
+/** Resolves every notes link against the file and heading it names. Filesystem, so not in `check`. */
+async function checkNotesLinks(markdown: string): Promise<string[]> {
+  const problems: string[] = [];
+  const cache = new Map<string, Set<string> | null>();
+
+  for (const link of parseNotesLinks(markdown)) {
+    let anchors = cache.get(link.file);
+    if (anchors === undefined) {
+      anchors = await readFile(join(SPEC_DIR, 'notes', link.file), 'utf8')
+        .then(anchorsOf)
+        .catch(() => null);
+      cache.set(link.file, anchors);
+    }
+    if (anchors === null) {
+      problems.push(
+        `line ${link.line}: ${link.task} links to notes/${link.file}, which is missing`,
+      );
+      continue;
+    }
+    if (!anchors.has(link.anchor)) {
+      problems.push(
+        `line ${link.line}: ${link.task} links to notes/${link.file}#${link.anchor}, which has no such heading`,
+      );
+    }
+  }
+
+  return problems;
 }
 
 if (process.argv[1]?.endsWith('progress-check.ts') === true) {

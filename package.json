@@ -23,6 +23,8 @@
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "trace": "tsx tools/spec-trace.ts",
+    "api": "tsx tools/api-index.ts",
+    "spec": "tsx tools/spec-section.ts",
     "progress:check": "tsx tools/progress-check.ts",
     "verify": "pnpm typecheck && pnpm lint && pnpm test",
     "budget": "tsx tools/budget.ts",

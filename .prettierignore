@@ -3,6 +3,7 @@ dist/
 coverage/
 pnpm-lock.yaml
 docs/traceability.md
+docs/api-index.md
 specs/
 CLAUDE.md
 test-results/
