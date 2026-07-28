@@ -136,3 +136,25 @@ export const XP = {
   repeatDecay: 0.93,
   repeatFloor: 0.2,
 } as const;
+
+/**
+ * Behavioural coupling (`05` §3.3's last paragraph). Every value is a *maximum*, reached only by a
+ * complete novice; all of them are zero at `fadeOut` familiarity and above.
+ *
+ * @spec-ref 05-data-model.md §3.3 — "adds decision noise, increases control error on first touch
+ * and handling, and lengthens reaction latency in the AI layer"
+ */
+export const COUPLING = {
+  /** At or above this familiarity nothing is coupled at all — an athlete plays cleanly. */
+  fadeOut: 75,
+  /** Above 1, so the effect is concentrated in the genuinely lost rather than spread thinly. */
+  exponent: 1.4,
+  /** Standard deviation, in expected points, of a novice's misjudgement of a look. */
+  decisionNoise: 0.45,
+  /** A novice's catches and first touches land at 45% of their controlled quality. */
+  controlError: 0.55,
+  /** A novice acts on a decision at 40% of the rate an at-home athlete does. */
+  reactionPenalty: 0.6,
+  /** A novice's release timing scatters over three times as wide a band. */
+  timingSpread: 2.2,
+} as const;
