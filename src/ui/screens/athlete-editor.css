@@ -1,0 +1,194 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   3 — Athletes, cross-sport ratings, roster
+ * @task    T-3.7 — Profile editor: fields, presets/sliders/roll with live budget meter, photo capture + downscale
+ * @story   US-5.1 — Create an athlete profile
+ * @design  10-ui-ux.md §3 (visual language), §5 (component inventory), §11 (accessibility)
+ *
+ * Purpose: layout for the profile editor and its attribute sliders. Every value is a token, so
+ * theme, UI scale, and reduced motion all still apply with nothing editor-specific to override.
+ */
+
+.athlete-editor {
+  display: grid;
+  gap: var(--space-24);
+  max-width: 960px;
+}
+
+@media (min-width: 800px) {
+  .athlete-editor {
+    grid-template-columns: minmax(280px, 360px) 1fr;
+    align-items: start;
+  }
+
+  .athlete-editor__preview {
+    position: sticky;
+    top: var(--space-16);
+  }
+}
+
+.athlete-editor__form {
+  min-width: 0;
+}
+
+.field {
+  display: grid;
+  gap: var(--space-4);
+  font-size: var(--text-14);
+}
+
+.text-input {
+  min-height: var(--target-min);
+  padding: 0 var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface-2);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: var(--text-16);
+}
+
+.text-input:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 1px;
+}
+
+.athlete-editor__photo-preview {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--radius-12);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.athlete-editor__photo-preview[hidden] {
+  display: none;
+}
+
+.athlete-editor__photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.athlete-editor__physicals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-12);
+}
+
+/* ── Attribute presets ────────────────────────────────────────────────────── */
+
+.attribute-presets__heading {
+  margin: var(--space-8) 0 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.attribute-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-8);
+}
+
+.attribute-preset {
+  display: grid;
+  gap: var(--space-4);
+  min-height: var(--target-min);
+  padding: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  color: var(--text-hi);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.attribute-preset:hover,
+.attribute-preset:focus-visible {
+  border-color: var(--accent);
+}
+
+.attribute-preset:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+
+.attribute-preset__label {
+  font-weight: 600;
+}
+
+.attribute-preset__description {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+/* ── Attribute sliders + live budget meter ──────────────────────────────── */
+
+.attribute-sliders {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.attribute-sliders__list {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.attribute-slider {
+  display: grid;
+  grid-template-columns: 9rem 1fr 3ch;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: var(--target-min);
+}
+
+.attribute-slider__label {
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.attribute-slider__input {
+  width: 100%;
+  min-height: var(--target-min);
+}
+
+.attribute-slider__value {
+  font-variant-numeric: var(--font-numeric);
+  text-align: right;
+}
+
+.attribute-budget {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.attribute-budget__track {
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.attribute-budget__fill {
+  height: 100%;
+  width: var(--fill, 0%);
+  background: var(--accent);
+  transition: width var(--dur-micro) var(--ease-out);
+}
+
+.attribute-budget__track[data-tone='over'] .attribute-budget__fill {
+  background: var(--danger);
+}
+
+.attribute-budget__text {
+  font-size: var(--text-14);
+  color: var(--text-lo);
+  font-variant-numeric: var(--font-numeric);
+}
+
+.athlete-editor__sandbox-notice:empty {
+  display: none;
+}

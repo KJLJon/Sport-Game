@@ -82,6 +82,14 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     value: stub('athlete', 'Athlete', 'The athlete card, in every sport at once.', 'Phase 3'),
   },
   {
+    pattern: '/squad/athlete/new',
+    value: {
+      id: 'athlete-new',
+      title: 'Make your own athlete',
+      load: async () => (await import('../ui/screens/athlete-editor.ts')).athleteEditorScreen(),
+    },
+  },
+  {
     pattern: '/store',
     value: stub('store', 'Store', 'Packs, the market, and selling athletes.', 'Phase 8'),
   },
