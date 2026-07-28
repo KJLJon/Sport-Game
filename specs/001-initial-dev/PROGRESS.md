@@ -336,6 +336,7 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 | 2026-07-28 | T-3.12 | The lineup editor is tap-to-place, not drag-to-place, despite `03` naming the task "drag-to-slot" | HTML5 drag-and-drop does not work on touch without a polyfill, and a drag is unusable one-handed, invisible to a screen reader, and impossible with a keyboard — all four of which this game's `10` §11 commitments require. Select-then-place works identically with a thumb, a mouse, a keyboard, and a screen reader, and every slot is a real `<button>` so focus and Enter come free. Pointer dragging can be layered on later as an accelerator over the same model. Raise it if the intent was specifically the drag gesture. |
 | 2026-07-28 | T-3.17 | `MatchSetup.rosters` is optional, and a rosterless match keeps the seeded fallback forever | Real rosters are an input, not a prerequisite. The 500-game balance harness has no save file, the golden-seed determinism tests replay from `(seed, setup, inputs)` alone, and a rules test checking the shot clock should not have to build ten athletes first. The fallback draws from the same `rosterRng` in the same order, so a rosterless match is byte-identical to the pre-T-3.17 one — which is why the balance bands came back unchanged. |
 | 2026-07-28 | T-3.17 | `sports/types.ts` and `athletes/types.ts` now import each other, type-only | `MatchSetup` needs `Athlete`; `athletes/types.ts` needs `SportId`. Both imports are `import type` and erased at build, so there is no runtime cycle. The alternatives were worse: a sport-specific setup extension read through a cast, or pretending at the seam that a match is played by something other than athletes. |
+| 2026-07-28 | — | **Clock compression confirmed as designed — no change.** Real match time, compressed by ticking the clock faster | The user asked whether "whole-number game clocks" meant what the code already does; it does. A basketball quarter shows 12:00 and takes 3 real minutes, and soccer will show genuine 45-minute halves that tick fast. Nothing was changed. Worth recording because the question is a reasonable one to ask twice. |
 | 2026-07-28 | — | **User confirmed:** `xpFor(level)` is the per-level cost (T-3.5), the lineup editor stays tap-to-place (T-3.12), and the two invented tables (basketball position weights, soccer physical modifiers) stand as written | Asked at the Gate 3 review; answered directly. These are settled, not open. On tap-to-place the user added that the game is **primarily mobile, sometimes desktop**, which is exactly the case tap serves and drag does not. |
 | 2026-07-28 | — | **User decision: CI stays on `main` + `workflow_dispatch` only.** CI credits are limited | Accepted, with the cost named: this is why a `DB_VERSION` bump sat broken through five E2E specs for several tasks before the gate caught it. **Mitigation, now a standing rule: run `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium pnpm e2e` locally before every gate, and after any change to storage, the service worker, or the base path.** The unit suite cannot see those failures. |
 | 2026-07-28 | T-3.5 | `xpFor(level) = 100 × level^1.6` is the cost to advance *from* that level, not a cumulative total | `05` §3.3 calls it a "level threshold" without saying which. As a per-level cost it gives a round 100-XP on-ramp and a ~102× span across the twenty levels — the shape "diminishing returns" describes. As a cumulative total the span is identical but level 1 → 2 is free, which makes the first level-up meaningless. Either reading is defensible; this one is the tunable-friendlier of the two. |
@@ -426,12 +427,19 @@ stand-ins. Balancing real rosters is Phase 7's problem and it has not been start
 compounding. Gate 2 was not signed off; Gate 3 is not either, and both are waiting on the same two
 things.
 
-**These do not need a deploy.** `pnpm serve` builds and serves the real bundle on the LAN, and
-Chrome's `chrome://inspect` port forwarding puts it on the phone's `localhost` — a secure context,
-so the service worker, install, offline, and the update flow all behave as they will in production.
-Written up in [`docs/device-testing.md`](../../docs/device-testing.md), including what to look for.
-The deploy is still worth doing on its own merits; it is not a prerequisite for signing off either
-gate.
+**Correction, 2026-07-28.** An earlier version of this record said the device matrix did not need a
+deploy, because `pnpm serve` can put the real build on a LAN. That is true only with a laptop
+holding a checkout. The user works through the Claude Code mobile app, and these sessions run in a
+disposable cloud container that no phone can reach — so for this project **the deploy is the only
+route to a real device**, not one option among several. Written up in
+[`docs/device-testing.md`](../../docs/device-testing.md), which now leads with it.
+
+**Deploy, at the user's direction:** tagged `v0.2.0` from the Phase 3 branch rather than waiting for
+`#5` to merge, so a testable URL exists sooner. `package.json` went `0.0.0` → `0.2.0` at the same
+time; that version is what `version.json` reports and what Settings → App & updates shows, so a
+milestone tag with a `0.0.0` inside it would have made the update machinery lie about itself.
+**Requires one thing only the repository owner can do:** Settings → Pages → Source: *GitHub
+Actions*. Without it the deploy job fails at its last step.
 
 ---
 

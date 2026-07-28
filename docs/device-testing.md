@@ -1,54 +1,56 @@
-# Testing on a real phone, before anything is deployed
+# Testing on a real phone
 
 The `12` §7 device matrix and both gates' "does it actually feel right" questions need a real
-device. None of that requires GitHub Pages. This is how to get the app onto a phone from a laptop.
+device. This is how to get the app onto one.
 
-## The catch that decides which method you need
+## If you work from the mobile app: deploy is the only route
 
-**Service workers only run in a "secure context"** — HTTPS, or a `localhost` origin. A plain
-`http://192.168.x.x` address is neither. So there are two tiers of testing:
+The Claude Code sessions that build this run in a disposable cloud container. Anything served from
+one of those is unreachable from your phone, and the container is gone when the session ends. So
+there is no local-server trick available — **the deployed site is the way in.**
 
-| What you want to check                                                                    | Needs a secure context? | Method                                                     |
-| ----------------------------------------------------------------------------------------- | ----------------------- | ---------------------------------------------------------- |
-| Feel, touch targets, layout, one-handed use, the shot meter, readability at 1.3× UI scale | No                      | **LAN** (below)                                            |
-| Install to home screen, offline launch, update banner, Repair, storage persistence        | Yes                     | **Port forwarding** (Android) or wait for the deploy (iOS) |
+Deploying is a tag:
 
-Most of what the gates are actually blocked on is the first row.
+```
+git tag v0.2.0 && git push origin v0.2.0
+```
 
-## LAN — works on any phone, no setup
+`.github/workflows/deploy.yml` picks up any `v*` tag, re-runs typecheck, lint, the full unit suite,
+and the bundle budget, and only then publishes to Pages. A broken build cannot reach the live site.
+
+**One-time setup, and only you can do it:** GitHub → repo **Settings → Pages → Build and deployment
+→ Source: GitHub Actions**. Without it the deploy job fails at the last step. If a tag deploy has
+failed, that is the first thing to check.
+
+The site lands at `https://<user>.github.io/Sport-Game/`. It is installable and works offline, so
+the whole PWA half of `12` §7 is testable from it directly.
+
+## If you have a laptop with the repo checked out
 
 ```
 pnpm serve
 ```
 
-That builds and serves the real production bundle (not the dev server) on every network interface.
-It prints a Network URL like `http://192.168.1.24:4173/Sport-Game/`. Open it on a phone on the same
-Wi-Fi.
+Builds the real production bundle and serves it on every network interface, printing a Network URL
+like `http://192.168.1.24:4173/Sport-Game/`. Open that on a phone on the same Wi-Fi.
 
-You get: the real build, the real base path, real touch input. You do **not** get the service
-worker, so no install prompt, no offline, no update flow.
+**The catch:** service workers only run in a "secure context" — HTTPS or a `localhost` origin. A
+plain `http://192.168.x.x` address is neither, so over LAN you get the real build, real base path,
+and real touch input, but no install prompt, no offline, and no update flow.
 
-## Port forwarding — Android, full PWA testing
-
-This is the good one. It maps a port on the phone to the laptop, so the phone sees the app on
-`localhost` — which _is_ a secure context, so everything works.
+To get those too, on Android:
 
 1. Enable Developer options → USB debugging on the phone, and plug it in.
 2. `pnpm serve` on the laptop.
-3. Open `chrome://inspect/#devices` in desktop Chrome.
-4. Click **Port forwarding…**, add `4173` → `localhost:4173`, tick "Enable port forwarding".
-5. On the phone, open `http://localhost:4173/Sport-Game/`.
+3. Desktop Chrome → `chrome://inspect/#devices` → **Port forwarding…** → `4173` → `localhost:4173`.
+4. On the phone, open `http://localhost:4173/Sport-Game/`.
 
-Now install-to-home-screen, offline, and the update flow all behave exactly as they will in
-production. `chrome://inspect` also gives you the phone's DevTools console from the laptop, which is
-worth having anyway.
+The phone now sees the app on `localhost`, which _is_ a secure context, so install, offline, and the
+update flow all behave as they will in production. `chrome://inspect` also gives you the phone's
+console on the laptop.
 
-## iOS
-
-Safari has no port-forwarding equivalent. The options are a locally-trusted HTTPS certificate
-(`mkcert` plus `vite preview --https`, with the CA installed on the device) or simply doing the
-PWA-specific checks after the first Pages deploy. For everything in the first row of the table, LAN
-is enough — and Safari Web Inspector still works over USB for the console.
+iOS has no port-forwarding equivalent — either a locally-trusted certificate (`mkcert` plus
+`vite preview --https`) or use the deployed site for the PWA-specific checks.
 
 ## What to actually look for
 
