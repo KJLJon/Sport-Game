@@ -24,6 +24,7 @@ import type { SportEvent } from '../engine/match/events.ts';
 import type { MatchRules } from '../engine/match/state-machine.ts';
 import type { Canvas2D, ViewTransform } from '../engine/render/renderer.ts';
 import type { EntityId, World } from '../engine/world.ts';
+import type { Athlete } from '../athletes/types.ts';
 
 export type SportId = string;
 
@@ -131,6 +132,17 @@ export interface MatchSetup {
   readonly playerSide: 0 | 1 | -1;
   /** Squad size actually used — may be smaller than `meta.squadSize` for practice modes. */
   readonly squadSize?: number;
+  /**
+   * The athletes playing, indexed by side then by role (T-3.17). **Optional on purpose**: a match
+   * given no roster fills itself from `seed`, which is what lets the balance harness run 500 games
+   * with no save file and lets a rules test start a match without building ten athletes first.
+   * Real rosters are an input, not a prerequisite.
+   *
+   * The `import type` below closes a cycle — `athletes/types.ts` imports `SportId` from here — but
+   * both directions are type-only and erased at build, and the alternative is pretending a match
+   * is played by something other than athletes.
+   */
+  readonly rosters?: readonly (readonly Athlete[])[];
 }
 
 /** Whatever the sport needs to track. The engine treats it as opaque. */

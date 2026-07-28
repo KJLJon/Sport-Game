@@ -13,7 +13,9 @@ import {
   DatabaseUnavailableError,
   appDatabase,
   closeAppDatabase,
+  ensureStarterRoster,
 } from '../../../src/storage/app-db.ts';
+import { STARTER_ROSTER_SIZE } from '../../../src/athletes/starter-roster.ts';
 import { Database, deleteDatabase } from '../../../src/storage/idb.ts';
 import { CURRENT_SCHEMA_VERSION } from '../../../src/storage/migrations.ts';
 import { athlete } from '../../helpers/athletes.ts';
@@ -69,5 +71,35 @@ describe('appDatabase', () => {
 
   it('closing an unopened database is not an error', async () => {
     await expect(closeAppDatabase()).resolves.toBeUndefined();
+  });
+});
+
+describe('the starter roster (US-5.6)', () => {
+  it('fills a fresh install with something to play with', async () => {
+    await ensureStarterRoster();
+    expect(await (await appDatabase()).athletes.count()).toBe(STARTER_ROSTER_SIZE);
+  });
+
+  it('is not a side effect of opening the database', async () => {
+    // Opening is a read; filling is an install step. Folding them together would hand thirty-eight
+    // athletes to every test and every headless caller that only wanted a handle.
+    expect(await (await appDatabase()).athletes.count()).toBe(0);
+  });
+
+  it('never seeds twice, even across reopens', async () => {
+    await ensureStarterRoster();
+    await closeAppDatabase();
+    await ensureStarterRoster();
+    expect(await (await appDatabase()).athletes.count()).toBe(STARTER_ROSTER_SIZE);
+  });
+
+  it('does not undo a player who deleted everyone', async () => {
+    await ensureStarterRoster();
+    const { athletes } = await appDatabase();
+    await athletes.clear();
+
+    await closeAppDatabase();
+    await ensureStarterRoster();
+    expect(await (await appDatabase()).athletes.count()).toBe(0);
   });
 });

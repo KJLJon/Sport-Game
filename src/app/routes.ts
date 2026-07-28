@@ -90,6 +90,14 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
+    pattern: '/squad/import',
+    value: {
+      id: 'roster-import',
+      title: 'Import a roster',
+      load: async () => (await import('../ui/screens/roster-import.ts')).rosterImportScreen(),
+    },
+  },
+  {
     pattern: '/squad/teams',
     value: {
       id: 'teams',

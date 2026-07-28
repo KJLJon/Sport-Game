@@ -4,7 +4,9 @@
  * @task    T-3.1 — Athlete schema, IndexedDB store, indexes, repository
  * @task    T-3.7 — Profile editor
  * @task    T-3.11 — Teams: create/edit, name, colours, generic crests
+ * @task    T-3.14 — Starter roster: generated fictional athletes, enough for both sports
  * @story   US-5.1 — Create an athlete profile
+ * @story   US-5.6 — Start with something to play with
  * @story   US-12.2 — My saves survive an update
  * @design  05-data-model.md §1 (storage overview), §9 (migrations), 04-architecture.md §7
  * @invariant INV-3 (all storage through src/storage/)
@@ -22,6 +24,7 @@
  * so a failed or too-new migration is surfaced as a rejected open, not swallowed.
  */
 import { AthleteRepository } from '../athletes/repository.ts';
+import { generateStarterRoster } from '../athletes/starter-roster.ts';
 import { TeamRepository } from '../teams/repository.ts';
 import { Database } from './idb.ts';
 import { describeOutcome, runMigrations, type MigrationOutcome } from './migrations.ts';
@@ -57,6 +60,44 @@ async function open(onBlocked?: () => void): Promise<AppDatabase> {
   }
 
   return { db, athletes: new AthleteRepository(db), teams: new TeamRepository(db), migration };
+}
+
+/** Written to `meta` once the starter roster has been placed, so it is never placed twice. */
+interface SeedRecord {
+  readonly starterRosterSeeded?: boolean;
+}
+
+/**
+ * Puts the starter roster into a fresh install (US-5.6 — "a fresh install contains a small set of
+ * fictional starter athletes, enough to field both sports").
+ *
+ * **Called from app bootstrap, not from `appDatabase()`.** Opening the database is a read; filling
+ * it with content is an install step, and folding the second into the first would mean every test
+ * and every headless caller silently acquires thirty-eight athletes it did not ask for. It did,
+ * briefly, and thirteen tests said so.
+ *
+ * Guarded by a flag rather than by "is the roster empty", because those are different questions: a
+ * player who deletes every athlete has made a decision, and handing them back thirty-eight
+ * strangers would undo it. Seeded once, ever.
+ *
+ * Failure is deliberately swallowed. Starting with something to play with is a convenience;
+ * refusing to launch because the convenience failed would turn it into a fault.
+ */
+export async function ensureStarterRoster(): Promise<void> {
+  const { db, athletes } = await appDatabase();
+  await seedStarterRoster(db, athletes);
+}
+
+async function seedStarterRoster(db: Database, athletes: AthleteRepository): Promise<void> {
+  try {
+    const meta = (await db.get<SeedRecord>('meta', 'meta')) ?? {};
+    if (meta.starterRosterSeeded === true) return;
+
+    if ((await athletes.count()) === 0) await athletes.putMany(generateStarterRoster());
+    await db.put('meta', { ...meta, starterRosterSeeded: true }, 'meta');
+  } catch {
+    // Left unseeded; the roster browser's empty state already offers to create an athlete.
+  }
 }
 
 /**

@@ -30,6 +30,10 @@ const router = new Router<ScreenDefinition>({ routes: ROUTES });
 const shell = new AppShell({ root, router, tabs: TABS, window });
 shell.start();
 
+// The starter roster is an install step, and it runs after first paint for the same reason the
+// service worker does: nothing about a fresh install should delay the app appearing (US-5.6).
+void import('./storage/app-db.ts').then(({ ensureStarterRoster }) => ensureStarterRoster());
+
 // Deliberately after the shell is up: offline support must never delay first paint, and a failed
 // registration must never stop the app from running (`11` §3).
 void bootPwa({ bannerHost: shell.bannerHost });
