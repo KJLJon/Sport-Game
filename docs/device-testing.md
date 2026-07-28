@@ -9,7 +9,22 @@ The Claude Code sessions that build this run in a disposable cloud container. An
 one of those is unreachable from your phone, and the container is gone when the session ends. So
 there is no local-server trick available — **the deployed site is the way in.**
 
-Deploying is a tag:
+**A Claude session cannot start the deploy.** Pushing a tag is refused (403 — the git proxy allows
+the session's own branch and nothing else), and dispatching the workflow through the API is refused
+too (403, no `actions: write` on the app token). It is a two-minute job from the GitHub mobile app
+or the web UI, and it has to be you.
+
+**Step 1, once ever:** repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+Without this the deploy job fails at its final step no matter who starts it. If a deploy has already
+failed, check this first.
+
+**Step 2, to publish.** Either works:
+
+- _Actions tab → Deploy → Run workflow →_ pick the branch. No tag; good for a quick test build.
+- _Releases → Draft a new release →_ tag `v0.2.0`, target the branch, Publish. Creates the tag
+  **and** triggers the deploy, and leaves a real milestone behind. Preferred for v0.2.
+
+From a checkout it is just:
 
 ```
 git tag v0.2.0 && git push origin v0.2.0

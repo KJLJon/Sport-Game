@@ -434,12 +434,23 @@ disposable cloud container that no phone can reach — so for this project **the
 route to a real device**, not one option among several. Written up in
 [`docs/device-testing.md`](../../docs/device-testing.md), which now leads with it.
 
-**Deploy, at the user's direction:** tagged `v0.2.0` from the Phase 3 branch rather than waiting for
-`#5` to merge, so a testable URL exists sooner. `package.json` went `0.0.0` → `0.2.0` at the same
-time; that version is what `version.json` reports and what Settings → App & updates shows, so a
-milestone tag with a `0.0.0` inside it would have made the update machinery lie about itself.
-**Requires one thing only the repository owner can do:** Settings → Pages → Source: *GitHub
-Actions*. Without it the deploy job fails at its last step.
+**Deploy, authorised by the user but NOT done — this session cannot do it.** Both routes are
+refused by the credentials these sessions run with:
+
+- `git push origin v0.2.0` → **HTTP 403**. The git proxy permits pushes to the session's own branch
+  and nothing else; tags are not branch pushes.
+- Dispatching `deploy.yml` through the GitHub API → **403 "Resource not accessible by
+  integration"**. The app token has no `actions: write`.
+
+So the deploy is a **user action**, and the steps are in
+[`docs/device-testing.md`](../../docs/device-testing.md). `package.json` was bumped `0.0.0` →
+`0.2.0` in preparation, because that version is what `version.json` reports and what Settings → App
+& updates displays — publishing a v0.2 milestone that tells the player it is `0.0.0` would make the
+update machinery lie about itself, which is the one thing `11` §3 exists to prevent.
+
+**Also requires one thing only the repository owner can do:** Settings → Pages → Build and
+deployment → Source: *GitHub Actions*. Without it the deploy job fails at its final step, whoever
+starts it.
 
 ---
 
