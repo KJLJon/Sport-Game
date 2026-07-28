@@ -12,6 +12,7 @@
     "dev": "vite",
     "build": "tsc -b --noEmit && vite build",
     "preview": "vite preview --port 4173 --strictPort",
+    "serve": "pnpm build && vite preview --port 4173 --strictPort --host",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint . && prettier --check .",
     "lint:fix": "eslint . --fix && prettier --write .",
