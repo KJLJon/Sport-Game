@@ -90,6 +90,14 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
+    pattern: '/settings/data',
+    value: {
+      id: 'settings-data',
+      title: 'Data & backup',
+      load: async () => (await import('../ui/screens/backup.ts')).backupScreen(),
+    },
+  },
+  {
     pattern: '/squad/import',
     value: {
       id: 'roster-import',

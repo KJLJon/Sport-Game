@@ -12,19 +12,15 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-3.16 — Roster and full-backup export/import with version checks and change preview
-- **Status:** in_progress
-- **Started:** 2026-07-28
+- **Task:** — (none; Phase 3 complete, Gate 3 evaluated and **not passed** — see the Gate 3 record)
+- **Status:** —
+- **Started:** —
 - **Branch commit:** (see `git log`)
-- **Done so far:** 16 of 17 Phase 3 tasks are `done`, T-3.17 included — real athletes now drive the
-  basketball sim, and `pnpm balance` still returns the T-2.13 numbers because a rosterless match is
-  byte-identical to before.
-- **Next step:** T-3.16 is the last task, and then Gate 3 — whose own criteria are an end-to-end
-  run: create an athlete, play them, watch familiarity move, export, wipe, reimport, land exactly
-  where you left off. The export/import pair is what makes that testable in one go.
-- **Files touched:** src/athletes/**, src/teams/**, src/sports/**, src/storage/**, src/ui/**,
-  src/app/{routes.ts,..}, src/main.ts
-- **Blockers:** none for Phase 3. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
+- **Done so far:** All seventeen Phase 3 tasks are `done`. Every automatable gate check is green.
+- **Next step:** Gate 3, like Gate 2, is blocked on what only a human with a phone can do — the
+  `12` §7 device matrix, and walking the gate's own end-to-end criterion by hand. Phase 4 (arcade)
+  starts at T-4.1 and depends on T-1.11, which is done.
+- **Blockers:** the device matrix and the deploy decision, unchanged since Gate 2 and now two gates deep. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
   top of that debt, deliberately, and Gate 3 inherits it.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
   branches locally with `pnpm verify`, `pnpm bench`, and `pnpm e2e`. Formatting and auto-fixable
@@ -48,7 +44,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
-| 3 | Athletes, cross-sport ratings, roster | 17 | 16 | `in_progress` | v0.2 |
+| 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
@@ -57,7 +53,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **60** | | |
+| | **Total** | **170** | **61** | | |
 
 ---
 
@@ -141,7 +137,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-3.13 | Stamina, injury, suspension, availability | M | `done` | | `tests/unit/athletes/condition.test.ts` | `auto` | US-6.3's "low stamina degrades performance visibly" is the phrase that shaped this: fatigue produces a multiplier the sim applies at the point of use, in the same shape as T-3.6's coupling, and — like that one — it is **exactly 1.0 above the threshold**, so a fresh athlete costs the sim nothing and the PRNG stream is untouched for anyone who is not actually tired. It degrades to a floor rather than to zero: a player who cannot substitute must still be able to finish the match. Neither attributes nor derived ratings are modified, so CLAUDE.md §8.6 holds and the card still shows who they are when rested. Injuries are deliberately **rare** and likelier when tired — which is what makes a substitution a decision — because an injury system that fires often turns a game about playing into a game about squad admin. `05` gives the `condition` fields but no rates, so every number is this task's, in `tuning.ts`. |
 | T-3.14 | Starter roster: generated fictional athletes, enough for both sports | M | `done` | | `tests/unit/athletes/starter-roster.test.ts`, `tests/integration/storage/app-db.test.ts` | `auto` — name pools spot-checked by hand for real athletes | **Delegated to `haiku`** (bulk content against a fixed schema, CLAUDE.md §7.1). 38 athletes from a seeded roll: two basketball fives, two soccer elevens, and spares, with position-coherent bodies and no legendaries — a fresh install should not hand out a franchise athlete. Names combine 187 given names and 280 surnames of many origins; verified by hand that the pools are ordinary names rather than real athletes. **Seeding is an install step, not a side effect of opening the database** — folding it into `appDatabase()` handed 38 athletes to every test and every headless caller, and thirteen tests said so within a minute. It now runs from app bootstrap after first paint, guarded by a `meta` flag rather than by "is the roster empty", because a player who deleted everyone made a decision and handing them back 38 strangers would undo it. |
 | T-3.15 | Roster import: file + URL, schema validation, per-record errors, merge/conflict, responsibility notice | L | `done` | | `tests/unit/athletes/roster-import.test.ts`, `tests/unit/ui/roster-import.test.ts` | `auto` — diff reviewed against `05` §8 | **Delegated to `sonnet`.** `05` §8 followed exactly: unknown fields dropped, out-of-range values clamped **with a per-record warning**, and a bad record never aborting the file — that last one is the whole point of the section and is tested explicitly. A `formatVersion` from the future is rejected outright rather than partially applied, the same principle as `05` §9 rule 4. Conflicts are flagged on duplicate `custodyId` *or* matching name + primary sport, and default to skip so nothing is silently overwritten. The URL fetch is the one permitted exception to CLAUDE.md §8.2's no-network rule — user-initiated, and commented with the citation. **Agent judgement call, accepted:** the wire schema names four sports where the catalogue rates two, so it validates against the documented four; a `hockey` file imports cleanly and simply is not playable yet, which is the same rateable/playable split `catalogue.ts` already draws. |
-| T-3.16 | Roster and full-backup export/import with version checks and change preview | M | `todo` | | | | |
+| T-3.16 | Roster and full-backup export/import with version checks and change preview | M | `done` | | `tests/integration/storage/backup.test.ts`, `tests/unit/ui/backup.test.ts` | `auto` | **The preview is the dry run of the restore, not a second implementation** — `restoreBackup` calls `previewBackup` and returns it, and a test asserts the two agree. A preview that said one thing while the restore did another would be the worst possible bug in a data-safety feature. A backup from a newer build is refused whole (`05` §9 rule 4) before a single record is written, and every parse failure is a *value* rather than an exception: this is the one screen where an unhandled throw leaves someone staring at a broken page holding the only copy of their data. Merge is the default because it is the recoverable mistake — a merge meant as a replace leaves extra athletes; a replace meant as a merge loses them. Reachable from Settings → Data & backup. |
 | T-3.17 | Wire real athletes into basketball Live — lineups drive the sim | M | `done` | | `tests/integration/sports/basketball-rosters.test.ts` | `auto` + `pnpm balance` (500 games, 14 bands) | **Phase 2's biggest loose end, closed.** `rollRatings()` is no longer the main path: a match given a lineup reads real derived ratings, real movement from `courtSpeed`, real familiarity coupling, and real fatigue. The headline test is the one that matters — two squads with *identical attributes and bodies*, differing only in which sport they know, and the basketball side wins. A soccer squad that has learned basketball closes the gap. **The seeded fallback stays, deliberately**: a rosterless match is byte-identical to the pre-T-3.17 one, which is why the 500-game balance harness returns exactly the T-2.13 numbers and every golden-seed test is untouched. Real rosters are an input, not a prerequisite — a rules test should not have to build ten athletes to check the shot clock. `MatchSetup` gained `rosters?`, which closes a type-only import cycle with `athletes/types.ts`; both directions are erased at build, and the alternative was pretending a match is played by something other than athletes. Five of the fourteen numbers (`composure`, `agility`, `strength`, `vertical`, `discipline`) are attributes read as themselves and **not** gated by familiarity — a novice does not get weaker or shorter, they get worse at basketball. |
 
 ### Phase 4 — Arcade framework + basketball arcade set
@@ -372,6 +368,63 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 ---
 
 ## Gate records
+
+### Gate 3 — Athletes, cross-sport ratings, roster (v0.2)
+
+- **Date:** 2026-07-28
+- **Result:** **NOT PASSED — every automatable check green, blocked on the same human verification
+  as Gate 2, which is now two gates of debt rather than one.**
+
+`03`'s criterion for this gate is a single end-to-end sentence: *create an athlete, play them in
+basketball, watch familiarity move over several matches, export a backup, wipe data, reimport, land
+exactly where you left off.* Every link in that chain exists and is covered by tests, and the chain
+has never been walked by a person.
+
+**What is evidenced:**
+
+| Link | Evidence |
+|---|---|
+| Create an athlete | `tests/unit/ui/athlete-editor.test.ts` — the editor saves through `createAthlete` and the record lands in the repository |
+| Play them in basketball | `tests/integration/sports/basketball-rosters.test.ts` — a lineup drives the sim; ratings, movement, coupling, and fatigue all read from the athlete |
+| Watch familiarity move | `tests/unit/athletes/{familiarity,progression}.test.ts` — 20 simulated matches move a novice past 60 familiarity and raise the derived rating it gates |
+| Export a backup | `tests/integration/storage/backup.test.ts` — every store, with its schema version |
+| Wipe and reimport | same file — a full round trip through a wipe restores every store, and the preview is the restore's own dry run |
+
+**Checks run:**
+
+| § | Check | Result |
+|---|---|---|
+| 1 | Every task `done` or `cut` with a reason | ✅ 17 of 17 `done`, none cut |
+| 2 | Full suite green | ✅ 1 682 tests across 93 files; 32 E2E specs in a real browser |
+| 3 | Coverage thresholds (`12` §2) | ✅ 94.7% overall against ≥85%; `src/athletes/**` and `src/storage/**` hold their 95% floors |
+| 4 | No invariant regressed | ✅ including a new one — `tests/invariants/layering.test.ts`, added after the domain layer was caught importing the UI layer |
+| 6 | Gate criteria in `03` | ⚠️ machine half evidenced above; the "land exactly where you left off" *feeling* is unverified |
+| 8 | Gate record appended, committed, pushed | ✅ this record |
+| 5 | Manual device matrix (`12` §7) | ❌ no device available to this session |
+| 7 | Tag and deploy | ❌ not done — outward-facing, and wants a decision rather than an assumption |
+
+**Balance after T-3.17** (`pnpm balance`, 500 matches): all 14 bands pass, identical to T-2.13's
+figures — 75.5 points on 78.7 attempts at 36.5%, home win rate 44.2%. That is the expected result
+and the point of the design: a rosterless match is byte-identical to the pre-T-3.17 one, so wiring
+real athletes in could not move the harness. **The corollary is worth stating plainly: the balance
+suite does not yet cover matches played by real athletes.** Every band above describes seeded
+stand-ins. Balancing real rosters is Phase 7's problem and it has not been started.
+
+**Two regressions this gate caught, both mine, neither caught by the unit suite:**
+
+- `DB_VERSION` 1 → 2 (T-3.1) broke five E2E specs, because a test helper opened IndexedDB at a
+  hardcoded version 1 and threw `VersionError` against a database the app had already upgraded. CI
+  does not run on branches, so nothing surfaced it until the gate. The helper now opens
+  version-less.
+- Seeding the starter roster inside `appDatabase()` (T-3.14) handed 38 athletes to every test and
+  every headless caller. Thirteen tests said so within a minute. Opening the database is a read;
+  filling it is an install step, and it now runs from bootstrap.
+
+**Deferred, with reasons:** the device matrix and the deploy, unchanged from Gate 2 and now
+compounding. Gate 2 was not signed off; Gate 3 is not either, and both are waiting on the same two
+things.
+
+---
 
 ### Gate 2 — Basketball · Live (v0.1)
 

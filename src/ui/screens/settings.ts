@@ -23,7 +23,12 @@ const SECTIONS: readonly SettingsSection[] = [
   { id: 'controls', title: 'Controls & assists', summary: 'Joystick, handedness, assists.' },
   { id: 'display', title: 'Display & accessibility', summary: 'Theme, UI scale, reduced motion.' },
   { id: 'audio', title: 'Audio & haptics', summary: 'Music, effects, vibration.' },
-  { id: 'data', title: 'Data & backup', summary: 'Export, import, storage usage.' },
+  {
+    id: 'data',
+    title: 'Data & backup',
+    summary: 'Export, import, storage usage.',
+    path: '/settings/data',
+  },
   {
     id: 'updates',
     title: 'App & updates',

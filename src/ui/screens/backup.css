@@ -1,0 +1,93 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   3 — Athletes, cross-sport ratings, roster
+ * @task    T-3.16 — Roster and full-backup export/import with version checks and change preview
+ * @story   US-12.1 — Back up and restore everything
+ * @design  10-ui-ux.md §4 (layout), §11 (accessibility)
+ *
+ * Purpose: layout for the data and backup screen. Every value is a token, so theme, UI scale, and
+ * reduced motion stay single switches.
+ */
+
+.backup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.backup h2 {
+  font-size: var(--text-24);
+  margin: 0 0 var(--space-4);
+}
+
+.backup h3 {
+  font-size: var(--text-12);
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.backup__lede,
+.backup__status,
+.backup__summary {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  margin: 0;
+}
+
+.backup__panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-16);
+}
+
+.backup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.backup__changes {
+  color: var(--text-lo);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-14);
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.backup__mode {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-12);
+}
+
+.backup__mode legend {
+  font-size: var(--text-12);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.backup__mode-option {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: var(--space-8);
+  min-height: var(--target-min);
+}
+
+.backup__file {
+  font: inherit;
+  min-height: var(--target-min);
+}
