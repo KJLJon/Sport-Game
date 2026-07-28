@@ -33,8 +33,11 @@ import type {
   PlaybookState,
   TurnResolution,
 } from '../../../modes/playbook/types.ts';
+import type { TurnDiagram } from '../../../modes/playbook/diagram.ts';
 import { BASKETBALL_RULES, TIMING, stepsToGameSeconds } from '../rules.ts';
 import { BASKETBALL_CALLS, defensiveProfile, offensiveProfile } from './calls.ts';
+import { buildDiagram } from './diagram.ts';
+import { narrateTurn } from './narration.ts';
 import { drainStamina, resolvePossession, type BasketballPlaybookState } from './resolution.ts';
 
 export type BasketballPlaybook = PlaybookAdapter<BasketballPlaybookState>;
@@ -100,11 +103,15 @@ export const basketballPlaybook: BasketballPlaybook = {
     return null;
   },
 
-  narrate(resolution: TurnResolution): NarrationLine {
-    return {
-      text: resolution.outcome.replace(/-/g, ' '),
-      tone: resolution.points > 0 ? 'good' : 'neutral',
-    };
+  narrate(
+    state: PlaybookState<BasketballPlaybookState>,
+    resolution: TurnResolution,
+  ): NarrationLine {
+    return narrateTurn(state, resolution);
+  },
+
+  diagram(state: PlaybookState<BasketballPlaybookState>, resolution: TurnResolution): TurnDiagram {
+    return buildDiagram(state, resolution);
   },
 
   applyKeyMoment(

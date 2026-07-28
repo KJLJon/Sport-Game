@@ -99,3 +99,44 @@ full. T-5.4 is therefore the call-selection *UI* plus whatever metadata the shee
 **`autoCall` is uniform over the catalogue on purpose** until T-5.8. A placeholder that quietly
 favoured one call would look like tuning and be mistaken for it, and T-5.8's regression harness
 needs a flat baseline to measure a real CPU against.
+
+### T-5.3
+
+*Narration + animated court-diagram renderer for turn outcomes*
+
+**The timeline is data; the drawing is separate.** `diagramAt(diagram, seconds)` is a pure function,
+so every claim worth making about the animation — the pass line appears before the shot, markers
+finish where they were sent and never overshoot, nothing is drawn before its beat, an over-run
+clamps to the final frame — is a unit test with no canvas in it. `drawDiagram()` is the only part
+that needs one, and it gets the recording double the renderer already had.
+
+**Positions are field fractions, not metres.** A diagram is drawn into whatever rectangle the turn
+screen has, and `10` §8.4 puts the court up top on a phone in portrait. The sport does not have to
+know the size of the box and the box does not have to know the sport. Beats are fractions of the
+diagram's own duration too, so T-5.7's turn-speed control is one multiplier rather than a rewrite.
+
+**Reduced motion is a different picture, not a faster one.** `finalFrame()` renders where the
+markers ended, the shot line drawn, the outcome shown. There is nothing to watch, which is the
+point of `10` §6 — a shortened animation is still animation.
+
+**The shape of a play is part of the play.** Each of `09` §2.2's six calls sends the five markers
+somewhere different: Isolation clears out, Motion moves everyone, Post Up sends a body to the block,
+Spot-Up spreads to the arc. A test asserts all six shapes are distinct. This is the reason the
+diagram is worth animating at all — a player who has called Motion twice should recognise it a third
+time without reading anything.
+
+**Narration variety is a hash, not a draw.** A line is chosen from the turn number and the outcome,
+so a replay says the same things in the same order, and narration consumes nothing from the match's
+generator — it cannot shift a resolution by existing. A test asserts every outcome
+`describeOutcome()` can produce has a line, enumerated from the function itself, so a new branch in
+the model cannot ship silent.
+
+**Deviation: `narrate` takes the state.** `09` §5's sketch writes `narrate(res)`, but the ids on a
+resolution only mean something against a squad, and a line that cannot name the athlete it is about
+is a status code rather than narration. `diagram(state, resolution)` is new and optional, on the
+same reasoning as `arcade?` and `playbook?`.
+
+**Feel note.** Honestly unknown. The pieces read correctly in tests and 5.5 seconds is the middle of
+`09` §2.1's 4–8 s band, but whether a possession *feels* like 5.5 seconds is a question about a
+thumb and a phone, and neither is available to this session. It is the first thing to check on a
+device, and the first number I would expect to change.

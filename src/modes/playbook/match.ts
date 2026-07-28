@@ -31,6 +31,7 @@
  */
 import { createRng, type Rng } from '../../engine/rng.ts';
 import type { Side, SportEvent } from '../../engine/match/events.ts';
+import type { TurnDiagram } from './diagram.ts';
 import {
   MatchPhase,
   MatchStateMachine,
@@ -251,7 +252,12 @@ export class PlaybookMatch<S = unknown> {
 
   /** The line the turn screen shows. */
   narrate(resolution: TurnResolution): NarrationLine {
-    return this.adapter.narrate(resolution);
+    return this.adapter.narrate(this.state, resolution);
+  }
+
+  /** The turn as an animated diagram, or `null` when the sport has none (`09` §2.1). */
+  diagram(resolution: TurnResolution): TurnDiagram | null {
+    return this.adapter.diagram?.(this.state, resolution) ?? null;
   }
 
   /**

@@ -38,6 +38,7 @@ import type { DerivedRatings } from '../../athletes/derivation.ts';
 import type { SportId } from '../../sports/types.ts';
 import type { ArcadeGameId } from '../arcade/types.ts';
 import type { Difficulty } from '../difficulty.ts';
+import type { TurnDiagram } from './diagram.ts';
 
 /** `09` §2.2 vs §2.3: basketball turns are possessions, soccer turns are phases of play. */
 export const TURN_KINDS = ['possession', 'phase'] as const;
@@ -260,7 +261,18 @@ export interface PlaybookAdapter<S = unknown> {
   /** The moment worth playing yourself, or `null`. The engine applies the frequency setting. */
   keyMoment(resolution: TurnResolution): ArcadeInvocation | null;
 
-  narrate(resolution: TurnResolution): NarrationLine;
+  /**
+   * The one line the turn screen shows. Takes the state as well as the resolution — `09` §5's
+   * sketch writes `narrate(res)`, but a line that cannot name the athlete it is about is a status
+   * code, not narration, and the ids on a resolution only mean something against a squad.
+   */
+  narrate(state: PlaybookState<S>, resolution: TurnResolution): NarrationLine;
+
+  /**
+   * The turn as an animated diagram (`09` §2.1). Optional: a sport with no diagram yet still plays,
+   * with the narration line alone.
+   */
+  diagram?(state: PlaybookState<S>, resolution: TurnResolution): TurnDiagram | null;
 
   /**
    * Folds an arcade result back into the turn (T-5.5). Returns the replacement resolution — the

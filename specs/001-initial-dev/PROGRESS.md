@@ -12,7 +12,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-5.3 — Narration + court-diagram renderer
+- **Task:** T-5.4 — Play catalogue and call-selection UI
 - **Status:** in_progress
 - **Started:** 2026-07-28
 - **Branch:** `claude/phase-5-playbook-tooling-sac3hy`
@@ -20,11 +20,11 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] Phase-5 session tooling: `pnpm api`, `pnpm spec`, the `PROGRESS.md` notes split
   - [x] T-5.1 — `PlaybookAdapter`, turn state, the seeded turn loop
   - [x] T-5.2 — basketball's resolution model, `pnpm balance:playbook` green on 14 bands
-  - [ ] T-5.3 — narration and the court diagram
-  - [ ] T-5.4 … T-5.11
-- **Next step:** T-5.3 — narration lines off `TurnResolution.outcome` plus the animated court
-  diagram. `basketballPlaybook.narrate` currently returns the outcome id with its hyphens removed,
-  which is honest and not commentary.
+  - [x] T-5.3 — narration and the court diagram
+  - [ ] T-5.4 — the call sheet
+  - [ ] T-5.5 … T-5.11
+- **Next step:** T-5.4 — the call-selection UI (`10` §8.4: diagram up top, three-to-six large cards
+  along the bottom, confirm-by-tap on a target). The catalogue itself landed with T-5.2.
 - **Blockers:** the device matrix and the deploy, unchanged since Gate 2 and now **three** gates
   deep. Nothing in Phase 4 changes the analysis in the Gate 3 record — the deploy is a user action
   and is the only route to a real device for this project.
@@ -188,8 +188,8 @@ there; this file is read at every session start and the notes file only when you
 |---|---|---|---|---|---|---|---|
 | T-5.1 | `PlaybookAdapter` interface + turn engine: turn loop, state, seeded resolution | L | `done` | | `tests/unit/modes/playbook/match.test.ts` | `auto` | The adapter owns everything sport-shaped and the turn engine owns everything turn-shaped; the clock is Live's own `MatchStateMachine`, so both modes spend the same steps. [notes](./notes/phase-5.md#t-51) |
 | T-5.2 | Resolution model: ratings → matchup → outcome distribution → sampled `SportEvent` stream | XL | `done` | | `tests/unit/sports/basketball/playbook/resolution.test.ts` | `auto` + `pnpm balance:playbook` (14 bands green, eFG% 44.6 against Live's 44.8) | The shot is *Live's* shot: `shotProbability()` is called with Playbook's circumstances rather than a second curve, which is what makes INV-11 achievable by construction. [notes](./notes/phase-5.md#t-52) |
-| T-5.3 | Narration + animated court-diagram renderer for turn outcomes | L | `in_progress` | | | | |
-| T-5.4 | Basketball play catalogue (offence + defence calls) and call-selection UI | L | `todo` | | | | |
+| T-5.3 | Narration + animated court-diagram renderer for turn outcomes | L | `done` | | `tests/unit/modes/playbook/diagram.test.ts`, `tests/unit/sports/basketball/playbook/narration.test.ts` | `auto` — **still needs a phone** for whether 5.5 s of animation is right | The timeline is a pure function of `(diagram, seconds)`, so every claim about the animation is a test with no canvas in it. [notes](./notes/phase-5.md#t-53) |
+| T-5.4 | Basketball play catalogue (offence + defence calls) and call-selection UI | L | `in_progress` | | | | |
 | T-5.5 | Key-moment detection → arcade invocation → result fed back into resolution | L | `todo` | | | | |
 | T-5.6 | Expectation comparison ("the sim would have made it") + post-match reporting | M | `todo` | | | | |
 | T-5.7 | Auto-call assistant coach, fast-forward, turn-speed control | M | `todo` | | | | |

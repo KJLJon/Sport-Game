@@ -140,7 +140,7 @@ export function fakeAdapter(options: FakeAdapterOptions = {}): PlaybookAdapter<F
       };
     },
 
-    narrate(resolution: TurnResolution): NarrationLine {
+    narrate(_state: PlaybookState<FakeDetail>, resolution: TurnResolution): NarrationLine {
       return {
         text: resolution.points > 0 ? 'It drops.' : 'Off the rim.',
         tone: resolution.points > 0 ? 'good' : 'bad',
