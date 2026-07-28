@@ -155,7 +155,17 @@ import {
   type Side as CourtSide,
 } from './court.ts';
 import { courtKey, drawCourt } from './court-render.ts';
-import { BASKETBALL_WEIGHTS } from './weights.ts';
+import { BASKETBALL_PHYSICAL, BASKETBALL_POSITION_WEIGHTS, BASKETBALL_WEIGHTS } from './weights.ts';
+import { BASKETBALL_XP_AWARDS } from './xp.ts';
+import { rosterEntry } from './roster.ts';
+import type { Athlete } from '../../athletes/types.ts';
+import {
+  NO_COUPLING,
+  degradeControl,
+  delayReaction,
+  timingSpread,
+  type Coupling,
+} from '../../athletes/coupling.ts';
 import {
   BASKETBALL_RULES,
   BasketballEvent,
@@ -211,6 +221,18 @@ export interface BasketballState extends SportState {
   readonly roleIndex: Map<EntityId, number>;
   /** Basketball ratings, per athlete. Real athletes replace these at T-3.17. */
   readonly ratings: Map<EntityId, AthleteRatings>;
+  /**
+   * How lost each athlete is in basketball (T-3.6). Absent means at home — which is what a
+   * seeded fallback roster always is, and what a real athlete is in their own sport.
+   */
+  readonly coupling: Map<EntityId, Coupling>;
+  /**
+   * Entity → the athlete playing it, for entities backed by a real athlete (T-3.17). Absent for a
+   * seeded fallback athlete, which has no record to attribute anything to. This is what lets the
+   * post-match progression pass (`athletes/progression.ts`) award minutes and XP to the right
+   * person without the sim knowing anything about XP.
+   */
+  readonly athleteIds: Map<EntityId, string>;
   /** The shot being charged, if any — at most one, since only the carrier can shoot. */
   meter: ShotMeter | null;
   /** Who is charging it, and the hold a CPU shooter is aiming for. */
@@ -358,6 +380,9 @@ export const basketball: SportModule<BasketballState> = {
   rules: BASKETBALL_RULES,
   field: basketballCourt,
   ratingWeights: BASKETBALL_WEIGHTS,
+  physicalModifiers: BASKETBALL_PHYSICAL,
+  positionWeights: BASKETBALL_POSITION_WEIGHTS,
+  xpAwards: BASKETBALL_XP_AWARDS,
   roles,
   ai,
   render,
@@ -369,6 +394,10 @@ export const basketball: SportModule<BasketballState> = {
     const sides = new Map<EntityId, CourtSide>();
     const roleIndex = new Map<EntityId, number>();
     const ratings = new Map<EntityId, AthleteRatings>();
+    // Empty until T-3.17: every athlete is at home in basketball, so nothing is coupled and no
+    // call site below draws for it.
+    const coupling = new Map<EntityId, Coupling>();
+    const athleteIds = new Map<EntityId, string>();
 
     // Rosters come from their own fork, so adding a draw elsewhere cannot change who is fast.
     const rosterRng = rng.fork('roster');
@@ -389,12 +418,29 @@ export const basketball: SportModule<BasketballState> = {
           tag: index,
         });
 
-        // Real athletes arrive in T-3.17; until then, a seeded spread so play is not uniform.
-        const rating = rosterRng.int(45, 85);
-        profiles.set(id, movementProfile({ speed: rating, acceleration: rating, agility: rating }));
         sides.set(id, side);
         roleIndex.set(id, index);
-        ratings.set(id, rollRatings(rosterRng, index));
+
+        // A real athlete if the lineup supplied one; otherwise a seeded stand-in, so a match can
+        // always start (T-3.17). The fallback draws from `rosterRng` exactly as it always did, so
+        // a rosterless match is byte-identical to the pre-T-3.17 one and every golden-seed test
+        // and the 500-game balance harness keep their results.
+        const athlete = setup.rosters?.[side]?.[index];
+        if (athlete === undefined) {
+          const rating = rosterRng.int(45, 85);
+          profiles.set(
+            id,
+            movementProfile({ speed: rating, acceleration: rating, agility: rating }),
+          );
+          ratings.set(id, rollRatings(rosterRng, index));
+        } else {
+          const entry = rosterEntry(athlete);
+          profiles.set(id, entry.movement);
+          ratings.set(id, entry.ratings);
+          athleteIds.set(id, entry.athleteId);
+          // Zero coupling is the common case and costs no random draw; only store a real one.
+          if (entry.coupling.lostness > 0) coupling.set(id, entry.coupling);
+        }
       }
     }
 
@@ -421,6 +467,8 @@ export const basketball: SportModule<BasketballState> = {
       sides,
       roleIndex,
       ratings,
+      coupling,
+      athleteIds,
       meter: null,
       shooter: NO_ENTITY,
       cpuRelease: 0,
@@ -833,7 +881,10 @@ function driveFreeThrows(
       movement: ShotMovement.SET,
     };
     state.shooter = shooter;
-    state.cpuRelease = Math.round(SHOT_IDEAL_HOLD + rng.float(-1, 1) * state.meter.window * 0.7);
+    state.cpuRelease = Math.round(
+      SHOT_IDEAL_HOLD +
+        rng.float(-1, 1) * state.meter.window * 0.7 * timingSpread(couplingOf(state, shooter)),
+    );
     return [];
   }
 
@@ -1076,7 +1127,10 @@ function driveShooting(
     state.meter = startShot(ratings, shotZone(x, y, side), movementOf(world, carrier, side));
     state.shooter = carrier;
     // The CPU aims for the middle of its own window, missing by a seeded amount.
-    state.cpuRelease = Math.round(SHOT_IDEAL_HOLD + rng.float(-1, 1) * state.meter.window * 0.8);
+    state.cpuRelease = Math.round(
+      SHOT_IDEAL_HOLD +
+        rng.float(-1, 1) * state.meter.window * 0.8 * timingSpread(couplingOf(state, carrier)),
+    );
     return [];
   }
 
@@ -1205,10 +1259,10 @@ function cpuWantsToShoot(
   world: World,
   actor: EntityId,
   side: CourtSide,
-  _rng: Rng,
+  rng: Rng,
 ): boolean {
   if (!state.rules.frontcourt) return false;
-  return cpuDecision(state, world, actor, side) === Decision.SHOOT;
+  return cpuDecision(state, world, actor, side, rng) === Decision.SHOOT;
 }
 
 /**
@@ -1223,11 +1277,31 @@ function cpuDecision(
   world: World,
   actor: EntityId,
   side: CourtSide,
+  rng: Rng | null = null,
 ): ReturnType<typeof decide> {
-  const own = lookFor(state, world, actor, side);
-  const best = bestTeammateLook(state, world, actor, side);
+  const coupling = couplingOf(state, actor);
+  const own = misjudge(lookFor(state, world, actor, side), coupling, rng);
+  const raw = bestTeammateLook(state, world, actor, side);
+  const best = raw === null ? null : { ...raw, look: misjudge(raw.look, coupling, rng) };
   const seconds = shotClockSeconds(state.rules);
   return decide(own, best, laneContest(state, world, actor, side), seconds);
+}
+
+/** How lost this athlete is in basketball. At home — and so free — until T-3.17 (`05` §3.3). */
+function couplingOf(state: BasketballState, actor: EntityId): Coupling {
+  return state.coupling.get(actor) ?? NO_COUPLING;
+}
+
+/**
+ * Blurs what a look is worth *to the athlete looking at it*. A lost athlete does not choose badly
+ * on purpose — they misread the situation, and sometimes the misreading is right.
+ *
+ * The draw is skipped entirely when nothing is coupled, so an at-home athlete's PRNG stream is
+ * byte-identical to the one before T-3.6 existed (INV-8).
+ */
+function misjudge(look: Look, coupling: Coupling, rng: Rng | null): Look {
+  if (rng === null || coupling.decisionNoise === 0) return look;
+  return { ...look, expected: look.expected + rng.gaussian(0, coupling.decisionNoise) };
 }
 
 /** What a shot from where this athlete stands is worth, right now. */
@@ -1346,10 +1420,11 @@ function drivePassing(
   // You cannot catch and release in the same instant: a receiver has to square up first, and
   // without the delay the ball bounces straight back to where it came from.
   if (state.step - state.receivedAt < PASS_SETTLE_STEPS) return [];
-  if (cpuDecision(state, world, carrier, side) !== Decision.PASS) return [];
+  if (cpuDecision(state, world, carrier, side, rng) !== Decision.PASS) return [];
   // The decision says pass; the rate is how long it takes to see it, which is Phase 7's
-  // reaction-latency dial (`06` §7) rather than a judgement.
-  if (!rng.bool(CPU_PASS_REACTION_PER_STEP)) return [];
+  // reaction-latency dial (`06` §7) rather than a judgement — and, from T-3.6, how at home in
+  // basketball this athlete is (`05` §3.3).
+  if (!rng.bool(delayReaction(CPU_PASS_REACTION_PER_STEP, couplingOf(state, carrier)))) return [];
 
   const best = bestTeammateLook(state, world, carrier, side);
   if (best === null) return [];
@@ -1483,7 +1558,11 @@ function resolvePass(state: BasketballState, world: World, rng: Rng): SportEvent
     if (ratings === undefined || side === undefined) continue;
     pass.contested.push(taker);
 
-    const control = wantOpponent ? interceptControl(ratings) : catchControl(ratings, speed);
+    // First touch is where an out-of-sport athlete looks worst (`05` §3.3).
+    const control = degradeControl(
+      wantOpponent ? interceptControl(ratings) : catchControl(ratings, speed),
+      couplingOf(state, taker),
+    );
     if (!contestCatch(world, state.ballState, taker, control, rng)) {
       // Deflected. The ball is loose and it is nobody's pass any more.
       state.pass = null;
@@ -1525,7 +1604,14 @@ function resolvePass(state: BasketballState, world: World, rng: Rng): SportEvent
   return events;
 }
 
-/** Everything an athlete's basketball actions read. Real athletes replace this at T-3.17. */
+/**
+ * Everything an athlete's basketball actions read.
+ *
+ * Structurally identical to `roster.ts`'s `BasketballRatings`, which is what a real athlete
+ * produces; this alias stays because the models are typed against the intersection of what each
+ * one needs, and narrowing them to one concrete interface would let a model start reading a field
+ * it never declared.
+ */
 type AthleteRatings = ShooterRatings &
   PasserRatings &
   ReceiverRatings &
@@ -1537,7 +1623,13 @@ type AthleteRatings = ShooterRatings &
   AttackerRatings &
   FreeThrowRatings;
 
-/** Seeded ratings, biased by role — guards shoot and pass, bigs finish. Replaced at T-3.17. */
+/**
+ * Seeded ratings, biased by role — guards shoot and pass, bigs finish.
+ *
+ * No longer the main path: a match given a lineup uses real athletes (T-3.17). This is the
+ * fallback for a match given none, which is every headless balance run, every determinism test,
+ * and any rules test that should not have to build ten athletes to check the shot clock.
+ */
 function rollRatings(rng: Rng, roleIndex: number): AthleteRatings {
   const perimeter = roleIndex <= 1;
   const shot = rng.int(perimeter ? 55 : 35, perimeter ? 88 : 68);
@@ -2239,9 +2331,14 @@ export function createBasketballMatch(
   world: World,
   seed: string,
   playerSide: 0 | 1 | -1 = -1,
+  rosters?: readonly (readonly Athlete[])[],
 ): { state: BasketballState; rng: Rng } {
   const rng = createRng(seed);
-  const state = basketball.createState({ seed, playerSide }, world, rng);
+  const state = basketball.createState(
+    { seed, playerSide, ...(rosters === undefined ? {} : { rosters }) },
+    world,
+    rng,
+  );
   return { state, rng: rng.fork('sim') };
 }
 

@@ -24,6 +24,7 @@ import type { SportEvent } from '../engine/match/events.ts';
 import type { MatchRules } from '../engine/match/state-machine.ts';
 import type { Canvas2D, ViewTransform } from '../engine/render/renderer.ts';
 import type { EntityId, World } from '../engine/world.ts';
+import type { Athlete } from '../athletes/types.ts';
 
 export type SportId = string;
 
@@ -69,6 +70,50 @@ export interface Goal {
  */
 export type RatingWeightTable = Readonly<Record<string, Readonly<Record<string, number>>>>;
 
+/**
+ * A body adjustment applied *after* the weighted sum (`05` §2.1, §3.1): height and weight are not
+ * attributes, so they cannot be weighted alongside them, and a tall athlete's rebounding advantage
+ * is a flat bonus rather than a share of a budget.
+ */
+export interface PhysicalModifierTable {
+  /** The size at which every modifier is zero. */
+  readonly reference: number;
+  /** Derived rating → rating points per unit above `reference`. Negative penalises size. */
+  readonly perUnit: Readonly<Record<string, number>>;
+}
+
+export interface PhysicalModifiers {
+  readonly heightCm?: PhysicalModifierTable;
+  readonly weightKg?: PhysicalModifierTable;
+}
+
+/**
+ * Position → weights over the sport's *derived ratings*, for overall and position fit (`05` §3.4).
+ * Rows sum to 1.0, so an overall lands on the same 1–99 scale as the ratings it is built from.
+ */
+export type PositionWeightTable = Readonly<Record<string, Readonly<Record<string, number>>>>;
+
+/**
+ * One "this action trains that sub-skill" rule (`05` §3.3 — "a made three grants three-point XP, a
+ * tackle grants tackling XP"). The sport owns the mapping, because only the sport knows that a
+ * `shot` with `zone: 'cornerThree'` is a three: the athlete layer must never learn that.
+ */
+export interface XpRule {
+  readonly kind: string;
+  /** For `kind: 'sport'`, the sport's own name for the event. */
+  readonly sportKind?: string;
+  /** Matches only when every listed `detail` field equals this value. */
+  readonly when?: Readonly<Record<string, string | number | boolean>>;
+  /** The derived rating this trains for the event's actor. Omit to award XP without a sub-skill. */
+  readonly rating?: string;
+  readonly xp: number;
+  /** Awarded to the event's `target` — the defender who contested, the receiver who caught. */
+  readonly targetRating?: string;
+  readonly targetXp?: number;
+}
+
+export type XpAwardTable = readonly XpRule[];
+
 /** Positions and their default field placement, as fractions of the field. */
 export interface RoleTable {
   readonly roles: readonly {
@@ -87,6 +132,17 @@ export interface MatchSetup {
   readonly playerSide: 0 | 1 | -1;
   /** Squad size actually used — may be smaller than `meta.squadSize` for practice modes. */
   readonly squadSize?: number;
+  /**
+   * The athletes playing, indexed by side then by role (T-3.17). **Optional on purpose**: a match
+   * given no roster fills itself from `seed`, which is what lets the balance harness run 500 games
+   * with no save file and lets a rules test start a match without building ten athletes first.
+   * Real rosters are an input, not a prerequisite.
+   *
+   * The `import type` below closes a cycle — `athletes/types.ts` imports `SportId` from here — but
+   * both directions are type-only and erased at build, and the alternative is pretending a match
+   * is played by something other than athletes.
+   */
+  readonly rosters?: readonly (readonly Athlete[])[];
 }
 
 /** Whatever the sport needs to track. The engine treats it as opaque. */
@@ -169,6 +225,12 @@ export interface SportModule<S extends SportState = SportState> {
 
   readonly field: FieldGeometry;
   readonly ratingWeights: RatingWeightTable;
+  /** Height and weight adjustments (`05` §3.1). Absent when the sport has no opinion about size. */
+  readonly physicalModifiers?: PhysicalModifiers;
+  /** Keyed by `roles.roles[].id`. Absent when every position wants the same athlete. */
+  readonly positionWeights?: PositionWeightTable;
+  /** Which events train which sub-skills (`05` §3.3). Absent when the sport awards none. */
+  readonly xpAwards?: XpAwardTable;
   readonly roles: RoleTable;
 
   /** Populates the world and returns the sport's own state. */

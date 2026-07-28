@@ -1,0 +1,289 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   3 — Athletes, cross-sport ratings, roster
+ * @task    T-3.11 — Teams: create/edit, name, colours, generic crests
+ * @story   US-6.1 — Build a team
+ * @design  10-ui-ux.md §3 (visual language), §5 (component inventory), §11 (accessibility)
+ *
+ * Purpose: layout for the team list and the team editor. Every value is a token, so theme, UI
+ * scale, and reduced motion all still apply with nothing here to override. The one exception is
+ * the palette swatches and the crest preview, which paint the *team's* colours by design — that is
+ * the one place in this file a literal colour value is correct rather than a token.
+ */
+
+/* ── Team list ────────────────────────────────────────────────────────────── */
+
+.teams-screen {
+  max-width: 720px;
+}
+
+.teams-screen__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  flex-wrap: wrap;
+}
+
+.teams-screen__title {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.teams-list {
+  display: grid;
+  gap: var(--space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.teams-list__item {
+  display: grid;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.teams-list__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.crest {
+  flex-shrink: 0;
+}
+
+.teams-list__names {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.teams-list__name {
+  margin: 0;
+  font-size: var(--text-16);
+}
+
+.teams-list__short {
+  font-variant-numeric: var(--font-numeric);
+  font-weight: 600;
+  color: var(--text-lo);
+  letter-spacing: 0.05em;
+}
+
+.teams-list__badge {
+  padding: 2px var(--space-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-lo);
+  font-size: var(--text-12);
+}
+
+.teams-list__statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.teams-list__status {
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+}
+
+/* Readiness is never colour-only (`10` §11): the text already says "— ready", this is a bonus
+   affordance for a sighted, non-colourblind glance, and the border keeps it visible either way. */
+.teams-list__status[data-ready='true'] {
+  border-color: var(--accent);
+  color: var(--text-hi);
+}
+
+.teams-list__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.teams-screen__toast-host:empty,
+.teams-screen__dialog-host:empty {
+  display: none;
+}
+
+/* ── Team editor ──────────────────────────────────────────────────────────── */
+
+.team-editor {
+  display: grid;
+  gap: var(--space-24);
+  max-width: 960px;
+}
+
+@media (min-width: 800px) {
+  .team-editor {
+    grid-template-columns: minmax(240px, 320px) 1fr;
+    align-items: start;
+  }
+
+  .team-editor__preview {
+    position: sticky;
+    top: var(--space-16);
+  }
+}
+
+.team-editor__form {
+  min-width: 0;
+}
+
+.team-editor__scoreboard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-2);
+}
+
+.team-editor__scoreboard-short {
+  font-size: var(--text-32);
+  font-weight: 700;
+  font-variant-numeric: var(--font-numeric);
+  letter-spacing: 0.04em;
+  color: var(--text-hi);
+}
+
+.team-editor__field {
+  display: grid;
+  gap: var(--space-4);
+  font-size: var(--text-14);
+}
+
+/* ── Colour picker — named palettes, never "the green one" (`10` §11) ───────── */
+
+.palette-picker {
+  display: grid;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.palette-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-8);
+}
+
+.palette-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--target-min);
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  cursor: pointer;
+}
+
+.palette-option:has(.palette-option__input:checked) {
+  border-color: var(--accent);
+}
+
+.palette-option:has(.palette-option__input:focus-visible) {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+
+.palette-option__input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.palette-option__swatch {
+  display: flex;
+  width: 28px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: var(--radius-8);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.palette-option__swatch-half {
+  flex: 1;
+}
+
+.palette-option__swatch-half:first-child {
+  background: var(--swatch-primary);
+}
+
+.palette-option__swatch-half:last-child {
+  background: var(--swatch-secondary);
+}
+
+.palette-option__name {
+  font-size: var(--text-14);
+}
+
+/* ── Crest picker — every shape rendered live in the chosen colours ─────────── */
+
+.crest-picker {
+  display: grid;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.crest-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--space-8);
+}
+
+.crest-option {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  min-height: var(--target-min);
+  padding: var(--space-8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  cursor: pointer;
+}
+
+.crest-option:has(.crest-option__input:checked) {
+  border-color: var(--accent);
+}
+
+.crest-option:has(.crest-option__input:focus-visible) {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+
+.crest-option__input {
+  width: 20px;
+  height: 20px;
+}
+
+.crest-option__name {
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+.team-editor__refusal {
+  max-width: 60ch;
+}

@@ -1,0 +1,174 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   3 — Athletes, cross-sport ratings, roster
+ * @task    T-3.10 — Roster browser: search, sort, filter, bulk select
+ * @story   US-5.5 — Edit and delete profiles
+ * @design  10-ui-ux.md §3 (visual language), §5 (component inventory), §11 (accessibility)
+ *
+ * Purpose: layout for the roster browser — the toolbar, the filter panel, the selection bar, and
+ * the card list. Every size is a token, so UI Scale and reduced motion keep working with nothing
+ * roster-specific to override. Selection and filter checkboxes size their label to the 44 px
+ * minimum target rather than the checkbox itself, since a bare native checkbox is smaller than
+ * that everywhere it's rendered.
+ */
+
+.roster {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.roster__header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  justify-content: space-between;
+}
+
+.roster__title {
+  font-size: var(--text-24);
+  margin: 0;
+}
+
+.roster__toolbar {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+.roster__search-field {
+  flex: 1 1 220px;
+}
+
+.roster__sort-field {
+  align-items: center;
+  display: flex;
+  gap: var(--space-8);
+}
+
+.roster__sort-select {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  color: var(--text-hi);
+  font-size: var(--text-14);
+  min-height: var(--target-min);
+  padding: 0 var(--space-8);
+}
+
+.roster__filters {
+  display: grid;
+  gap: var(--space-12);
+}
+
+.roster__filter-group {
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+}
+
+.roster__filter-group legend {
+  color: var(--text-lo);
+  flex-basis: 100%;
+  font-size: var(--text-12);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.roster__filter-option {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  gap: var(--space-8);
+  min-height: var(--target-min);
+  padding: 0 var(--space-12);
+}
+
+.roster__filter-option:has(.roster__filter-input:checked) {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+.roster__filter-option:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.roster__selection-bar {
+  align-items: center;
+  background: var(--surface-2);
+  border-radius: var(--radius-12);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  padding: var(--space-12);
+}
+
+.roster__select-all {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--space-8);
+  min-height: var(--target-min);
+}
+
+.roster__selection-count {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  font-weight: 600;
+}
+
+.roster__summary {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  margin: 0 0 var(--space-8);
+}
+
+.roster__list {
+  display: grid;
+  gap: var(--space-8);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.roster__row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-8);
+}
+
+.roster__select {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+.roster__card-link {
+  color: inherit;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.roster__card-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Selection never depends on the tint alone — the checkbox state is the real signal (`10` §11). */
+.roster__row[data-selected='true'] .athlete-card {
+  border-color: var(--accent);
+}
+
+.roster__toast-host:empty {
+  display: none;
+}

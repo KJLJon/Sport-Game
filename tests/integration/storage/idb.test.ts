@@ -58,7 +58,37 @@ describe('Database', () => {
   it('creates the declared indexes', async () => {
     const tx = db.raw.transaction('athletes', 'readonly');
     const names = [...tx.objectStore('athletes').indexNames].sort();
-    expect(names).toEqual(['byCreatedAt', 'byName', 'byPrimarySport', 'byRarity']);
+    expect(names).toEqual(['byCreatedAt', 'byDisplayName', 'byPrimarySport', 'byRarity']);
+  });
+
+  it('rebuilds an index whose key path changed, and drops one no longer declared', async () => {
+    // The v1 shape: a `byName` index pointing at a property no athlete has (fixed at T-3.1).
+    db.close();
+    await deleteDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(dbName(), 1);
+      request.onupgradeneeded = () => {
+        const store = request.result.createObjectStore('athletes', { keyPath: 'id' });
+        store.createIndex('byName', 'name');
+        store.createIndex('byCreatedAt', 'id');
+      };
+      request.onsuccess = () => {
+        request.result.close();
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    db = await Database.open();
+    const store = db.raw.transaction('athletes', 'readonly').objectStore('athletes');
+    expect([...store.indexNames].sort()).toEqual([
+      'byCreatedAt',
+      'byDisplayName',
+      'byPrimarySport',
+      'byRarity',
+    ]);
+    // `byCreatedAt` survived by name but had the wrong key path, so it was rebuilt.
+    expect(store.index('byCreatedAt').keyPath).toBe('createdAt');
   });
 
   it('round-trips a keyed record', async () => {

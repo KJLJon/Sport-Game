@@ -1,0 +1,113 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   3 — Athletes, cross-sport ratings, roster
+ * @task    T-3.15 — Roster import: file + URL, schema validation, per-record errors, merge/conflict,
+ *          responsibility notice
+ * @story   US-5.7 — Import a roster file
+ * @design  10-ui-ux.md §3 (visual language), §11 (accessibility)
+ *
+ * Purpose: layout for the import screen — the URL row, the issue list, and the conflict rows.
+ * Every size is a token, so UI Scale and reduced motion keep working with nothing import-specific
+ * to override. Issue severity is marked with a border colour *and* a text label
+ * (`roster-import.ts` renders "Error"/"Warning" as real text) — `10` §11 rules out colour alone.
+ */
+
+.roster-import {
+  max-width: 720px;
+}
+
+.roster-import__header {
+  display: flex;
+  align-items: center;
+}
+
+.roster-import__title {
+  font-size: var(--text-24);
+  margin: 0;
+}
+
+.roster-import__url-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.roster-import__url-row .text-input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.roster-import__preview {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.roster-import__summary-line {
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.roster-import__section-heading {
+  font-size: var(--text-16);
+  margin: 0;
+}
+
+.roster-import__issues {
+  display: grid;
+  gap: var(--space-8);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.roster-import__issue {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface-2);
+  font-size: var(--text-14);
+}
+
+.roster-import__issue[data-severity='error'] {
+  border-left-color: var(--danger);
+}
+
+.roster-import__issue[data-severity='warning'] {
+  border-left-color: var(--accent-alt);
+}
+
+.roster-import__issue-severity {
+  flex-shrink: 0;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: var(--text-12);
+  letter-spacing: 0.04em;
+}
+
+.roster-import__issue-message {
+  color: var(--text-hi);
+}
+
+.roster-import__conflicts {
+  display: grid;
+  gap: var(--space-16);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.roster-import__conflict {
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+}
+
+.roster-import__conflict-label {
+  margin: 0;
+  font-size: var(--text-14);
+}

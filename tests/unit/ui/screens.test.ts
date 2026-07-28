@@ -130,10 +130,18 @@ describe('settings screen', () => {
     const ctx = context();
     settingsScreen().mount(ctx);
 
-    const links = ctx.host.querySelectorAll('.settings-list__link');
-    expect(links).toHaveLength(1);
-    expect(links[0]?.getAttribute('href')).toBe('#/settings/app');
-    expect(links[0]?.textContent).toBe('App & updates');
+    // Sections arrive with the features they configure, so this asserts the *rule* rather than a
+    // count — a new linked section is expected growth, not a regression.
+    const links = [...ctx.host.querySelectorAll('.settings-list__link')];
+    expect(links.map((link) => link.getAttribute('href')).sort()).toEqual([
+      '#/settings/app',
+      '#/settings/data',
+    ]);
+
+    const unlinked = [...ctx.host.querySelectorAll('.settings-list__title')].filter(
+      (title) => title.querySelector('a') === null,
+    );
+    expect(unlinked.length).toBeGreaterThan(0);
   });
 
   it('gives every section a summary, so nothing is a bare label', () => {

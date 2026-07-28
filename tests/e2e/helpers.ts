@@ -101,12 +101,20 @@ export async function expectPrecacheAtLeast(
     .toBeGreaterThanOrEqual(target);
 }
 
-/** Writes a marker record so a test can prove IndexedDB survived (INV-13). */
+/**
+ * Writes a marker record so a test can prove IndexedDB survived (INV-13).
+ *
+ * Opened with no explicit version, deliberately. Naming one meant this helper had to be edited in
+ * step with `DB_VERSION`, and when T-3.1 bumped it to 2 the helper's hardcoded `1` started throwing
+ * `VersionError` against a database the app had already upgraded — five E2E specs, none of which
+ * had anything to do with the change. Version-less open takes whatever exists, and creates the
+ * stores at version 1 only when there is nothing there at all.
+ */
 export async function seedDatabase(page: Page, marker: string): Promise<void> {
   await page.evaluate(async (value) => {
     const name = `sportgame${new URL(document.baseURI).pathname}db`;
     await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open(name, 1);
+      const request = indexedDB.open(name);
       request.onupgradeneeded = () => {
         const db = request.result;
         for (const store of ['athletes', 'economy', 'meta']) {

@@ -75,11 +75,83 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
   },
   {
     pattern: '/squad',
-    value: stub('squad', 'Squad', 'Your athletes, teams, and lineups.', 'Phase 3'),
+    value: {
+      id: 'squad',
+      title: 'Squad',
+      load: async () => (await import('../ui/screens/roster.ts')).rosterScreen(),
+    },
   },
   {
     pattern: '/squad/athlete/:id',
-    value: stub('athlete', 'Athlete', 'The athlete card, in every sport at once.', 'Phase 3'),
+    value: {
+      id: 'athlete',
+      title: 'Athlete',
+      load: async () => (await import('../ui/screens/athlete.ts')).athleteScreen(),
+    },
+  },
+  {
+    pattern: '/settings/data',
+    value: {
+      id: 'settings-data',
+      title: 'Data & backup',
+      load: async () => (await import('../ui/screens/backup.ts')).backupScreen(),
+    },
+  },
+  {
+    pattern: '/squad/import',
+    value: {
+      id: 'roster-import',
+      title: 'Import a roster',
+      load: async () => (await import('../ui/screens/roster-import.ts')).rosterImportScreen(),
+    },
+  },
+  {
+    pattern: '/squad/teams',
+    value: {
+      id: 'teams',
+      title: 'Teams',
+      load: async () => (await import('../ui/screens/teams.ts')).teamsScreen(),
+    },
+  },
+  {
+    pattern: '/squad/teams/new',
+    value: {
+      id: 'team-new',
+      title: 'New team',
+      load: async () => (await import('../ui/screens/team-editor.ts')).teamEditorScreen(),
+    },
+  },
+  {
+    pattern: '/squad/teams/:id/lineup/:sport',
+    value: {
+      id: 'lineup',
+      title: 'Lineup',
+      load: async () => (await import('../ui/screens/lineup.ts')).lineupScreen(),
+    },
+  },
+  {
+    pattern: '/squad/teams/:id',
+    value: {
+      id: 'team-edit',
+      title: 'Edit team',
+      load: async () => (await import('../ui/screens/team-editor.ts')).teamEditorScreen(),
+    },
+  },
+  {
+    pattern: '/squad/athlete/:id/compare',
+    value: {
+      id: 'athlete-compare',
+      title: 'Every sport',
+      load: async () => (await import('../ui/screens/athlete-compare.ts')).athleteCompareScreen(),
+    },
+  },
+  {
+    pattern: '/squad/athlete/new',
+    value: {
+      id: 'athlete-new',
+      title: 'Make your own athlete',
+      load: async () => (await import('../ui/screens/athlete-editor.ts')).athleteEditorScreen(),
+    },
   },
   {
     pattern: '/store',

@@ -26,7 +26,9 @@ export const STORES: readonly StoreSpec[] = [
     indexes: [
       { name: 'byPrimarySport', keyPath: 'primarySport' },
       { name: 'byRarity', keyPath: 'rarity' },
-      { name: 'byName', keyPath: 'name' },
+      // `displayName`, not `name`: the field is `displayName` in `05` §2, and the index this
+      // replaced pointed at a property no athlete has, so it indexed nothing (found at T-3.1).
+      { name: 'byDisplayName', keyPath: 'displayName' },
       { name: 'byCreatedAt', keyPath: 'createdAt' },
     ],
   },
@@ -54,8 +56,14 @@ export const STORES: readonly StoreSpec[] = [
 
 export type StoreName = (typeof STORES)[number]['name'];
 
-/** Bumped only by a schema change, which ships with its migration (`05` §9, T-0.13). */
-export const DB_VERSION = 1;
+/**
+ * Bumped only by a schema change, which ships with its migration (`05` §9, T-0.13).
+ *
+ * 2 — T-3.1: the `athletes` store's name index moved from `name` to `displayName`. Structural
+ * only, so there is no entry in the data chain in `migrations.ts`: an index is derived from the
+ * records, and rebuilding it changes nothing a backup would carry.
+ */
+export const DB_VERSION = 2;
 
 /** Promisifies a request, preserving the DOM error rather than flattening it to a string. */
 export function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
@@ -84,6 +92,35 @@ export interface OpenOptions {
   readonly version?: number;
 }
 
+/**
+ * Brings a store's indexes in line with its spec: creates what is missing, drops what is no longer
+ * declared, and rebuilds any whose key path or uniqueness changed.
+ *
+ * IndexedDB has no "alter index", so a changed key path has to be dropped and recreated — and an
+ * index silently left pointing at the old path is the failure mode this exists to prevent. Indexes
+ * are derived data, so rebuilding one never touches a record.
+ */
+function reconcileIndexes(store: IDBObjectStore, spec: StoreSpec): void {
+  const declared = spec.indexes ?? [];
+  const wanted = new Set(declared.map((index) => index.name));
+
+  for (const name of Array.from(store.indexNames)) {
+    if (!wanted.has(name)) store.deleteIndex(name);
+  }
+
+  for (const index of declared) {
+    if (store.indexNames.contains(index.name)) {
+      const existing = store.index(index.name);
+      const sameKeyPath =
+        JSON.stringify(existing.keyPath) === JSON.stringify(index.keyPath) &&
+        existing.unique === (index.unique ?? false);
+      if (sameKeyPath) continue;
+      store.deleteIndex(index.name);
+    }
+    store.createIndex(index.name, index.keyPath, { unique: index.unique ?? false });
+  }
+}
+
 /** Opens the namespaced database, creating any missing stores and indexes. */
 export function openDatabase(options: OpenOptions = {}): Promise<IDBDatabase> {
   const version = options.version ?? DB_VERSION;
@@ -101,11 +138,7 @@ export function openDatabase(options: OpenOptions = {}): Promise<IDBDatabase> {
           ? tx.objectStore(spec.name)
           : db.createObjectStore(spec.name, spec.keyPath === null ? {} : { keyPath: spec.keyPath });
 
-        for (const index of spec.indexes ?? []) {
-          if (!store.indexNames.contains(index.name)) {
-            store.createIndex(index.name, index.keyPath, { unique: index.unique ?? false });
-          }
-        }
+        reconcileIndexes(store, spec);
       }
 
       options.onUpgrade?.(db, tx, event.oldVersion, event.newVersion ?? version);

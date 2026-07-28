@@ -15,6 +15,7 @@ import {
   type RouteDefinition,
   type RouterTarget,
 } from '../../../src/app/router.ts';
+import { ROUTES } from '../../../src/app/routes.ts';
 
 describe('parseHash', () => {
   it.each([
@@ -121,6 +122,38 @@ function fakeTarget(initial = '#/'): RouterTarget & { setHash(next: string): voi
     },
   };
 }
+
+describe('the real route table', () => {
+  it('sends /squad/athlete/new to the editor, not to the athlete card', () => {
+    // Both routes are three segments, one of which is literal in `new` and a `:id` parameter in
+    // the card's. If specificity ever stopped preferring the literal, creating an athlete would
+    // silently become "No such athlete" — a failure nothing else in the suite would catch.
+    expect(resolveRoute(ROUTES, parseHash('#/squad/athlete/new'))?.route.id).toBe('athlete-new');
+  });
+
+  it('sends /squad/athlete/:id/compare to the compare view, not the card', () => {
+    const match = resolveRoute(ROUTES, parseHash('#/squad/athlete/abc123/compare'));
+    expect(match?.route.id).toBe('athlete-compare');
+    expect(match?.params.id).toBe('abc123');
+  });
+
+  it('sends /squad/teams/new to the editor, not to the edit-by-id route', () => {
+    expect(resolveRoute(ROUTES, parseHash('#/squad/teams/new'))?.route.id).toBe('team-new');
+    expect(resolveRoute(ROUTES, parseHash('#/squad/teams/t123'))?.route.id).toBe('team-edit');
+  });
+
+  it('routes a team lineup by team and sport', () => {
+    const match = resolveRoute(ROUTES, parseHash('#/squad/teams/t1/lineup/basketball'));
+    expect(match?.route.id).toBe('lineup');
+    expect(match?.params).toMatchObject({ id: 't1', sport: 'basketball' });
+  });
+
+  it('sends any other id to the athlete card, with the id as a parameter', () => {
+    const match = resolveRoute(ROUTES, parseHash('#/squad/athlete/abc123'));
+    expect(match?.route.id).toBe('athlete');
+    expect(match?.params.id).toBe('abc123');
+  });
+});
 
 describe('Router', () => {
   const routes: readonly RouteDefinition<string>[] = [
