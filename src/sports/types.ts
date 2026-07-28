@@ -25,6 +25,7 @@ import type { MatchRules } from '../engine/match/state-machine.ts';
 import type { Canvas2D, ViewTransform } from '../engine/render/renderer.ts';
 import type { EntityId, World } from '../engine/world.ts';
 import type { Athlete } from '../athletes/types.ts';
+import type { ArcadeGameDef } from '../modes/arcade/types.ts';
 
 export type SportId = string;
 
@@ -264,6 +265,13 @@ export interface SportModule<S extends SportState = SportState> {
   readonly ai: SportAiAdapter;
   readonly render: SportRenderer;
   readonly hud: SportHudSpec;
+
+  /**
+   * The sport's mini-games (`09` §5). Optional for the same reason `playbook` will be: a Phase-1
+   * test fixture is not a shippable sport, and a sport whose arcade set has not landed yet still
+   * has to be playable in Live.
+   */
+  readonly arcade?: readonly ArcadeGameDef[];
 
   /**
    * What to show about this sport right now. Optional so a Phase-1 test fixture stays valid; a

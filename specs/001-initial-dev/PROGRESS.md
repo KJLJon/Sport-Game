@@ -12,14 +12,25 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** — (none; Phase 3 complete, Gate 3 evaluated and **not passed** — see the Gate 3 record)
-- **Status:** —
-- **Started:** —
+- **Task:** T-4.3 — Arcade hub
+- **Status:** in_progress
+- **Started:** 2026-07-28
 - **Branch commit:** (see `git log`)
-- **Done so far:** All seventeen Phase 3 tasks are `done`. Every automatable gate check is green.
-- **Next step:** Gate 3, like Gate 2, is blocked on what only a human with a phone can do — the
-  `12` §7 device matrix, and walking the gate's own end-to-end criterion by hand. Phase 4 (arcade)
-  starts at T-4.1 and depends on T-1.11, which is done.
+- **Done so far:**
+  - [x] T-4.1 — the arcade seam (`ArcadeGameDef`, `ArcadeHost`, `ArcadeSession`), the run host, star
+        ratings, the catalogue
+  - [x] T-4.2 — calibration, the four difficulty levels as data, INV-10 asserted three ways
+  - [ ] T-4.3 — hub grid, locked tiles, personal bests, athlete picker
+  - [ ] T-4.4 — practice / scored / daily, seeded daily challenge
+  - [ ] T-4.5–4.9 — the five basketball games
+  - [ ] T-4.10 — arcade → progression at a reduced rate
+  - [ ] T-4.11 — hot-seat party rounds
+  - [ ] T-4.12 — accessibility pass
+  - [ ] T-4.13 — reward caps and the anti-farm verification (INV-12)
+- **Next step:** T-4.4 (modes and the daily challenge) then T-4.3's hub screen — the hub needs
+  personal-best storage, which T-4.4's daily state shares.
+- **Files touched:** `src/modes/difficulty.ts`, `src/modes/arcade/{types,session,scoring,
+  calibration,registry}.ts`, `src/achievements/ids.ts`, `src/sports/types.ts` (the `arcade` member).
 - **Blockers:** the device matrix and the deploy decision, unchanged since Gate 2 and now two gates deep. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
   top of that debt, deliberately, and Gate 3 inherits it.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
@@ -45,7 +56,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
-| 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
+| 4 | Arcade framework + basketball arcade set | 13 | 2 | `in_progress` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
@@ -53,7 +64,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **61** | | |
+| | **Total** | **170** | **63** | | |
 
 ---
 
@@ -144,8 +155,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-4.1 | Arcade framework: `ArcadeGameDef`, host, session lifecycle, scoring, star ratings | L | `todo` | | | | |
-| T-4.2 | Calibration: ratings + familiarity → window sizes and speeds (INV-10) | M | `todo` | | | | |
+| T-4.1 | Arcade framework: `ArcadeGameDef`, host, session lifecycle, scoring, star ratings | L | `done` | | `tests/unit/modes/arcade/{session,scoring,registry}.test.ts` | `auto` | **The split that decides everything downstream: a game owns a *mechanic*, the framework owns the run.** Lives, clock, score, streaks, stars, and event collection live in `ArcadeRun` once, because five games owning them five times is five places for the rules of a scored run to drift — and `09` §3.3 describes one structure for every game. A game reports `host.attempt({made, points, quality, label, events})` and never reads the score, so it cannot invent its own scoring. `ArcadeRun` is headless: no canvas, no DOM, stepped by a caller-supplied `dt`, which is what lets T-4.11 run several in turn and T-4.13 drive hundreds with synthetic input. Events carry no mode field and are stamped by the framework, so an arcade `score` is indistinguishable from a Live one (INV-9). The seam gained `SportModule.arcade?`, optional for the same reason `playbook` will be. `src/achievements/ids.ts` declares the ten unlock ids from `09` §3.2 — the vocabulary Phase 8 will evaluate against; all ten are earned by playing. |
+| T-4.2 | Calibration: ratings + familiarity → window sizes and speeds (INV-10) | M | `done` | | `tests/unit/modes/arcade/calibration.test.ts`, `tests/invariants/inv-10-arcade-calibration.test.ts` | `auto` | **INV-10 is a signature, not a convention.** `calibrate(athlete, difficulty)` has no parameter through which a personal best could arrive, and the invariant test asserts that three ways: behaviourally (identical inputs, identical window, forever), structurally (the module imports nothing matching `storage|bests|history|session`), and textually (no `calibrate()` anywhere in `src/` takes a third argument). Six interpolated pairs turn a rating into `09` §2.4's two poles — "wide, slow, forgiving" against "narrow, fast, drifting" — and a game may reshape them without changing their direction. **Difficulty enters exactly once, at the end, on the window and the reaction allowance only** (INV-1); the rating that goes in is the rating the athlete card shows, on every level. `src/modes/difficulty.ts` is new: `06` §7's table read straight across, with no field a rating could be multiplied by, so INV-1 holds by the shape of the record before a test looks at it. T-7.7 owns the full model and will extend it. The picker's hint names *both* halves — "Narrow window — new to this sport." — because narrow without the reason reads as a punishment rather than as the thing practice fixes. |
 | T-4.3 | Arcade hub: grid, locked/unlocked states, personal bests, athlete picker with window hint | M | `todo` | | | | |
 | T-4.4 | Practice / scored / daily modes; seeded daily challenge | M | `todo` | | | | |
 | T-4.5 | Free Throw — release timing under mounting pressure | M | `todo` | | | | |
