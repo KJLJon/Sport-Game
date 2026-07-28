@@ -71,7 +71,20 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
   },
   {
     pattern: '/play/arcade',
-    value: stub('play-arcade', 'Arcade', 'Standalone mini-games, ten seconds to fun.', 'Phase 4'),
+    value: {
+      id: 'play-arcade',
+      title: 'Arcade',
+      load: async () => (await import('../ui/screens/arcade.ts')).arcadeScreen(),
+    },
+  },
+  {
+    pattern: '/play/arcade/:id',
+    value: {
+      id: 'play-arcade-game',
+      title: 'Arcade',
+      chrome: 'bare',
+      load: async () => (await import('../ui/screens/arcade-game.ts')).arcadeGameScreen(),
+    },
   },
   {
     pattern: '/squad',

@@ -1,0 +1,212 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   4 — Arcade framework + basketball arcade set
+ * @task    T-4.3 — Arcade hub: grid, locked/unlocked states, personal bests, athlete picker with window hint
+ * @task    T-4.12 — Arcade accessibility: left-hand mirroring, colour-independent meters, reduced motion
+ * @story   US-16.1 — Play a quick skill game
+ * @design  10-ui-ux.md §3 (visual language), §5 (components), §11 (accessibility)
+ *
+ * Purpose: layout for the arcade hub and the run screen. Every size is a token, so UI Scale keeps
+ * working with nothing arcade-specific to override, and every tile is a real button at the 44 px
+ * minimum target. A locked tile is distinguished by its text and its border, never by colour alone.
+ */
+
+.arcade {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.arcade__lede {
+  color: var(--text-lo);
+  margin: 0;
+}
+
+.arcade__picker {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.arcade__athlete-label {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.arcade__athlete {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  color: var(--text-hi);
+  font: inherit;
+  min-height: var(--target-min);
+  padding: var(--space-8) var(--space-12);
+  width: 100%;
+}
+
+.arcade__picker-note,
+.arcade__code {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  margin: 0;
+}
+
+.arcade__code {
+  font-family: ui-monospace, monospace;
+  overflow-wrap: anywhere;
+}
+
+.arcade__daily {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  display: grid;
+  gap: var(--space-8);
+  padding: var(--space-16);
+}
+
+.arcade__daily-title {
+  font-size: var(--text-16);
+  margin: 0;
+}
+
+.arcade__modifiers {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding-left: var(--space-16);
+}
+
+.arcade__grid {
+  display: grid;
+  gap: var(--space-12);
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+
+.arcade-tile {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  color: inherit;
+  display: grid;
+  font: inherit;
+  gap: var(--space-8);
+  min-height: var(--target-min);
+  padding: var(--space-16);
+  text-align: left;
+  width: 100%;
+}
+
+button.arcade-tile:hover,
+button.arcade-tile:focus-visible {
+  border-color: var(--accent);
+}
+
+/* Locked tiles carry a dashed border as well as their sentence — shape, not just colour. */
+.arcade-tile--locked {
+  border-style: dashed;
+}
+
+.arcade-tile__name {
+  font-size: var(--text-16);
+  margin: 0;
+}
+
+.arcade-tile__blurb,
+.arcade-tile__hint,
+.arcade-tile__stars,
+.arcade-tile__locked,
+.arcade-tile__best {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  margin: 0;
+}
+
+.arcade-tile__hint {
+  color: var(--text-hi);
+}
+
+.arcade-tile__meta {
+  align-items: center;
+  display: flex;
+  gap: var(--space-8);
+  justify-content: space-between;
+}
+
+/* ── The run screen ─────────────────────────────────────────────────────── */
+
+.arcade-run {
+  display: grid;
+  gap: var(--space-8);
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+
+.arcade-run__hud {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  justify-content: space-between;
+  padding: var(--space-8) var(--space-12);
+}
+
+.arcade-run__stat {
+  display: grid;
+  gap: 2px;
+}
+
+.arcade-run__stat-label {
+  color: var(--text-lo);
+  font-size: var(--text-12);
+  text-transform: uppercase;
+}
+
+.arcade-run__stat-value {
+  font-size: var(--text-16);
+  font-variant-numeric: tabular-nums;
+}
+
+.arcade-run__stage {
+  min-height: 16rem;
+  position: relative;
+}
+
+.arcade-run__stage .canvas-host {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.arcade-run__overlay {
+  align-content: center;
+  display: grid;
+  gap: var(--space-12);
+  inset: 0;
+  justify-items: center;
+  padding: var(--space-16);
+  position: absolute;
+  text-align: center;
+}
+
+.arcade-run__prompt {
+  font-size: var(--text-24);
+  margin: 0;
+}
+
+.arcade-run__outcome {
+  font-size: var(--text-16);
+  margin: 0;
+  min-height: 1.5em;
+}
+
+.arcade-run__actions {
+  display: flex;
+  gap: var(--space-8);
+  justify-content: center;
+  padding: var(--space-12);
+}
+
+.arcade-run__tap {
+  inset: 0;
+  position: absolute;
+  width: 100%;
+}
