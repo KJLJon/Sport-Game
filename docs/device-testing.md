@@ -33,10 +33,6 @@ git tag v0.2.0 && git push origin v0.2.0
 `.github/workflows/deploy.yml` picks up any `v*` tag, re-runs typecheck, lint, the full unit suite,
 and the bundle budget, and only then publishes to Pages. A broken build cannot reach the live site.
 
-**One-time setup, and only you can do it:** GitHub → repo **Settings → Pages → Build and deployment
-→ Source: GitHub Actions**. Without it the deploy job fails at the last step. If a tag deploy has
-failed, that is the first thing to check.
-
 The site lands at `https://<user>.github.io/Sport-Game/`. It is installable and works offline, so
 the whole PWA half of `12` §7 is testable from it directly.
 
