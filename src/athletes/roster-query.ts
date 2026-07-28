@@ -11,7 +11,7 @@
  * on its own — `now` is always a parameter — so a test can pin every edge case (an athlete whose
  * suspension ends at exactly `now`, a roster that is all ties) without timing games.
  */
-import { cardOverall, type CardSport } from '../ui/components/athlete-card.ts';
+import { sportOverall } from './derivation.ts';
 import { rateableSport } from '../sports/catalogue.ts';
 import type { SportId } from '../sports/types.ts';
 import { matchesQuery, normaliseForSearch } from './repository.ts';
@@ -73,7 +73,7 @@ type SortValue = number | string;
 function ratingValue(athlete: Athlete, sport: SportId | undefined): number {
   const resolved = rateableSport(sport ?? athlete.primarySport);
   if (resolved === undefined) return 0;
-  return cardOverall(athlete, resolved as CardSport).overall;
+  return sportOverall(athlete, resolved.id, resolved.tables).overall;
 }
 
 /** Same per-sport default as `ratingValue`, for the same reason. */

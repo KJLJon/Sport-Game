@@ -20,11 +20,12 @@
  * simply omits the section rather than showing an empty one.
  */
 import {
-  bestPosition,
   deriveRatings,
   explainRating,
   familiarityMultiplier,
   positionFits,
+  sportOverall,
+  type SportOverall,
   type SportRatingTables,
 } from '../../athletes/derivation.ts';
 import {
@@ -72,22 +73,11 @@ function sportFor(options: AthleteCardOptions): CardSport | undefined {
 }
 
 /**
- * The number on the compact card: the athlete's overall at their *best* position in this sport,
- * not at their current one. A card is an identity, and asking "how good is this athlete" should
- * not depend on where a lineup happens to have put them.
+ * The number on the compact card. The arithmetic is `derivation.sportOverall`; this only unwraps a
+ * `CardSport` for it, so nothing in the athlete layer has to import a UI module to get at it.
  */
-export function cardOverall(
-  athlete: Athlete,
-  sport: CardSport,
-): { readonly overall: number; readonly position: string | null } {
-  const ratings = deriveRatings(athlete, sport.id, sport.tables);
-  const best = bestPosition(ratings, sport.tables.positionWeights);
-  if (best !== null) return { overall: Math.round(best.overall), position: best.position };
-
-  // A sport with no positions still has an overall: the mean of its ratings.
-  const values = Object.values(ratings);
-  const mean = values.length === 0 ? 0 : values.reduce((a, b) => a + b, 0) / values.length;
-  return { overall: Math.round(mean), position: null };
+export function cardOverall(athlete: Athlete, sport: CardSport): SportOverall {
+  return sportOverall(athlete, sport.id, sport.tables);
 }
 
 /** Portrait, name, rarity frame, overall, familiarity ring, position chip (`10` §6). */

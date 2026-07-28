@@ -23,6 +23,7 @@ import {
   positionFits,
   projectRatings,
   rawRating,
+  sportOverall,
   skillBonus,
   type SportRatingTables,
 } from '../../../src/athletes/derivation.ts';
@@ -382,6 +383,34 @@ describe('overall and position fit (`05` §3.4)', () => {
       positionFits(deriveRatings(weak, 'basketball', basketball), BASKETBALL_POSITION_WEIGHTS)[0]
         ?.fit,
     ).toBe(1);
+  });
+
+  it("gives one overall per sport, taken at the athlete's best position", () => {
+    const big = athlete({ attributes: bigAttributes, heightCm: 215, weightKg: 115 });
+    const result = sportOverall(big, 'basketball', basketball);
+    expect(result.position).toBe('C');
+    expect(result.overall).toBeGreaterThan(0);
+    expect(Number.isInteger(result.overall)).toBe(true);
+  });
+
+  it('falls back to the mean of the ratings where a sport has no positions', () => {
+    const result = sportOverall(athlete(), 'soccer', soccer);
+    expect(result.position).toBeNull();
+    expect(result.overall).toBeGreaterThan(0);
+  });
+
+  it('is zero rather than NaN for a sport with no ratings at all', () => {
+    expect(sportOverall(athlete(), 'void', { weights: {} })).toEqual({
+      overall: 0,
+      position: null,
+    });
+  });
+
+  it('honours a familiarity override, so a projected overall is the same arithmetic', () => {
+    const away = athlete({ primarySport: 'basketball', sportSkills: {} });
+    const now = sportOverall(away, 'soccer', soccer);
+    const ceiling = sportOverall(away, 'soccer', soccer, { familiarity: 100, subSkills: {} });
+    expect(ceiling.overall).toBeGreaterThan(now.overall);
   });
 
   it('has nothing to say about a sport that declares no positions', () => {

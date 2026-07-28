@@ -75,7 +75,11 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
   },
   {
     pattern: '/squad',
-    value: stub('squad', 'Squad', 'Your athletes, teams, and lineups.', 'Phase 3'),
+    value: {
+      id: 'squad',
+      title: 'Squad',
+      load: async () => (await import('../ui/screens/roster.ts')).rosterScreen(),
+    },
   },
   {
     pattern: '/squad/athlete/:id',

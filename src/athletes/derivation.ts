@@ -277,6 +277,36 @@ export function positionFits(
     .sort((a, b) => b.overall - a.overall || a.position.localeCompare(b.position));
 }
 
+export interface SportOverall {
+  /** Overall at the athlete's best position, or the mean where the sport declares no positions. */
+  readonly overall: number;
+  readonly position: string | null;
+}
+
+/**
+ * One number for "how good is this athlete at this sport", taken at their *best* position rather
+ * than at whichever one a lineup happens to have put them in. Asking how good someone is should
+ * not depend on where they are currently standing.
+ *
+ * This lives here rather than in the athlete card because it is rating arithmetic, and because the
+ * roster browser sorts by it — an athlete-layer module reaching into `ui/components/` to sort a
+ * list would invert the project's layering for no reason (found reviewing T-3.10).
+ */
+export function sportOverall(
+  athlete: Athlete,
+  sport: SportId,
+  tables: SportRatingTables,
+  options: DeriveOptions = {},
+): SportOverall {
+  const ratings = deriveRatings(athlete, sport, tables, options);
+  const best = bestPosition(ratings, tables.positionWeights);
+  if (best !== null) return { overall: Math.round(best.overall), position: best.position };
+
+  const values = Object.values(ratings);
+  const mean = values.length === 0 ? 0 : values.reduce((a, b) => a + b, 0) / values.length;
+  return { overall: Math.round(mean), position: null };
+}
+
 /** The athlete's best position for a sport, or `null` when the sport declares none. */
 export function bestPosition(
   ratings: DerivedRatings,
