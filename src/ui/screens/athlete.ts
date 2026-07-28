@@ -22,6 +22,7 @@ import type { Athlete } from '../../athletes/types.ts';
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { el } from '../dom.ts';
 import '../components/athlete-card.css';
+import './athlete.css';
 
 export function athleteScreen(): Screen {
   let selectedSport: string | null = null;
@@ -69,6 +70,11 @@ export function athleteScreen(): Screen {
           el(doc, 'div', {
             class: 'athlete-screen',
             children: [
+              el(doc, 'a', {
+                class: 'athlete-screen__compare',
+                attrs: { href: `#/squad/athlete/${found.id}/compare` },
+                text: 'Compare across every sport',
+              }),
               athleteCardFull(doc, {
                 athlete: found,
                 sports: available,

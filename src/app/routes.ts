@@ -86,6 +86,14 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
+    pattern: '/squad/athlete/:id/compare',
+    value: {
+      id: 'athlete-compare',
+      title: 'Every sport',
+      load: async () => (await import('../ui/screens/athlete-compare.ts')).athleteCompareScreen(),
+    },
+  },
+  {
     pattern: '/squad/athlete/new',
     value: {
       id: 'athlete-new',

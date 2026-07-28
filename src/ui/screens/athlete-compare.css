@@ -1,0 +1,103 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   3 — Athletes, cross-sport ratings, roster
+ * @task    T-3.9 — Cross-sport compare view with projections for unplayed sports
+ * @story   US-5.4 — Understand why an athlete is good or bad at a sport
+ * @design  10-ui-ux.md §6 (cross-sport compare), §4 (layout), §11 (accessibility)
+ *
+ * Purpose: layout for the cross-sport compare view. Every value is a token, so theme, UI scale, and
+ * reduced motion stay single switches.
+ *
+ * The athlete's own sport is marked with a left edge rather than a background wash — a wash is a
+ * hue, and an edge is a position, which survives both colourblindness and a low-contrast screen
+ * (`10` §11).
+ */
+
+.compare-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.compare-screen__head h2 {
+  font-size: var(--text-24);
+  margin: 0 0 var(--space-4);
+}
+
+.compare-screen__lede {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  margin: 0;
+  max-width: 46ch;
+}
+
+.compare-screen__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.compare-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: var(--radius-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-16);
+}
+
+/* Position, not hue: the primary sport's row is marked by an edge that is visible either way. */
+.compare-card[data-own='true'] {
+  border-left-color: var(--accent);
+}
+
+.compare-card__head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  justify-content: space-between;
+}
+
+.compare-card__sport {
+  font-size: var(--text-20);
+  margin: 0;
+}
+
+.compare-card__position,
+.compare-card__note,
+.compare-card__unplayable {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  margin: 0;
+}
+
+.compare-card__standouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.compare-card__standout {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: var(--text-14);
+  padding: var(--space-4) var(--space-8);
+}
+
+.compare-screen__back {
+  align-items: center;
+  color: var(--text-hi);
+  display: inline-flex;
+  min-height: var(--target-min);
+  text-decoration: underline;
+}

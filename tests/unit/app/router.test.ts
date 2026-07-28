@@ -131,6 +131,12 @@ describe('the real route table', () => {
     expect(resolveRoute(ROUTES, parseHash('#/squad/athlete/new'))?.route.id).toBe('athlete-new');
   });
 
+  it('sends /squad/athlete/:id/compare to the compare view, not the card', () => {
+    const match = resolveRoute(ROUTES, parseHash('#/squad/athlete/abc123/compare'));
+    expect(match?.route.id).toBe('athlete-compare');
+    expect(match?.params.id).toBe('abc123');
+  });
+
   it('sends any other id to the athlete card, with the id as a parameter', () => {
     const match = resolveRoute(ROUTES, parseHash('#/squad/athlete/abc123'));
     expect(match?.route.id).toBe('athlete');

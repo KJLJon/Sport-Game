@@ -12,24 +12,22 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-3.9 — Cross-sport compare view with projections for unplayed sports
-- **Status:** todo (not started)
-- **Started:** —
+- **Task:** T-3.10 and T-3.11 (both delegated to `sonnet`, in flight)
+- **Status:** in_progress
+- **Started:** 2026-07-28
 - **Branch commit:** (see `git log`)
 - **Done so far:**
-  - [x] T-3.1–T-3.6 — the athlete model, complete and wired into the sim's coupling
-  - [x] T-3.7 — profile editor (delegated to `sonnet`, reviewed and merged here)
-  - [x] T-3.8 — athlete card, explanations, rateable-sport catalogue, `/squad/athlete/:id`
-- **Next step:** T-3.9 is `sonnet`-delegable and most of its parts already exist:
-  `compareRow()` in `ui/components/athlete-card.ts`, `projectRatings()` in `derivation.ts`, and
-  `RATEABLE_SPORTS` in `sports/catalogue.ts`. It needs a screen, a route, and honest labelling of
-  which sports are projections. After that T-3.10/T-3.11 (both `sonnet`) can run in parallel —
-  but partition by file, and only one of them may touch `src/app/routes.ts`.
-- **Files touched:** src/athletes/{types,repository,tuning,attributes,create,derivation,familiarity,xp,progression,coupling,explain,portrait,presets}.ts,
-  src/sports/{types,catalogue}.ts, src/sports/basketball/{weights,xp,index}.ts,
-  src/sports/soccer/weights.ts, src/storage/{idb,app-db}.ts,
-  src/ui/components/{athlete-card.ts,athlete-card.css,attribute-sliders.ts,meters.ts},
-  src/ui/screens/{athlete.ts,athlete-editor.ts,athlete-editor.css}, src/app/routes.ts
+  - [x] T-3.1–T-3.9 — the athlete model, the card, the editor, and the compare view
+  - [x] T-3.11's *data model* — `src/teams/{types,repository}.ts`, settled and pushed before
+        delegating the screen (CLAUDE.md §7.3 rule 1)
+  - [ ] T-3.10 roster browser — agent owns `athletes/roster-query.ts`, `ui/screens/roster.*`
+  - [ ] T-3.11 team screens — agent owns `ui/components/crest.ts`, `ui/screens/team*`
+- **Next step:** review both agents' diffs against the spec (not their summaries), run
+  `pnpm -s verify` over the combined tree, wire their routes **here** — both agents were told not
+  to touch `src/app/routes.ts`, which is how the last round's conflict was avoided — then commit.
+- **Files touched:** src/athletes/**, src/teams/**, src/sports/{types,catalogue}.ts,
+  src/sports/basketball/{weights,xp,index}.ts, src/sports/soccer/weights.ts,
+  src/storage/{idb,app-db}.ts, src/ui/components/**, src/ui/screens/**, src/app/routes.ts
 - **Blockers:** none for Phase 3. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
   top of that debt, deliberately, and Gate 3 inherits it.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
@@ -54,7 +52,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
-| 3 | Athletes, cross-sport ratings, roster | 17 | 8 | `in_progress` | v0.2 |
+| 3 | Athletes, cross-sport ratings, roster | 17 | 9 | `in_progress` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
@@ -63,7 +61,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **52** | | |
+| | **Total** | **170** | **53** | | |
 
 ---
 
@@ -140,7 +138,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-3.6 | Behavioural coupling: familiarity → decision noise, control error, reaction penalty in-sim | M | `done` | | `tests/unit/athletes/coupling.test.ts`, `tests/integration/sports/basketball-coupling.test.ts` | `auto` + `pnpm balance` (500 games, 14 bands) | `05` §3.3's claim is behavioural, so it is tested behaviourally: four seeded matches with one side made novice and the other at home, **identical ratings on both**, asserting more turnovers, fewer completed passes, and fewer points. Four coupling points in the sim: decision noise on how a look is valued, degraded first touch on catches and intercepts, a slower per-step reaction on the pass decision, and a wider release-timing scatter. **The design constraint that shaped all of it: an at-home athlete must cost zero random draws.** Coupling fades to exactly nothing at 75 familiarity — below every athlete's own-sport 85 — so no call site draws for it, and the PRNG stream is byte-identical to before T-3.6 existed. There is a test asserting a coupled-at-100 match serialises identically to an uncoupled one; without that property every golden-seed determinism test would have broken for no behaviour change. This is **not** difficulty (CLAUDE.md §8.6): no attribute and no derived rating is touched. The map is empty until T-3.17 fills it. `pnpm balance` re-run after the change: all 14 bands pass, 75.5 points on 78.7 attempts at 36.5%, home win rate 44.2% — unchanged from T-2.13's run, which is the expected result and the point of the zero-draw property. |
 | T-3.7 | Profile editor: fields, presets/sliders/roll with live budget meter, photo capture + downscale | L | `done` | | `tests/unit/ui/athlete-editor.test.ts`, `tests/unit/athletes/{portrait,presets}.test.ts` | `auto` — diff reviewed against the spec, not against the agent's summary | **Delegated to `sonnet`** (CLAUDE.md §7.1); the agent owned an explicit file list, was told not to commit, and this session reviewed and committed. What worked: settling every interface first and pushing it, so the agent called `budgetState`/`judgeCreation`/`createAthlete` rather than reinventing the budget. Over-budget is a *conversation, not a block* — `judgeCreation`'s reason plus a "turn on Sandbox mode and save" action, per `05` §2.1. Photos are downscaled to a 512 px edge locally and never uploaded; the blob is produced but not yet persisted (`TODO(T-3.16)` — no blob store exists yet). **Two review findings:** the agent's first draft duplicated `explain.ts`'s label humaniser with its own table (it was briefed before `explain.ts` existed) — now sourced from `attributeLabels()`; and it correctly reported that the only failing tests were *this session's* fault, a missing `Purpose:`/`@story` in `athlete-card.css`. Verified independently rather than taken on trust. |
 | T-3.8 | Athlete card component: compact + full, sport switcher, familiarity ring, "why this rating" | L | `done` | | `tests/unit/ui/athlete-card.test.ts`, `tests/unit/ui/athlete-screen.test.ts`, `tests/unit/athletes/explain.test.ts` | `auto` — asserted on what the card *says*, not how it is laid out | The card computes no rating: it is handed derivation's output and the explanation beside it, so what a player reads and what the sim uses cannot drift. Sentences live in `athletes/explain.ts`, because a string built in a component is a string with no test — and under `10` §11 they are load-bearing, being the non-colour channel for every meter. The "why" is a `<details>`, so it is keyboard-operable and announced with no JavaScript of ours. `sports/catalogue.ts` separates **rateable** from **playable**: the sport switcher needs two rating tables, not two playable sports, and the card says which rather than implying soccer is a real matchup. **Two bugs found:** the familiarity ring computed its own rank in even fifths while `05` §3.3's bands are uneven, so the ring could read "Natural" beside text reading "Comfortable"; and several explanation strings said "1 points". Also added a router test — `/squad/athlete/new` and `/squad/athlete/:id` are both three segments, and if specificity ever stopped preferring the literal, creating an athlete would silently become "No such athlete". |
-| T-3.9 | Cross-sport compare view with projections for unplayed sports | M | `todo` | | | | |
+| T-3.9 | Cross-sport compare view with projections for unplayed sports | M | `done` | | `tests/unit/ui/athlete-compare.test.ts` | `auto` | Each row shows **two** numbers — what the athlete rates today and what they would rate once they knew the sport — because showing only one would either flatter every athlete or bury the feature. The projection is `derivation.ts`'s own arithmetic with familiarity pinned at the cap, not a separate estimate; a test asserts they agree, since a compare view disagreeing with the sim would be lying about a number the sim is about to use. Rows rank on **potential**, not on today's number: ranking on current sorts by which sport happens to have been played, which is a fact about the save file rather than about the athlete. Adds "about N matches to close it" from T-3.4's `matchesToReach`. |
 | T-3.10 | Roster browser: search, sort, filter, bulk select | M | `todo` | | | | |
 | T-3.11 | Teams: create/edit, name, colours, generic crests | M | `todo` | | | | |
 | T-3.12 | Lineup editor: formation diagram, drag-to-slot, position-fit warnings, auto-fill best | L | `todo` | | | | |
