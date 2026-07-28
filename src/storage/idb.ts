@@ -49,6 +49,16 @@ export const STORES: readonly StoreSpec[] = [
       { name: 'bySport', keyPath: 'sportId' },
     ],
   },
+  // Arcade personal bests and per-day state (T-4.4). One store, two record kinds distinguished by
+  // `kind`, because a "best" and a "day" are both small, both arcade, and both wanted together.
+  {
+    name: 'arcade',
+    keyPath: 'id',
+    indexes: [
+      { name: 'byKind', keyPath: 'kind' },
+      { name: 'byGame', keyPath: 'game' },
+    ],
+  },
   { name: 'settings', keyPath: null },
   { name: 'ledger', keyPath: 'custodyId' },
   { name: 'meta', keyPath: null },
@@ -62,8 +72,12 @@ export type StoreName = (typeof STORES)[number]['name'];
  * 2 — T-3.1: the `athletes` store's name index moved from `name` to `displayName`. Structural
  * only, so there is no entry in the data chain in `migrations.ts`: an index is derived from the
  * records, and rebuilding it changes nothing a backup would carry.
+ *
+ * 3 — T-4.4: the `arcade` store. A *new* store, so again structural only — there is no existing
+ * record whose shape changes, and an install that upgrades into it simply has no arcade history
+ * yet, which is the correct state for a player who has not played any.
  */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 /** Promisifies a request, preserving the DOM error rather than flattening it to a string. */
 export function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {

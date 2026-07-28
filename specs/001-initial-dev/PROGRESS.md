@@ -12,7 +12,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-4.3 — Arcade hub
+- **Task:** T-4.5 — Free Throw
 - **Status:** in_progress
 - **Started:** 2026-07-28
 - **Branch commit:** (see `git log`)
@@ -20,17 +20,21 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-4.1 — the arcade seam (`ArcadeGameDef`, `ArcadeHost`, `ArcadeSession`), the run host, star
         ratings, the catalogue
   - [x] T-4.2 — calibration, the four difficulty levels as data, INV-10 asserted three ways
+  - [x] T-4.4 — practice / scored / daily, the seeded daily challenge, challenge codes, and the
+        `arcade` record store
   - [ ] T-4.3 — hub grid, locked tiles, personal bests, athlete picker
-  - [ ] T-4.4 — practice / scored / daily, seeded daily challenge
   - [ ] T-4.5–4.9 — the five basketball games
   - [ ] T-4.10 — arcade → progression at a reduced rate
   - [ ] T-4.11 — hot-seat party rounds
   - [ ] T-4.12 — accessibility pass
   - [ ] T-4.13 — reward caps and the anti-farm verification (INV-12)
-- **Next step:** T-4.4 (modes and the daily challenge) then T-4.3's hub screen — the hub needs
-  personal-best storage, which T-4.4's daily state shares.
+- **Next step:** the five games (T-4.5–4.9) on top of `arcade/meter.ts`, then T-4.3's hub — the hub
+  is easier to build once there are real tiles to put in it. **Task order deviates from strict
+  numeric order here, deliberately:** T-4.3 depends only on T-4.1, but a hub grid written before the
+  games exist is a hub written against imagined tiles.
 - **Files touched:** `src/modes/difficulty.ts`, `src/modes/arcade/{types,session,scoring,
-  calibration,registry}.ts`, `src/achievements/ids.ts`, `src/sports/types.ts` (the `arcade` member).
+  calibration,registry,modes,daily,records,meter}.ts`, `src/achievements/ids.ts`,
+  `src/sports/types.ts` (the `arcade` member), `src/storage/idb.ts` (the `arcade` store).
 - **Blockers:** the device matrix and the deploy decision, unchanged since Gate 2 and now two gates deep. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
   top of that debt, deliberately, and Gate 3 inherits it.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
@@ -56,7 +60,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
-| 4 | Arcade framework + basketball arcade set | 13 | 2 | `in_progress` | v0.3 |
+| 4 | Arcade framework + basketball arcade set | 13 | 3 | `in_progress` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
@@ -64,7 +68,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **63** | | |
+| | **Total** | **170** | **64** | | |
 
 ---
 
@@ -158,7 +162,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-4.1 | Arcade framework: `ArcadeGameDef`, host, session lifecycle, scoring, star ratings | L | `done` | | `tests/unit/modes/arcade/{session,scoring,registry}.test.ts` | `auto` | **The split that decides everything downstream: a game owns a *mechanic*, the framework owns the run.** Lives, clock, score, streaks, stars, and event collection live in `ArcadeRun` once, because five games owning them five times is five places for the rules of a scored run to drift — and `09` §3.3 describes one structure for every game. A game reports `host.attempt({made, points, quality, label, events})` and never reads the score, so it cannot invent its own scoring. `ArcadeRun` is headless: no canvas, no DOM, stepped by a caller-supplied `dt`, which is what lets T-4.11 run several in turn and T-4.13 drive hundreds with synthetic input. Events carry no mode field and are stamped by the framework, so an arcade `score` is indistinguishable from a Live one (INV-9). The seam gained `SportModule.arcade?`, optional for the same reason `playbook` will be. `src/achievements/ids.ts` declares the ten unlock ids from `09` §3.2 — the vocabulary Phase 8 will evaluate against; all ten are earned by playing. |
 | T-4.2 | Calibration: ratings + familiarity → window sizes and speeds (INV-10) | M | `done` | | `tests/unit/modes/arcade/calibration.test.ts`, `tests/invariants/inv-10-arcade-calibration.test.ts` | `auto` | **INV-10 is a signature, not a convention.** `calibrate(athlete, difficulty)` has no parameter through which a personal best could arrive, and the invariant test asserts that three ways: behaviourally (identical inputs, identical window, forever), structurally (the module imports nothing matching `storage|bests|history|session`), and textually (no `calibrate()` anywhere in `src/` takes a third argument). Six interpolated pairs turn a rating into `09` §2.4's two poles — "wide, slow, forgiving" against "narrow, fast, drifting" — and a game may reshape them without changing their direction. **Difficulty enters exactly once, at the end, on the window and the reaction allowance only** (INV-1); the rating that goes in is the rating the athlete card shows, on every level. `src/modes/difficulty.ts` is new: `06` §7's table read straight across, with no field a rating could be multiplied by, so INV-1 holds by the shape of the record before a test looks at it. T-7.7 owns the full model and will extend it. The picker's hint names *both* halves — "Narrow window — new to this sport." — because narrow without the reason reads as a punishment rather than as the thing practice fixes. |
 | T-4.3 | Arcade hub: grid, locked/unlocked states, personal bests, athlete picker with window hint | M | `todo` | | | | |
-| T-4.4 | Practice / scored / daily modes; seeded daily challenge | M | `todo` | | | | |
+| T-4.4 | Practice / scored / daily modes; seeded daily challenge | M | `done` | | `tests/unit/modes/arcade/{modes,daily}.test.ts`, `tests/integration/storage/arcade-records.test.ts` | `auto` — codes round-tripped, day boundary asserted in UTC | **Modifiers are applied outside `calibrate()`, deliberately.** A modifier is a fact about today's scenario — the same for everyone — while a calibration is a fact about the athlete; folding them together would widen INV-10's signature to admit something that is not the athlete, and the next thing through that door is a personal best. So `startRun()` calibrates first and applies the day's twists on top, and it is the one door every arcade entry point uses. **The daily rolls its own athlete.** "Identical for everyone" and "played with your own squad" cannot both be true and US-16.4 picks the first, so the day's seed rolls a `rare` athlete in the game's own sport: everyone plays the same person, and the challenge measures the run rather than the collection. **The day boundary is UTC** — a local one means two players disagree about which challenge is today's, and a code shared across a timezone resolves to a different run at each end; the screen will say so rather than implying it follows your clock. Challenge codes are Crockford base32 (no `I`/`L`/`O`/`U`) with a two-character checksum, so a mistyped code fails immediately instead of starting the wrong run; the format is versioned (`SG1`) so T-10.1 can extend the payload without invalidating codes already in someone's messages. New `arcade` IndexedDB store, `DB_VERSION` 2 → 3 — a *new* store, so structural only and no entry in the data chain, same as T-3.1's index fix. Backups pick it up with no change, since `backup.ts` walks `STORES`. |
 | T-4.5 | Free Throw — release timing under mounting pressure | M | `todo` | | | | |
 | T-4.6 | Three-Point Contest — five racks, rhythm and timing, 60 s | M | `todo` | | | | |
 | T-4.7 | Buzzer Beater — contested shot, shrinking window | M | `todo` | | | | |

@@ -62,6 +62,20 @@ function anyInput(frame: InputFrame): boolean {
 }
 
 /**
+ * What the mode layer (T-4.4) may change about a run *after* the athlete has been calibrated.
+ *
+ * Daily modifiers live here rather than inside `calibrate()` on purpose: a modifier is part of the
+ * scenario — the same for everyone who plays that day — and letting it reach the calibration call
+ * would widen INV-10's signature to admit things that are not the athlete. Calibration answers "how
+ * good is this athlete at this"; this answers "and what is different about today".
+ */
+export interface ArcadeRunOverrides {
+  readonly calibration?: ArcadeCalibration;
+  /** Multiplier on every point scored. `1` unless a modifier says otherwise. */
+  readonly scoreMultiplier?: number;
+}
+
+/**
  * One run of one mini-game. Construct, `step()` until `finished`, read `view()` whenever you want
  * to draw, and take `result()` when it is over.
  */
@@ -87,13 +101,15 @@ export class ArcadeRun implements ArcadeHost {
   private bestStreakValue = 0;
   private outcome: ArcadeOutcome | null = null;
   private endReason: ArcadeEndReason = 'complete';
+  private readonly scoreMultiplier: number;
 
-  constructor(game: ArcadeGameDef, config: ArcadeConfig) {
+  constructor(game: ArcadeGameDef, config: ArcadeConfig, overrides: ArcadeRunOverrides = {}) {
     this.game = game;
     this.config = config;
     this.rules = rulesFor(game, config);
     this.livesLeft = this.rules.lives;
-    this.calibration = game.calibrate(config.athlete, config.difficulty);
+    this.calibration = overrides.calibration ?? game.calibrate(config.athlete, config.difficulty);
+    this.scoreMultiplier = Math.max(0, overrides.scoreMultiplier ?? 1);
 
     // The session gets its own stream, forked by label rather than by position, so adding a draw
     // from the framework can never shift the game's own sequence (`engine/rng.ts`, INV-8).
@@ -118,8 +134,9 @@ export class ArcadeRun implements ArcadeHost {
   attempt(attempt: ArcadeAttempt): void {
     if (this.phase !== 'running') return;
 
+    const points = Math.round(Math.max(0, attempt.points) * this.scoreMultiplier);
     this.attemptCount++;
-    this.scoreValue += Math.max(0, attempt.points);
+    this.scoreValue += points;
 
     if (attempt.made) {
       this.madeCount++;
@@ -136,7 +153,7 @@ export class ArcadeRun implements ArcadeHost {
       made: attempt.made,
       label: attempt.label,
       quality: attempt.quality,
-      points: Math.max(0, attempt.points),
+      points,
     };
 
     // The framework stamps the step, so an arcade event is indistinguishable in shape from a Live
@@ -150,7 +167,7 @@ export class ArcadeRun implements ArcadeHost {
 
   bonus(points: number, label = 'Bonus'): void {
     if (this.phase !== 'running') return;
-    const gained = Math.max(0, points);
+    const gained = Math.round(Math.max(0, points) * this.scoreMultiplier);
     this.scoreValue += gained;
     this.outcome = { made: true, label, quality: 1, points: gained };
   }

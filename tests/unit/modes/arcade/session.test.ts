@@ -144,11 +144,11 @@ describe('scoring and lives', () => {
   });
 
   it('ignores attempts and bonuses outside the running phase', () => {
-    let host: ArcadeHost | null = null;
+    const hosts: ArcadeHost[] = [];
     const run = new ArcadeRun(
       fakeGame({
-        onUpdate: (h) => {
-          host = h;
+        onUpdate: (host) => {
+          hosts.push(host);
         },
       }),
       arcadeConfig(),
@@ -157,8 +157,8 @@ describe('scoring and lives', () => {
     run.step(EMPTY_FRAME, 1 / 60);
     run.quit();
 
-    host?.attempt(madeAttempt(99));
-    host?.bonus(99);
+    hosts[0]?.attempt(madeAttempt(99));
+    hosts[0]?.bonus(99);
     expect(run.view().score).toBe(0);
   });
 });
