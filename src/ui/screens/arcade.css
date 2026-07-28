@@ -210,3 +210,48 @@ button.arcade-tile:focus-visible {
   position: absolute;
   width: 100%;
 }
+
+/* ── Party set-up (T-4.11) ─────────────────────────────────────────────── */
+
+.arcade__party-panel {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  padding: var(--space-12);
+}
+
+.arcade__party-panel > summary {
+  cursor: pointer;
+  min-height: var(--target-min);
+  padding: var(--space-8) 0;
+}
+
+.arcade__party-panel > *:not(summary) {
+  margin-top: var(--space-8);
+}
+
+.arcade__seats {
+  display: grid;
+  gap: var(--space-8);
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+}
+
+.arcade__seat-input {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  color: var(--text-hi);
+  font: inherit;
+  min-height: var(--target-min);
+  padding: var(--space-8);
+  width: 100%;
+}
+
+.arcade-run__standings {
+  display: grid;
+  font-size: var(--text-16);
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

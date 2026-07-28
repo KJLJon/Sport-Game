@@ -21,6 +21,7 @@ import { CURRENT_SCHEMA_VERSION } from '../../../src/storage/migrations.ts';
 import { ArcadeRepository } from '../../../src/modes/arcade/records.ts';
 import { newSportSkill } from '../../../src/athletes/types.ts';
 import { athlete, attributes } from '../../helpers/athletes.ts';
+import { forgetPlayers, loadPlayers } from '../../../src/modes/local-players.ts';
 
 function context(navigate = vi.fn()) {
   const host = document.createElement('div');
@@ -195,5 +196,63 @@ describe('the daily challenge card (US-16.4)', () => {
     practice!.checked = true;
     practice!.dispatchEvent(new Event('change', { bubbles: true }));
     expect(ctx.host.querySelector('.arcade__lede')?.textContent).toContain('Unlimited');
+  });
+});
+
+describe('the party set-up (T-4.11, US-17.2)', () => {
+  it('is closed and out of the way for a solo player', async () => {
+    const { athletes } = await appDatabase();
+    await athletes.put(athlete({ id: 'a1' }));
+
+    const ctx = context();
+    await arcadeScreen().mount(ctx);
+
+    const panel = ctx.host.querySelector('.arcade__party-panel');
+    expect(panel).not.toBeNull();
+    expect(panel?.hasAttribute('open')).toBe(false);
+    expect(ctx.host.querySelector('.arcade__seats')).toBeNull();
+  });
+
+  it('offers a name field per seat once a party is chosen', async () => {
+    const { athletes } = await appDatabase();
+    await athletes.put(athlete({ id: 'a1' }));
+
+    const ctx = context();
+    await arcadeScreen().mount(ctx);
+
+    const three = ctx.host.querySelector<HTMLInputElement>('#arcade-seats-3');
+    three!.checked = true;
+    three!.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(ctx.host.querySelectorAll('.arcade__seat-input')).toHaveLength(3);
+    expect(ctx.host.querySelector('#arcade-format-elimination')).not.toBeNull();
+  });
+
+  it('carries the party into the run, and remembers the names', async () => {
+    const { athletes } = await appDatabase();
+    await athletes.put(athlete({ id: 'a1' }));
+
+    const navigate = vi.fn();
+    const ctx = context(navigate);
+    await arcadeScreen().mount(ctx);
+
+    const two = ctx.host.querySelector<HTMLInputElement>('#arcade-seats-2');
+    two!.checked = true;
+    two!.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const first = ctx.host.querySelector<HTMLInputElement>('.arcade__seat-input');
+    first!.value = 'Ana';
+    first!.dispatchEvent(new Event('input'));
+
+    tiles(ctx.host)[0]?.dispatchEvent(new Event('click'));
+
+    expect(navigate).toHaveBeenCalledWith('/play/arcade/bball.free-throw', {
+      mode: 'scored',
+      athlete: 'a1',
+      party: '2',
+      format: 'rounds',
+    });
+    expect(loadPlayers()[0]?.name).toBe('Ana');
+    forgetPlayers();
   });
 });

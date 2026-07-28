@@ -29,6 +29,19 @@ import { arcadeCatalogue, findGame } from '../../modes/arcade/registry.ts';
 import { dailyChallenge, dailyConfig, dateKey } from '../../modes/arcade/daily.ts';
 import { startRun } from '../../modes/arcade/modes.ts';
 import { ArcadeRepository } from '../../modes/arcade/records.ts';
+import {
+  PARTY_FORMATS,
+  currentTurn,
+  partyWinner,
+  passPrompt,
+  recordTurn,
+  standings,
+  startParty,
+  turnConfig,
+  type PartyFormat,
+  type PartyState,
+} from '../../modes/arcade/party.ts';
+import { PARTY_LIMITS, seatPlayers } from '../../modes/local-players.ts';
 import { arcadeProgression, progressionSummary } from '../../modes/arcade/progression.ts';
 import { accuracy } from '../../modes/arcade/scoring.ts';
 import {
@@ -123,7 +136,12 @@ export function arcadeGameScreen(): Screen {
         reducedMotion: prefersReducedMotion(view),
       };
 
-      let run = startRun(game, config);
+      /**
+       * A party, or `null` for a solo run. Everything about the party — the shared seed, the shared
+       * athlete, the order, the ranking — is `party.ts`'s; this screen only shows whose turn it is.
+       */
+      let party: PartyState | null = buildParty(game, config, context.query);
+      let run = startRun(game, party === null ? config : (turnConfig(party) ?? config));
       let recorded = false;
       /** What the finished run was worth to the athlete (US-16.5). Filled in when the run ends. */
       let learned = 'Practice runs are not scored or rewarded.';
@@ -197,8 +215,15 @@ export function arcadeGameScreen(): Screen {
         const state = run.view();
 
         if (state.phase === 'ready') {
+          const turn = party === null ? null : currentTurn(party);
           overlay.replaceChildren(
-            el(doc, 'p', { class: 'arcade-run__prompt', text: state.prompt }),
+            turn === null
+              ? el(doc, 'p', { class: 'arcade-run__prompt', text: state.prompt })
+              : el(doc, 'p', {
+                  class: 'arcade-run__prompt',
+                  text: passPrompt(turn, game.id),
+                }),
+            el(doc, 'p', { text: state.prompt }),
             el(doc, 'p', { text: state.calibration.hint }),
             el(doc, 'p', { text: 'Tap anywhere to start.' }),
           );
@@ -221,6 +246,11 @@ export function arcadeGameScreen(): Screen {
               onClick: () => run.quit(),
             }),
           );
+          return;
+        }
+
+        if (party !== null) {
+          renderPartyOver();
           return;
         }
 
@@ -254,6 +284,60 @@ export function arcadeGameScreen(): Screen {
         );
       };
 
+      /** The between-turns and end-of-party screens. */
+      const renderPartyOver = (): void => {
+        if (party === null) return;
+        const result = run.result();
+
+        if (!party.finished) {
+          const next = currentTurn(party);
+          overlay.replaceChildren(
+            el(doc, 'p', { class: 'arcade-run__prompt', text: `${result?.score ?? 0} points` }),
+            el(doc, 'p', { text: next === null ? '' : passPrompt(next, game.id) }),
+          );
+          actions.replaceChildren(
+            button(doc, {
+              label: 'Ready',
+              variant: 'primary',
+              onClick: () => {
+                const config = turnConfig(party!);
+                if (config === null) return;
+                run = startRun(game, config);
+                recorded = false;
+                renderHud();
+                renderOverlay();
+              },
+            }),
+          );
+          return;
+        }
+
+        const winner = partyWinner(party);
+        overlay.replaceChildren(
+          el(doc, 'p', {
+            class: 'arcade-run__prompt',
+            text: winner === null ? 'Tied at the top' : `${winner.name} wins`,
+          }),
+          el(doc, 'ol', {
+            class: 'arcade-run__standings',
+            children: standings(party).map((row) =>
+              el(doc, 'li', {
+                text: `${row.place}. ${row.player.name} — ${row.total.toLocaleString('en-GB')}${
+                  row.eliminated ? ' (out)' : ''
+                }`,
+              }),
+            ),
+          }),
+        );
+        actions.replaceChildren(
+          button(doc, {
+            label: 'Back to the arcade',
+            variant: 'primary',
+            onClick: () => context.navigate('/play/arcade'),
+          }),
+        );
+      };
+
       /**
        * Files the finished run: the personal best, and what the athlete learned from it (T-4.10).
        * Practice never reaches storage — `recordRun` and `arcadeProgression` both refuse it, which
@@ -263,6 +347,14 @@ export function arcadeGameScreen(): Screen {
         const result = run.result();
         if (result === null || recorded) return;
         recorded = true;
+
+        // A party turn is a contest between people on one shared athlete; it does not touch that
+        // athlete's progression or anyone's personal best, because the athlete is not theirs.
+        if (party !== null) {
+          party = recordTurn(party, result);
+          renderPartyOver();
+          return;
+        }
 
         const progress = arcadeProgression({
           result,
@@ -329,6 +421,35 @@ export function arcadeGameScreen(): Screen {
       host = null;
     },
   };
+}
+
+/**
+ * A party from the query, or `null`. `party=<seats>` is all it takes: the names come from what the
+ * device remembers (US-17.3) and the athlete is the one already chosen, so everybody plays the same
+ * person on the same seeds — the two halves of `09` §4's fairness.
+ */
+function buildParty(
+  game: ArcadeGameDef,
+  config: ArcadeConfig,
+  query: Readonly<Record<string, string>>,
+): PartyState | null {
+  const seats = Number.parseInt(query['party'] ?? '', 10);
+  if (!Number.isFinite(seats) || seats < PARTY_LIMITS.min) return null;
+
+  const requested = query['format'] ?? 'rounds';
+  const format: PartyFormat = (PARTY_FORMATS as readonly string[]).includes(requested)
+    ? (requested as PartyFormat)
+    : 'rounds';
+
+  return startParty({
+    game: game.id,
+    players: seatPlayers(seats),
+    format,
+    rounds: 3,
+    seed: `party:${game.id}:${Date.now().toString(36)}`,
+    athlete: config.athlete,
+    difficulty: config.difficulty,
+  });
 }
 
 /**

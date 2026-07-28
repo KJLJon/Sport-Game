@@ -12,7 +12,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-4.11 — Arcade hot-seat
+- **Task:** T-4.12 — Arcade accessibility
 - **Status:** in_progress
 - **Started:** 2026-07-28
 - **Branch commit:** (see `git log`)
@@ -26,11 +26,11 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
         measurement that tunes their star thresholds
   - [x] T-4.3 — hub grid, locked tiles, personal bests, athlete picker, and the run screen
   - [x] T-4.10 — arcade → progression at a reduced rate
-  - [ ] T-4.11 — hot-seat party rounds
+  - [x] T-4.11 — hot-seat party rounds, elimination, and local player names
   - [ ] T-4.12 — accessibility pass
   - [ ] T-4.13 — reward caps and the anti-farm verification (INV-12)
-- **Next step:** T-4.11 (hot-seat party rounds), T-4.12 (accessibility), T-4.13 (reward caps and the
-  INV-12 anti-farm check), then Gate 4. **Task order deviated from strict numeric order,
+- **Next step:** T-4.12 (accessibility), T-4.13 (reward caps and the INV-12 anti-farm check), then
+  Gate 4. **Task order deviated from strict numeric order,
   deliberately:** T-4.3 depends only on T-4.1, but a hub grid written before the games exist is a hub
   written against imagined tiles.
 - **Delegation:** none. `CLAUDE.md` §7.1 marks T-4.3 and T-4.5–4.9 as `sonnet` candidates; this
@@ -65,7 +65,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
-| 4 | Arcade framework + basketball arcade set | 13 | 10 | `in_progress` | v0.3 |
+| 4 | Arcade framework + basketball arcade set | 13 | 11 | `in_progress` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
@@ -73,7 +73,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **71** | | |
+| | **Total** | **170** | **72** | | |
 
 ---
 
@@ -174,7 +174,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-4.8 | Fast Break — finish past a recovering defender | M | `done` | | `tests/unit/sports/basketball/arcade/{games,rules}.test.ts`, `tests/sim/arcade-calibration.test.ts` | `auto` — score profiles measured across four athlete tiers with a human-like driver | The one game where the meter reads as a *place* rather than a moment: the marker is the athlete running at the rim, the band is where the layup is on, and the recovering defender shuts its late edge. Same arithmetic as the other three, different reading — and the reading is what makes `courtSpeed` matter, since a quicker athlete arrives with more of the window still open. A dunk needs a clean look *and* a clean release; an and-one needs the defender genuinely on you, which is the reason to hold. |
 | T-4.9 | Pickpocket — reaction test, jump the lane without fouling | M | `done` | | `tests/unit/sports/basketball/arcade/{games,rules}.test.ts`, `tests/sim/arcade-calibration.test.ts` | `auto` — score profiles measured across four athlete tiers with a human-like driver | The only game in the set that is not a release meter, and the one that forced an honest test harness. **A fixed quarter-second tell, identical for every athlete** — a great defender does not see the pass sooner, they have longer to act on it, which is `perimeterD` setting the lane's duration. Fouling is the only thing that costs a life; letting a pass through costs the possession and nothing else, because punishing patience would teach exactly the wrong instinct for the behaviour being practised. Most of the score is the *earliness* bonus rather than the base, since everyone who reacts at all gets the ball. |
 | T-4.10 | Arcade → progression: XP, familiarity, `SportEvent` emission at reduced rate | M | `done` | | `tests/unit/modes/arcade/progression.test.ts` | `auto` | **The reduced rate is a number, not a branch.** `applyMatch` already took a `rate` scalar for exactly this (T-3.5's note), so arcade pays less without progression ever learning arcade exists (INV-6); there is a test asserting no `if` in `progression.ts` mentions it. **Why 0.6 and not something much lower.** A run is already about a twentieth of a match in wall time, so the rate multiplies something small — a rate low enough to make practising take five hundred runs would satisfy `09` §7's "least per minute" and quietly break §3.4's promise that practice *genuinely* helps. At 0.6, roughly twenty runs are worth a match's learning. **A real bug this found:** the games were emitting zones of their own invention (`aboveBreakThree`, `rim`, `dunk`), none of which appear in `BASKETBALL_XP_AWARDS` — every arcade shot would have trained nothing at all, silently. They now use basketball's own vocabulary, the Three-Point racks map to corner/wing/top exactly as the real spots do, and a test asserts every zone the arcade set emits is one the award table knows. Practice pays nothing, checked here rather than trusted to the caller, because "unlimited and unrewarded" is the sentence that makes unlimited safe. |
-| T-4.11 | Arcade hot-seat: party rounds, seeded fairness, ranking, elimination formats | M | `todo` | | | | |
+| T-4.11 | Arcade hot-seat: party rounds, seeded fairness, ranking, elimination formats | M | `done` | | `tests/unit/modes/arcade/party.test.ts`, `tests/unit/modes/local-players.test.ts`, `tests/unit/ui/{arcade,arcade-game}.test.ts` | `auto` | **Seeded fairness has two halves and the second is the one that is easy to miss.** Everyone in a round plays the same seed — that is `09` §4 read literally — *and* everyone plays the same athlete. An arcade window is calibrated to the athlete (INV-10), so letting each player bring their own would make the winner whoever owns the better card; a party is a contest between people, not between collections, so it picks one athlete exactly as the daily does. **Elimination ties send everyone tied at the bottom out together**, unless that would be everybody, in which case nobody goes and the field replays: knocking out one arbitrary player from a three-way tie would make the format depend on seating order, and a tie for last is precisely the moment a party is watching. Standings rank on total, then on best single round, then on seating — a tie broken by something a player did rather than by nothing. Local player names live in preferences, not the database (`08` Q-13, US-17.3): they are labels on seats rather than save slots, they never enter a backup or a P2P handshake, and there is nowhere for them to leak from. A party turn deliberately touches **no** personal best and **no** progression — the athlete is not the player's. |
 | T-4.12 | Arcade accessibility: left-hand mirroring, colour-independent meters, reduced motion | M | `todo` | | | | |
 | T-4.13 | Arcade balance: daily reward caps, anti-farm verification (INV-12) | M | `todo` | | | | |
 

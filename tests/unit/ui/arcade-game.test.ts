@@ -17,6 +17,7 @@ import { arcadeGameScreen } from '../../../src/ui/screens/arcade-game.ts';
 import { appDatabase, closeAppDatabase } from '../../../src/storage/app-db.ts';
 import { deleteDatabase } from '../../../src/storage/idb.ts';
 import { athlete } from '../../helpers/athletes.ts';
+import { forgetPlayers, savePlayers } from '../../../src/modes/local-players.ts';
 
 // jsdom has no 2D context and logs loudly when asked for one. The screen already treats `null` as
 // "draw nothing"; stubbing it here keeps the suite's output about failures rather than about jsdom.
@@ -132,5 +133,51 @@ describe('the run screen', () => {
       screen.unmount?.();
       screen.unmount?.();
     }).not.toThrow();
+  });
+});
+
+describe('a party run (T-4.11)', () => {
+  afterEach(() => {
+    forgetPlayers();
+  });
+
+  it('names whose turn it is before the first run', async () => {
+    savePlayers([
+      { id: 'p1', name: 'Ana' },
+      { id: 'p2', name: 'Dad' },
+    ]);
+
+    const ctx = context({ id: 'bball.free-throw' }, { athlete: 'a1', party: '2' });
+    const screen = arcadeGameScreen();
+    await screen.mount(ctx);
+
+    expect(ctx.host.querySelector('.arcade-run__overlay')?.textContent).toContain('Pass to Ana');
+    screen.unmount?.();
+  });
+
+  it('ignores a party of one and plays it solo', async () => {
+    const ctx = context({ id: 'bball.free-throw' }, { athlete: 'a1', party: '1' });
+    const screen = arcadeGameScreen();
+    await screen.mount(ctx);
+
+    expect(ctx.host.querySelector('.arcade-run__overlay')?.textContent).not.toContain('Pass to');
+    screen.unmount?.();
+  });
+
+  it('ignores a format it does not know rather than refusing to start', async () => {
+    savePlayers([
+      { id: 'p1', name: 'Ana' },
+      { id: 'p2', name: 'Dad' },
+    ]);
+
+    const ctx = context(
+      { id: 'bball.free-throw' },
+      { athlete: 'a1', party: '2', format: 'battle-royale' },
+    );
+    const screen = arcadeGameScreen();
+    await screen.mount(ctx);
+
+    expect(ctx.host.querySelector('.arcade-run')).not.toBeNull();
+    screen.unmount?.();
   });
 });

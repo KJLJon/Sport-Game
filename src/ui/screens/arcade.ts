@@ -31,6 +31,14 @@ import { ARCADE_MODE_BLURBS } from '../../modes/arcade/modes.ts';
 import { earnedAchievements, unlockStates } from '../../modes/arcade/unlocks.ts';
 import { ArcadeRepository, type ArcadeBest } from '../../modes/arcade/records.ts';
 import { ARCADE_MODES, type ArcadeGameDef, type ArcadeMode } from '../../modes/arcade/types.ts';
+import { PARTY_FORMATS, type PartyFormat } from '../../modes/arcade/party.ts';
+import {
+  PARTY_LIMITS,
+  loadPlayers,
+  renamePlayer,
+  savePlayers,
+  seatPlayers,
+} from '../../modes/local-players.ts';
 import { appDatabase } from '../../storage/app-db.ts';
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { button } from '../components/button.ts';
@@ -91,6 +99,10 @@ export function arcadeScreen(): Screen {
 
       let mode: ArcadeMode = 'scored';
       let chosen: Athlete | undefined = athletes[0];
+      /** Party seats, or `0` for a solo run. Remembered names fill the seats (US-17.3). */
+      let seats = 0;
+      let format: PartyFormat = 'rounds';
+      let players = seatPlayers(PARTY_LIMITS.min, loadPlayers());
 
       const section = el(doc, 'section', { class: 'arcade' });
       const grid = el(doc, 'div', { class: 'arcade__grid' });
@@ -99,6 +111,11 @@ export function arcadeScreen(): Screen {
       const play = (game: ArcadeGameDef): void => {
         const query: Record<string, string> = { mode };
         if (chosen !== undefined && mode !== 'daily') query['athlete'] = chosen.id;
+        if (seats >= PARTY_LIMITS.min) {
+          savePlayers(players);
+          query['party'] = String(seats);
+          query['format'] = format;
+        }
         context.navigate(`/play/arcade/${game.id}`, query);
       };
 
@@ -237,6 +254,84 @@ export function arcadeScreen(): Screen {
         );
       };
 
+      const partyHost = el(doc, 'div', { class: 'arcade__party' });
+
+      /**
+       * The party set-up. A `<details>`, because a solo player should not have to read past it, and
+       * because open/closed is exactly the state "am I playing with other people" needs.
+       */
+      const renderParty = (): void => {
+        const nameFields = players.map((player, index) =>
+          el(doc, 'label', {
+            class: 'arcade__seat',
+            children: [
+              el(doc, 'span', { class: 'sr-only', text: `Player ${index + 1} name` }),
+              el(doc, 'input', {
+                class: 'arcade__seat-input',
+                attrs: { type: 'text', value: player.name, maxlength: 16 },
+                on: {
+                  input: (event) => {
+                    players = renamePlayer(
+                      players,
+                      player.id,
+                      (event.target as HTMLInputElement).value,
+                    );
+                  },
+                },
+              }),
+            ],
+          }),
+        );
+
+        partyHost.replaceChildren(
+          el(doc, 'details', {
+            class: 'arcade__party-panel',
+            attrs: { open: seats >= PARTY_LIMITS.min },
+            children: [
+              el(doc, 'summary', { text: 'Play with other people on this device' }),
+              el(doc, 'p', {
+                class: 'arcade__picker-note',
+                text: 'Everyone takes the same seeded run with the same athlete, then the scores are ranked.',
+              }),
+              segmented(doc, {
+                legend: 'How many players',
+                name: 'arcade-seats',
+                value: String(seats),
+                options: [
+                  { value: '0', label: 'Just me' },
+                  ...Array.from({ length: PARTY_LIMITS.max - PARTY_LIMITS.min + 1 }, (_, i) => {
+                    const count = PARTY_LIMITS.min + i;
+                    return { value: String(count), label: `${count}` };
+                  }),
+                ],
+                onChange: (value) => {
+                  seats = Number.parseInt(value, 10);
+                  if (seats >= PARTY_LIMITS.min) players = seatPlayers(seats, players);
+                  renderParty();
+                },
+              }),
+              seats >= PARTY_LIMITS.min
+                ? segmented(doc, {
+                    legend: 'Format',
+                    name: 'arcade-format',
+                    value: format,
+                    options: PARTY_FORMATS.map((value) => ({
+                      value,
+                      label: value === 'rounds' ? 'Best of 3' : 'Elimination',
+                    })),
+                    onChange: (value) => {
+                      format = value;
+                    },
+                  })
+                : null,
+              seats >= PARTY_LIMITS.min
+                ? el(doc, 'div', { class: 'arcade__seats', children: nameFields })
+                : null,
+            ],
+          }),
+        );
+      };
+
       section.append(
         el(doc, 'p', { class: 'arcade__lede', text: ARCADE_MODE_BLURBS[mode] }),
         segmented(doc, {
@@ -253,10 +348,12 @@ export function arcadeScreen(): Screen {
           },
         }),
         hintHost,
+        partyHost,
         grid,
       );
 
       renderPicker();
+      renderParty();
       renderGrid();
       context.host.replaceChildren(section);
       cleanup = () => {
