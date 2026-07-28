@@ -1,0 +1,259 @@
+/**
+ * @spec 001-initial-dev · @phase 3 · @task T-3.8 — Athlete card
+ * @design 10-ui-ux.md §6 (the athlete card), §3.1 (palette), §11 (accessibility)
+ *
+ * The rarity frame is the card's one piece of ornament, and it is the only thing here that is
+ * purely decorative — every card also names its rarity in text, so the tier never depends on
+ * telling gold from bronze (`10` §11). Rarity hues are derived from the existing palette rather
+ * than added to it, so light and dark themes both follow without a second table to keep in step.
+ */
+
+.athlete-card {
+  --rarity-edge: var(--border);
+  --rarity-glow: transparent;
+
+  background: var(--surface-1);
+  border: 1px solid var(--rarity-edge);
+  border-radius: var(--radius-12);
+  box-shadow:
+    0 0 0 1px var(--rarity-glow) inset,
+    var(--elevation-1);
+  color: var(--text-hi);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-16);
+  gap: var(--space-12);
+  padding: var(--space-16);
+}
+
+.athlete-card[data-rarity='uncommon'] {
+  --rarity-edge: var(--accent);
+}
+
+.athlete-card[data-rarity='rare'] {
+  --rarity-edge: var(--info);
+}
+
+.athlete-card[data-rarity='epic'] {
+  --rarity-edge: color-mix(in srgb, var(--info) 55%, var(--danger));
+  --rarity-glow: color-mix(in srgb, var(--rarity-edge) 25%, transparent);
+}
+
+.athlete-card[data-rarity='legendary'] {
+  --rarity-edge: var(--accent-alt);
+  --rarity-glow: color-mix(in srgb, var(--rarity-edge) 35%, transparent);
+}
+
+.athlete-card--compact {
+  align-items: center;
+  display: grid;
+  gap: var(--space-12);
+  grid-template-columns: auto 1fr auto auto;
+}
+
+.athlete-card--compact .athlete-card__band {
+  color: var(--text-lo);
+  font-size: var(--text-12);
+  grid-column: 1 / -1;
+}
+
+.athlete-card__portrait {
+  align-items: center;
+  aspect-ratio: 1;
+  background: var(--surface-2);
+  border-radius: var(--radius-full);
+  display: flex;
+  font-weight: 600;
+  justify-content: center;
+  width: 48px;
+}
+
+.athlete-card--full .athlete-card__portrait {
+  font-size: var(--text-20);
+  width: 72px;
+}
+
+.athlete-card__header {
+  align-items: start;
+  display: grid;
+  gap: var(--space-12);
+  grid-template-columns: auto 1fr auto;
+}
+
+.athlete-card__name {
+  font-size: var(--text-20);
+  margin: 0;
+}
+
+.athlete-card__meta,
+.athlete-card__physical,
+.athlete-card__provenance,
+.athlete-card__minutes,
+.athlete-card__empty-note,
+.athlete-card__sandbox,
+.athlete-card__unplayable {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  margin: 0;
+}
+
+.athlete-card__overall {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  min-width: 3.5rem;
+}
+
+.athlete-card__overall-value {
+  font-size: var(--text-32);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.athlete-card__overall-label,
+.athlete-card__chip {
+  color: var(--text-lo);
+  font-size: var(--text-12);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.athlete-card__chip {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  display: inline-block;
+  padding: 2px var(--space-8);
+}
+
+/*
+ * The radio carries the semantics; the label is the target, so the whole pill is tappable at the
+ * 44 px minimum (CLAUDE.md §8.11).
+ */
+.athlete-card__switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.athlete-card__switcher-option {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: inline-flex;
+  gap: var(--space-8);
+  min-height: var(--target-min);
+  padding: 0 var(--space-12);
+}
+
+.athlete-card__switcher-option:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.athlete-card__switcher-option:has(.athlete-card__switcher-input:checked) {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+.athlete-card__switcher-input:checked + span {
+  font-weight: 600;
+}
+
+.athlete-card__familiarity {
+  align-items: center;
+  display: flex;
+  gap: var(--space-12);
+}
+
+.athlete-card__familiarity-line,
+.athlete-card__ceiling {
+  margin: 0;
+}
+
+.athlete-card__ratings,
+.athlete-card__development,
+.athlete-card__positions,
+.athlete-card__traits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.athlete-card__ratings h3,
+.athlete-card__development h3,
+.athlete-card__positions h3,
+.athlete-card__traits h3 {
+  font-size: var(--text-12);
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.athlete-card__rating-summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  min-height: var(--target-min);
+}
+
+.athlete-card__why {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  margin: 0;
+  padding: var(--space-8) 0 var(--space-12) var(--space-16);
+}
+
+.athlete-card__positions ul,
+.athlete-card__traits ul,
+.athlete-card__subskills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.athlete-card__position,
+.athlete-card__trait,
+.athlete-card__subskills li {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: var(--text-14);
+  padding: var(--space-4) var(--space-8);
+}
+
+/* The out-of-position warning is a dashed edge as well as a hue — shape, not colour (`10` §11). */
+.athlete-card__position[data-warn='true'] {
+  border-color: var(--accent-alt);
+  border-style: dashed;
+}
+
+.compare-row {
+  align-items: center;
+  display: grid;
+  gap: var(--space-12);
+  grid-template-columns: 7rem 1fr 3rem auto;
+}
+
+.compare-row__value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.compare-row__note {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+@media (width <= 480px) {
+  .athlete-card__header {
+    grid-template-columns: auto 1fr;
+  }
+
+  .compare-row {
+    grid-template-columns: 1fr auto;
+  }
+}

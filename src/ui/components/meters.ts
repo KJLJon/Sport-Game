@@ -123,6 +123,13 @@ export interface FamiliarityRingOptions {
   readonly value: number;
   readonly sport: string;
   readonly size?: number;
+  /**
+   * Overrides the rank word. The athlete layer's bands (`05` §3.3, T-3.4) are not even fifths, so
+   * a caller that has a real athlete passes the real band rather than letting this recompute a
+   * different one — a ring reading "Natural" beside text reading "Comfortable" is worse than
+   * either being wrong alone.
+   */
+  readonly rank?: string;
 }
 
 export function familiarityRing(doc: Document, options: FamiliarityRingOptions): HTMLElement {
@@ -130,7 +137,7 @@ export function familiarityRing(doc: Document, options: FamiliarityRingOptions):
   const size = options.size ?? 56;
   const radius = size / 2 - 4;
   const circumference = 2 * Math.PI * radius;
-  const rank = familiarityRank(value);
+  const rank = options.rank ?? familiarityRank(value);
   const label = `${options.sport} familiarity: ${rank}, ${percent(value)}`;
 
   const track = svg(doc, 'circle', {
