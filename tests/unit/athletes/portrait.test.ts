@@ -71,7 +71,10 @@ describe('downscalePortrait', () => {
 
   it('draws through OffscreenCanvas when the engine has one, at the fitted size', async () => {
     const drawImage = vi.fn((..._args: unknown[]) => {});
-    const convertToBlob = vi.fn(async () => new Blob(['fake'], { type: 'image/webp' }));
+    const convertToBlob = vi.fn(
+      async (_options: { type: string; quality?: number }) =>
+        new Blob(['fake'], { type: 'image/webp' }),
+    );
     let sizeAtDraw: { width: number; height: number } | null = null;
 
     class FakeOffscreenCanvas {
@@ -211,7 +214,10 @@ describe('downscalePortrait', () => {
   });
 
   it('honours custom maxEdge and quality options', async () => {
-    const convertToBlob = vi.fn(async () => new Blob(['x'], { type: 'image/webp' }));
+    const convertToBlob = vi.fn(
+      async (_options: { type: string; quality?: number }) =>
+        new Blob(['x'], { type: 'image/webp' }),
+    );
     let sawSize: { width: number; height: number } | null = null;
 
     class FakeOffscreenCanvas {

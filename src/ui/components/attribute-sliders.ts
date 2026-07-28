@@ -15,26 +15,16 @@
  * one slider's value label — never a parent re-render, so a full-height rebuild never steals focus
  * out from under a thumb mid-drag. `setAttributes` (presets, roll, fit-to-budget) is the one path
  * that legitimately moves every slider at once, and it goes through the same update routine.
+ *
+ * Labels come from `athletes/explain.ts`'s `attributeLabels()` — the same humaniser the athlete
+ * card's radar and "why this rating" lines use — rather than a second table kept here in step with
+ * it by hand.
  */
 import { budgetState } from '../../athletes/attributes.ts';
+import { attributeLabels } from '../../athletes/explain.ts';
 import { ATTRIBUTE_IDS, type AttributeId, type Attributes } from '../../athletes/types.ts';
 import { CREATION } from '../../athletes/tuning.ts';
 import { clamp01, el, percent } from '../dom.ts';
-
-/** Plain-language labels for the eleven attributes, in `05` §2.1's order. */
-export const ATTRIBUTE_LABELS: Readonly<Record<AttributeId, string>> = {
-  speed: 'Speed',
-  acceleration: 'Acceleration',
-  agility: 'Agility',
-  strength: 'Strength',
-  vertical: 'Vertical',
-  stamina: 'Stamina',
-  coordination: 'Coordination',
-  accuracy: 'Accuracy',
-  awareness: 'Awareness',
-  composure: 'Composure',
-  discipline: 'Discipline',
-};
 
 export interface AttributeSlidersOptions {
   readonly initial: Attributes;
@@ -94,7 +84,7 @@ export function attributeSliders(
   }
 
   const list = el(doc, 'div', { class: 'attribute-sliders__list' });
-  for (const id of ATTRIBUTE_IDS) {
+  for (const { id, label } of attributeLabels()) {
     const sliderId = `attribute-slider-${id}`;
     const valueEl = el(doc, 'output', {
       class: 'attribute-slider__value',
@@ -130,7 +120,7 @@ export function attributeSliders(
         children: [
           el(doc, 'label', {
             class: 'attribute-slider__label',
-            text: ATTRIBUTE_LABELS[id],
+            text: label,
             attrs: { for: sliderId },
           }),
           input,

@@ -1,6 +1,12 @@
 /**
- * @spec 001-initial-dev · @phase 3 · @task T-3.8 — Athlete card
- * @design 10-ui-ux.md §6 (the athlete card), §3.1 (palette), §11 (accessibility)
+ * @spec    001-initial-dev
+ * @phase   3 — Athletes, cross-sport ratings, roster
+ * @task    T-3.8 — Athlete card component: compact + full, sport switcher, familiarity ring, "why this rating"
+ * @story   US-5.4 — Understand why an athlete is good or bad at a sport
+ * @design  10-ui-ux.md §6 (the athlete card), §3.1 (palette), §11 (accessibility)
+ *
+ * Purpose: styles for the athlete card and the compare row. Every value is a token, so theme, UI
+ * scale, and reduced motion stay single switches.
  *
  * The rarity frame is the card's one piece of ornament, and it is the only thing here that is
  * purely decorative — every card also names its rarity in text, so the tier never depends on

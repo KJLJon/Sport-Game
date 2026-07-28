@@ -12,27 +12,24 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-3.8 — Athlete card (T-3.7 delegated to `sonnet`, running in parallel)
-- **Status:** in_progress
-- **Started:** 2026-07-28
+- **Task:** T-3.9 — Cross-sport compare view with projections for unplayed sports
+- **Status:** todo (not started)
+- **Started:** —
 - **Branch commit:** (see `git log`)
 - **Done so far:**
-  - [x] T-3.1–T-3.6 — the athlete model is complete
-  - [x] `sports/catalogue.ts` — every sport an athlete can be *rated* in (soccer included, since
-        its weights exist and its module does not)
-  - [x] `athletes/explain.ts` — the sentences the card says, tested as strings rather than through
-        the DOM
-  - [x] `ui/components/athlete-card.{ts,css}` — compact + full, sport switcher, "why this rating"
-  - [x] `ui/screens/athlete.ts` — loading, not-found, and unreadable-database states
-  - [ ] Route wiring for `/squad/athlete/:id` — **deliberately deferred**: the delegated T-3.7 agent
-        also edits `src/app/routes.ts`, and two writers on one file lose work (CLAUDE.md §7.3).
-        Wire it once the agent's diff has been reviewed and merged.
-- **Next step:** review the T-3.7 agent's diff against the spec (not against its summary —
-  CLAUDE.md §7.3 rule 6), run `pnpm -s verify` over the combined tree, then wire both routes.
-- **Files touched:** src/athletes/{types,repository,tuning,attributes,create,derivation,familiarity,xp,progression,coupling,explain}.ts,
+  - [x] T-3.1–T-3.6 — the athlete model, complete and wired into the sim's coupling
+  - [x] T-3.7 — profile editor (delegated to `sonnet`, reviewed and merged here)
+  - [x] T-3.8 — athlete card, explanations, rateable-sport catalogue, `/squad/athlete/:id`
+- **Next step:** T-3.9 is `sonnet`-delegable and most of its parts already exist:
+  `compareRow()` in `ui/components/athlete-card.ts`, `projectRatings()` in `derivation.ts`, and
+  `RATEABLE_SPORTS` in `sports/catalogue.ts`. It needs a screen, a route, and honest labelling of
+  which sports are projections. After that T-3.10/T-3.11 (both `sonnet`) can run in parallel —
+  but partition by file, and only one of them may touch `src/app/routes.ts`.
+- **Files touched:** src/athletes/{types,repository,tuning,attributes,create,derivation,familiarity,xp,progression,coupling,explain,portrait,presets}.ts,
   src/sports/{types,catalogue}.ts, src/sports/basketball/{weights,xp,index}.ts,
   src/sports/soccer/weights.ts, src/storage/{idb,app-db}.ts,
-  src/ui/components/{athlete-card.ts,athlete-card.css,meters.ts}, src/ui/screens/athlete.ts
+  src/ui/components/{athlete-card.ts,athlete-card.css,attribute-sliders.ts,meters.ts},
+  src/ui/screens/{athlete.ts,athlete-editor.ts,athlete-editor.css}, src/app/routes.ts
 - **Blockers:** none for Phase 3. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
   top of that debt, deliberately, and Gate 3 inherits it.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
@@ -57,7 +54,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
-| 3 | Athletes, cross-sport ratings, roster | 17 | 6 | `in_progress` | v0.2 |
+| 3 | Athletes, cross-sport ratings, roster | 17 | 8 | `in_progress` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
@@ -66,7 +63,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **50** | | |
+| | **Total** | **170** | **52** | | |
 
 ---
 
@@ -141,8 +138,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-3.4 | Familiarity model: per-sport familiarity, penalty curve, growth from minutes | L | `done` | | `tests/unit/athletes/familiarity.test.ts` | `auto` — `05` §3.3's stated pace asserted, not assumed | The penalty curve was already in `derivation.ts` (`familiarityMultiplier`); T-3.4 is the growth half. **`minutes` means *real* minutes, not game-clock minutes** — `05` §3.3's formula and its own claim of "~15 matches to competent, ~50 to the cap" only agree under that reading; read as game minutes the same formula gets there in three. `learningMinutes()` is the one place the two units meet, so the box score keeps showing game minutes. There is a test for both readings. Growth is pure and returns the change alongside the new record, so the post-match screen shows exactly what was stored. Bands are words, not colours (CLAUDE.md §8.11). |
 | T-3.5 | Sport skill XP: levels, sub-skills, event-driven awards, diminishing returns | L | `done` | | `tests/unit/athletes/xp.test.ts`, `tests/unit/athletes/progression.test.ts` | `auto` | The sport owns the event→sub-skill table (`xpAwards` on the seam) — only basketball knows a shot from `cornerThree` is a three, and the athlete layer must never learn it. **Diminishing returns come from two places doing different jobs:** the level curve (`100 × level^1.6`, so level 19 costs ~100× level 1) and a within-session decay on repeated identical actions, so forty threes is not forty threes' worth. Without the second, farming one action would be the fastest route to a maxed sub-skill. Attempts pay less than makes but *not nothing* — an athlete paid only for makes learns fastest by never taking a hard shot. `xpFor(level)` read as the cost to leave a level, not a cumulative total (decision below). `minutesPlayed` is banked by familiarity **only**; `applySession` deliberately does not touch it, and `progression.ts` composes the two — a double-count there would surface fifty matches later. `progression.applyMatch` is the single door every mode uses; T-4.10's reduced arcade rate is a `rate` scalar, not a branch (INV: `05` §8.5). |
 | T-3.6 | Behavioural coupling: familiarity → decision noise, control error, reaction penalty in-sim | M | `done` | | `tests/unit/athletes/coupling.test.ts`, `tests/integration/sports/basketball-coupling.test.ts` | `auto` + `pnpm balance` (500 games, 14 bands) | `05` §3.3's claim is behavioural, so it is tested behaviourally: four seeded matches with one side made novice and the other at home, **identical ratings on both**, asserting more turnovers, fewer completed passes, and fewer points. Four coupling points in the sim: decision noise on how a look is valued, degraded first touch on catches and intercepts, a slower per-step reaction on the pass decision, and a wider release-timing scatter. **The design constraint that shaped all of it: an at-home athlete must cost zero random draws.** Coupling fades to exactly nothing at 75 familiarity — below every athlete's own-sport 85 — so no call site draws for it, and the PRNG stream is byte-identical to before T-3.6 existed. There is a test asserting a coupled-at-100 match serialises identically to an uncoupled one; without that property every golden-seed determinism test would have broken for no behaviour change. This is **not** difficulty (CLAUDE.md §8.6): no attribute and no derived rating is touched. The map is empty until T-3.17 fills it. `pnpm balance` re-run after the change: all 14 bands pass, 75.5 points on 78.7 attempts at 36.5%, home win rate 44.2% — unchanged from T-2.13's run, which is the expected result and the point of the zero-draw property. |
-| T-3.7 | Profile editor: fields, presets/sliders/roll with live budget meter, photo capture + downscale | L | `todo` | | | | Delegated to a `sonnet` agent (CLAUDE.md §7.3) and in flight alongside T-3.8; the row stays `todo` until its diff has been reviewed and committed here, because the main session owns the commit and an unreviewed agent diff is not progress. |
-| T-3.8 | Athlete card component: compact + full, sport switcher, familiarity ring, "why this rating" | L | `in_progress` | | | | |
+| T-3.7 | Profile editor: fields, presets/sliders/roll with live budget meter, photo capture + downscale | L | `done` | | `tests/unit/ui/athlete-editor.test.ts`, `tests/unit/athletes/{portrait,presets}.test.ts` | `auto` — diff reviewed against the spec, not against the agent's summary | **Delegated to `sonnet`** (CLAUDE.md §7.1); the agent owned an explicit file list, was told not to commit, and this session reviewed and committed. What worked: settling every interface first and pushing it, so the agent called `budgetState`/`judgeCreation`/`createAthlete` rather than reinventing the budget. Over-budget is a *conversation, not a block* — `judgeCreation`'s reason plus a "turn on Sandbox mode and save" action, per `05` §2.1. Photos are downscaled to a 512 px edge locally and never uploaded; the blob is produced but not yet persisted (`TODO(T-3.16)` — no blob store exists yet). **Two review findings:** the agent's first draft duplicated `explain.ts`'s label humaniser with its own table (it was briefed before `explain.ts` existed) — now sourced from `attributeLabels()`; and it correctly reported that the only failing tests were *this session's* fault, a missing `Purpose:`/`@story` in `athlete-card.css`. Verified independently rather than taken on trust. |
+| T-3.8 | Athlete card component: compact + full, sport switcher, familiarity ring, "why this rating" | L | `done` | | `tests/unit/ui/athlete-card.test.ts`, `tests/unit/ui/athlete-screen.test.ts`, `tests/unit/athletes/explain.test.ts` | `auto` — asserted on what the card *says*, not how it is laid out | The card computes no rating: it is handed derivation's output and the explanation beside it, so what a player reads and what the sim uses cannot drift. Sentences live in `athletes/explain.ts`, because a string built in a component is a string with no test — and under `10` §11 they are load-bearing, being the non-colour channel for every meter. The "why" is a `<details>`, so it is keyboard-operable and announced with no JavaScript of ours. `sports/catalogue.ts` separates **rateable** from **playable**: the sport switcher needs two rating tables, not two playable sports, and the card says which rather than implying soccer is a real matchup. **Two bugs found:** the familiarity ring computed its own rank in even fifths while `05` §3.3's bands are uneven, so the ring could read "Natural" beside text reading "Comfortable"; and several explanation strings said "1 points". Also added a router test — `/squad/athlete/new` and `/squad/athlete/:id` are both three segments, and if specificity ever stopped preferring the literal, creating an athlete would silently become "No such athlete". |
 | T-3.9 | Cross-sport compare view with projections for unplayed sports | M | `todo` | | | | |
 | T-3.10 | Roster browser: search, sort, filter, bulk select | M | `todo` | | | | |
 | T-3.11 | Teams: create/edit, name, colours, generic crests | M | `todo` | | | | |
@@ -345,6 +342,7 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 |---|---|---|---|
 | 2026-07-27 | T-3.4 | `minutes` in `05` §3.3's growth formula is real minutes of play, not game-clock minutes | The formula and the paragraph under it disagree otherwise. A full basketball match is 48 game minutes but twelve real ones at `06` §3.1's 4× compression; a starter plays ~8 real minutes, which lands on §3.3's own "~15 matches to competent, ~50 to approach the cap" almost exactly. Read as game minutes it is three matches to competent. `minutesPlayed` still stores game minutes, because that is what a box score means; `learningMinutes()` converts. **Worth confirming with the user** — it is an ambiguity in `05`, not an error, and the alternative fix is to change the 0.9 coefficient instead. |
 | 2026-07-28 | T-3.6 | Behavioural coupling fades to exactly zero at 75 familiarity, not at 100 | Two reasons, one design and one mechanical. Design: a competent-but-still-learning athlete should play *cleanly and a little worse*, not clumsily — looking lost is for the genuinely lost. Mechanical: every athlete's own sport starts at 85, so a fade-out below that means an at-home athlete is coupled by nothing, every call site can skip its random draw, and the PRNG stream stays byte-identical to the pre-T-3.6 one. Drawing-and-discarding instead would have broken every golden-seed determinism test for no behaviour change. |
+| 2026-07-28 | T-3.8 | `src/sports/catalogue.ts` distinguishes *rateable* from *playable* sports | `10` §6's sport switcher and T-3.9's compare view both need at least two rating tables and neither needs two playable sports. Rather than fake a soccer `SportModule` or defer the card to Phase 6, the catalogue carries a `playable` flag and the card says "not playable yet — this is a projection" instead of implying a real matchup. Phase 6 flips one boolean. |
 | 2026-07-28 | T-3.5 | `xpFor(level) = 100 × level^1.6` is the cost to advance *from* that level, not a cumulative total | `05` §3.3 calls it a "level threshold" without saying which. As a per-level cost it gives a round 100-XP on-ramp and a ~102× span across the twenty levels — the shape "diminishing returns" describes. As a cumulative total the span is identical but level 1 → 2 is free, which makes the first level-up meaningless. Either reading is defensible; this one is the tunable-friendlier of the two. |
 | 2026-07-28 | T-3.5 | Within a session, the n-th award of one action is worth `0.93^(n-1)` of the first, floored at 0.2 | `05` §3.3 asks for diminishing returns and the level curve alone does not deliver them *within* a match: without this, the fastest route to a maxed sub-skill is to stop playing the sport and farm one action, which is the shape `05` §5.5 forbids for coins. Tuned so a varied match out-earns a farmed one; both are asserted. |
 | 2026-07-27 | T-3.1 | The `athletes` store's name index is `byDisplayName` on `displayName`, and `openDatabase` now reconciles indexes | T-0.11's `byName` pointed at `name`, which no athlete has, so it indexed nothing and would have failed silently in the roster browser. IndexedDB cannot alter an index, so the fix has to be a drop-and-recreate; making the upgrade path reconcile against the spec means the next such drift is corrected rather than merely detectable. `DB_VERSION` 1 → 2, no data-chain entry — an index is derived data. |

@@ -67,9 +67,9 @@ export function athleteEditorScreen(): Screen {
       // ── Form state ───────────────────────────────────────────────────────
       let displayName = '';
       let primarySport: SportId = RATEABLE_SPORTS[0]?.id ?? 'basketball';
-      let heightCm = CREATION_DEFAULTS.heightCm;
-      let weightKg = CREATION_DEFAULTS.weightKg;
-      let age = CREATION_DEFAULTS.age;
+      let heightCm: number = CREATION_DEFAULTS.heightCm;
+      let weightKg: number = CREATION_DEFAULTS.weightKg;
+      let age: number = CREATION_DEFAULTS.age;
       let handedness: Handedness = CREATION_DEFAULTS.handedness as Handedness;
       let attributes: Attributes = defaultAttributes();
       let sandboxMode = false;
