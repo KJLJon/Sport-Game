@@ -115,3 +115,24 @@ export const FAMILIARITY = {
   /** Ceiling on "how many matches until…" answers, so a projection cannot run forever. */
   projectionLimit: 2_000,
 } as const;
+
+/**
+ * Sport skill XP (`05` §3.3): `xpFor(level) = 100 × level^1.6`, XP from minutes plus events, and
+ * level-ups that buy sub-skill points.
+ *
+ * @spec-ref 05-data-model.md §3.3
+ */
+export const XP = {
+  levelBase: 100,
+  levelExponent: 1.6,
+  /** XP per real minute of play — the half that does not depend on doing anything. */
+  perMinute: 6,
+  /** Sub-skill points a level grants, spent on what the athlete actually did. */
+  pointsPerLevel: 2,
+  /**
+   * Within one session, the n-th award of the same action is worth `repeatDecay^(n-1)` of the
+   * first, floored. Forty threes should not teach forty threes' worth (`05` §5.5's shape).
+   */
+  repeatDecay: 0.93,
+  repeatFloor: 0.2,
+} as const;

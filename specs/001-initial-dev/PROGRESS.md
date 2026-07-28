@@ -12,8 +12,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-3.5 — Sport skill XP: levels, sub-skills, event-driven awards, diminishing returns
-- **Status:** todo (not started — session paused here)
+- **Task:** T-3.6 — Behavioural coupling: familiarity → decision noise, control error, reaction penalty in-sim
+- **Status:** todo (not started)
 - **Started:** —
 - **Branch commit:** (see `git log`)
 - **Done so far:**
@@ -21,12 +21,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-3.2 — budget, sandbox, seeded roll, the athlete factory
   - [x] T-3.3 — derivation, physical modifiers, overall and position fit
   - [x] T-3.4 — familiarity growth, caps, age factor, complexity, projections
-- **Next step:** T-3.5. `xpFor(level) = 100 × level^1.6` (`05` §3.3), XP from minutes plus events,
-  and level-ups that auto-allocate sub-skill points toward the actions the athlete actually
-  performed. It consumes the `SportEvent` stream, so read `engine/match/events.ts` first — and
-  note CLAUDE.md §8.5: no mode-specific branching, every mode emits the same stream.
-- **Files touched:** src/athletes/{types,repository,tuning,attributes,create,derivation,familiarity}.ts,
-  src/sports/types.ts, src/sports/basketball/{weights,index}.ts, src/sports/soccer/weights.ts,
+  - [x] T-3.5 — XP, levels, sub-skills, event-driven awards, diminishing returns
+- **Next step:** T-3.6 — the *behavioural* half of the familiarity penalty (`05` §3.3's last
+  paragraph): decision noise, control error on first touch and handling, and reaction latency in
+  the AI layer, so an out-of-sport athlete looks lost before they look merely weak. It changes the
+  simulation, so **run `pnpm balance` after it** (~6 min, 14 bands) — that is the only thing that
+  will say whether basketball still works.
+- **Files touched:** src/athletes/{types,repository,tuning,attributes,create,derivation,familiarity,xp,progression}.ts,
+  src/sports/types.ts, src/sports/basketball/{weights,xp,index}.ts, src/sports/soccer/weights.ts,
   src/storage/idb.ts
 - **Blockers:** none for Phase 3. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
   top of that debt, deliberately, and Gate 3 inherits it.
@@ -52,7 +54,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
-| 3 | Athletes, cross-sport ratings, roster | 17 | 4 | `in_progress` | v0.2 |
+| 3 | Athletes, cross-sport ratings, roster | 17 | 5 | `in_progress` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
@@ -61,7 +63,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **48** | | |
+| | **Total** | **170** | **49** | | |
 
 ---
 
@@ -134,7 +136,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-3.2 | Attribute system: the eleven attributes, budget rules, sandbox flag, random roll | M | `done` | | `tests/unit/athletes/attributes.test.ts`, `tests/unit/athletes/create.test.ts` | `auto` — roll checked as a property across all five rarities | `tuning.ts` holds every `05` number so a balance pass never touches logic. Sandbox is a *flag, not a refusal*: `judgeCreation` returns the reason and points at Settings, because `05` §2.1 is explicit that the make-Messi fantasy stays available. The roll draws each attribute around the band average and then settles to the exact total; the settle step picks its ±1 targets from the RNG rather than walking in order, because "first attribute with room" is a systematic bias toward `speed` — the same shape as an id-order tie-break. There is a test for it. `fitToBudget` scales only the headroom above the floor, so a shooter stays a shooter. `createAthlete` clamps rather than throws and omits absent optionals entirely (`exactOptionalPropertyTypes`, and an `undefined` value is a real IndexedDB key). |
 | T-3.3 | Derivation engine: weight matrix, physical modifiers, unit-tested invariants | L | `done` | | `tests/unit/athletes/derivation.test.ts` | `auto` — hand-checked against `05` §3.1 plus properties over 500 random cases | No `if (sport === …)` anywhere: every sport-specific number arrives as a table from the sport module, so a new sport is a new table rather than an edit. The seam gained `physicalModifiers` and `positionWeights` (both optional). **Two judgement calls, both recorded in the decisions table below:** `05` §3.4 gives the position-fit *formula* but no position-weight table, so basketball's is new; and `05` §3.2 gives soccer's weights but no physical modifiers, so soccer's are read off §2.1's prose at half basketball's magnitude. **`src/sports/soccer/weights.ts` exists before Phase 6's soccer module, deliberately** — data only, no `SportModule`. T-3.9 has nothing to compare against otherwise, and a derivation engine tested against one table is one written for that table; soccer's twelve differently-shaped rows are what prove it generic. Properties asserted: monotonic in every weighted attribute, always integer 1–99, never above the athlete's own ceiling, projections through identical arithmetic. |
 | T-3.4 | Familiarity model: per-sport familiarity, penalty curve, growth from minutes | L | `done` | | `tests/unit/athletes/familiarity.test.ts` | `auto` — `05` §3.3's stated pace asserted, not assumed | The penalty curve was already in `derivation.ts` (`familiarityMultiplier`); T-3.4 is the growth half. **`minutes` means *real* minutes, not game-clock minutes** — `05` §3.3's formula and its own claim of "~15 matches to competent, ~50 to the cap" only agree under that reading; read as game minutes the same formula gets there in three. `learningMinutes()` is the one place the two units meet, so the box score keeps showing game minutes. There is a test for both readings. Growth is pure and returns the change alongside the new record, so the post-match screen shows exactly what was stored. Bands are words, not colours (CLAUDE.md §8.11). |
-| T-3.5 | Sport skill XP: levels, sub-skills, event-driven awards, diminishing returns | L | `todo` | | | | |
+| T-3.5 | Sport skill XP: levels, sub-skills, event-driven awards, diminishing returns | L | `done` | | `tests/unit/athletes/xp.test.ts`, `tests/unit/athletes/progression.test.ts` | `auto` | The sport owns the event→sub-skill table (`xpAwards` on the seam) — only basketball knows a shot from `cornerThree` is a three, and the athlete layer must never learn it. **Diminishing returns come from two places doing different jobs:** the level curve (`100 × level^1.6`, so level 19 costs ~100× level 1) and a within-session decay on repeated identical actions, so forty threes is not forty threes' worth. Without the second, farming one action would be the fastest route to a maxed sub-skill. Attempts pay less than makes but *not nothing* — an athlete paid only for makes learns fastest by never taking a hard shot. `xpFor(level)` read as the cost to leave a level, not a cumulative total (decision below). `minutesPlayed` is banked by familiarity **only**; `applySession` deliberately does not touch it, and `progression.ts` composes the two — a double-count there would surface fifty matches later. `progression.applyMatch` is the single door every mode uses; T-4.10's reduced arcade rate is a `rate` scalar, not a branch (INV: `05` §8.5). |
 | T-3.6 | Behavioural coupling: familiarity → decision noise, control error, reaction penalty in-sim | M | `todo` | | | | |
 | T-3.7 | Profile editor: fields, presets/sliders/roll with live budget meter, photo capture + downscale | L | `todo` | | | | |
 | T-3.8 | Athlete card component: compact + full, sport switcher, familiarity ring, "why this rating" | L | `todo` | | | | |
@@ -339,6 +341,8 @@ that changes the product goes in [`07-decisions.md`](./07-decisions.md) instead.
 | Date | Task | Decision | Rationale |
 |---|---|---|---|
 | 2026-07-27 | T-3.4 | `minutes` in `05` §3.3's growth formula is real minutes of play, not game-clock minutes | The formula and the paragraph under it disagree otherwise. A full basketball match is 48 game minutes but twelve real ones at `06` §3.1's 4× compression; a starter plays ~8 real minutes, which lands on §3.3's own "~15 matches to competent, ~50 to approach the cap" almost exactly. Read as game minutes it is three matches to competent. `minutesPlayed` still stores game minutes, because that is what a box score means; `learningMinutes()` converts. **Worth confirming with the user** — it is an ambiguity in `05`, not an error, and the alternative fix is to change the 0.9 coefficient instead. |
+| 2026-07-28 | T-3.5 | `xpFor(level) = 100 × level^1.6` is the cost to advance *from* that level, not a cumulative total | `05` §3.3 calls it a "level threshold" without saying which. As a per-level cost it gives a round 100-XP on-ramp and a ~102× span across the twenty levels — the shape "diminishing returns" describes. As a cumulative total the span is identical but level 1 → 2 is free, which makes the first level-up meaningless. Either reading is defensible; this one is the tunable-friendlier of the two. |
+| 2026-07-28 | T-3.5 | Within a session, the n-th award of one action is worth `0.93^(n-1)` of the first, floored at 0.2 | `05` §3.3 asks for diminishing returns and the level curve alone does not deliver them *within* a match: without this, the fastest route to a maxed sub-skill is to stop playing the sport and farm one action, which is the shape `05` §5.5 forbids for coins. Tuned so a varied match out-earns a farmed one; both are asserted. |
 | 2026-07-27 | T-3.1 | The `athletes` store's name index is `byDisplayName` on `displayName`, and `openDatabase` now reconciles indexes | T-0.11's `byName` pointed at `name`, which no athlete has, so it indexed nothing and would have failed silently in the roster browser. IndexedDB cannot alter an index, so the fix has to be a drop-and-recreate; making the upgrade path reconcile against the spec means the next such drift is corrected rather than merely detectable. `DB_VERSION` 1 → 2, no data-chain entry — an index is derived data. |
 | 2026-07-27 | T-3.3 | Basketball's position-weight table (`05` §3.4) is new, not quoted | `05` §3.4 gives the fit *formula* and the 0.85 warning threshold but no `positionWeight` table for any sport. Written to `05`'s own standard — starting values for a balance pass — and shaped so the positions differ enough that the warning means something; a centre at point guard falls well under 0.85, and there is a test asserting it. |
 | 2026-07-27 | T-3.3 | Soccer's physical modifiers are read off `05` §2.1's prose, at half basketball's magnitude | `05` §3.2 gives soccer's weights but no modifier table. §2.1 says height helps goalkeeping and hurts low-centre-of-gravity agility, which in soccer is heading and goalkeeping up, dribbling down. Halved because soccer's height spread is narrower and basketball's per-cm figure would swamp the weighted sum. Revisit when Phase 6 can actually play it. |

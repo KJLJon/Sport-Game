@@ -156,6 +156,7 @@ import {
 } from './court.ts';
 import { courtKey, drawCourt } from './court-render.ts';
 import { BASKETBALL_PHYSICAL, BASKETBALL_POSITION_WEIGHTS, BASKETBALL_WEIGHTS } from './weights.ts';
+import { BASKETBALL_XP_AWARDS } from './xp.ts';
 import {
   BASKETBALL_RULES,
   BasketballEvent,
@@ -360,6 +361,7 @@ export const basketball: SportModule<BasketballState> = {
   ratingWeights: BASKETBALL_WEIGHTS,
   physicalModifiers: BASKETBALL_PHYSICAL,
   positionWeights: BASKETBALL_POSITION_WEIGHTS,
+  xpAwards: BASKETBALL_XP_AWARDS,
   roles,
   ai,
   render,

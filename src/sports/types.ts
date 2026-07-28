@@ -92,6 +92,27 @@ export interface PhysicalModifiers {
  */
 export type PositionWeightTable = Readonly<Record<string, Readonly<Record<string, number>>>>;
 
+/**
+ * One "this action trains that sub-skill" rule (`05` §3.3 — "a made three grants three-point XP, a
+ * tackle grants tackling XP"). The sport owns the mapping, because only the sport knows that a
+ * `shot` with `zone: 'cornerThree'` is a three: the athlete layer must never learn that.
+ */
+export interface XpRule {
+  readonly kind: string;
+  /** For `kind: 'sport'`, the sport's own name for the event. */
+  readonly sportKind?: string;
+  /** Matches only when every listed `detail` field equals this value. */
+  readonly when?: Readonly<Record<string, string | number | boolean>>;
+  /** The derived rating this trains for the event's actor. Omit to award XP without a sub-skill. */
+  readonly rating?: string;
+  readonly xp: number;
+  /** Awarded to the event's `target` — the defender who contested, the receiver who caught. */
+  readonly targetRating?: string;
+  readonly targetXp?: number;
+}
+
+export type XpAwardTable = readonly XpRule[];
+
 /** Positions and their default field placement, as fractions of the field. */
 export interface RoleTable {
   readonly roles: readonly {
@@ -196,6 +217,8 @@ export interface SportModule<S extends SportState = SportState> {
   readonly physicalModifiers?: PhysicalModifiers;
   /** Keyed by `roles.roles[].id`. Absent when every position wants the same athlete. */
   readonly positionWeights?: PositionWeightTable;
+  /** Which events train which sub-skills (`05` §3.3). Absent when the sport awards none. */
+  readonly xpAwards?: XpAwardTable;
   readonly roles: RoleTable;
 
   /** Populates the world and returns the sport's own state. */
