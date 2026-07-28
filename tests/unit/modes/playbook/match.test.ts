@@ -24,8 +24,6 @@ function makeOptions(overrides: {
   seed?: string;
   adapter?: ReturnType<typeof fakeAdapter>;
   keyMoments?: 'off' | 'clutch' | 'standard' | 'every';
-  periodSeconds?: number;
-  secondsPerStep?: number;
 }) {
   return {
     seed: overrides.seed ?? 'seed-1',
@@ -33,8 +31,6 @@ function makeOptions(overrides: {
     sport: 'testsport',
     rules: FAKE_RULES,
     squads: squads(),
-    periodSeconds: overrides.periodSeconds ?? 72,
-    secondsPerStep: overrides.secondsPerStep ?? 1,
     ...(overrides.keyMoments === undefined ? {} : { keyMoments: overrides.keyMoments }),
   };
 }

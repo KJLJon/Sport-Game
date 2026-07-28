@@ -47,9 +47,11 @@ import {
   type NarrationLine,
   type PlaybookAdapter,
   type PlaybookCall,
+  type PlaybookClock,
   type PlaybookSquad,
   type PlaybookState,
   type TurnResolution,
+  type TurnScore,
 } from './types.ts';
 
 export const PLAYBOOK_PHASES = ['awaiting-calls', 'key-moment', 'resolved', 'over'] as const;
@@ -66,10 +68,6 @@ export interface PlaybookMatchOptions<S = unknown> {
   readonly difficulty?: Difficulty;
   /** `09` §2.4's frequency setting. Defaults to `standard`. */
   readonly keyMoments?: KeyMomentFrequency;
-  /** Game seconds per period, for the clock the HUD shows. */
-  readonly periodSeconds: number;
-  /** Game seconds a step is worth — the sport's own clock compression. */
-  readonly secondsPerStep: number;
 }
 
 /** Leverage a moment needs to reach before each setting hands it over (`09` §2.4). */
@@ -83,6 +81,12 @@ const LEVERAGE_FLOOR: Readonly<Record<KeyMomentFrequency, number>> = {
 /** Hard stop on turns, so a misbehaving adapter cannot hang a match. Far above any real match. */
 const MAX_TURNS = 500;
 
+/** A turn's scoring plays. The common case — one score for the whole turn — needs no `scores`. */
+function scoresOf(resolution: TurnResolution): readonly TurnScore[] {
+  if (resolution.scores !== undefined) return resolution.scores.filter((score) => score.points > 0);
+  return resolution.points > 0 ? [{ points: resolution.points }] : [];
+}
+
 /**
  * One Playbook match. Construct, drive the turn cycle, read `view()` whenever you want to draw.
  * Headless: nothing here touches the DOM, so the balance harness and the parity tests use the same
@@ -95,8 +99,8 @@ export class PlaybookMatch<S = unknown> {
   private readonly adapter: PlaybookAdapter<S>;
   private readonly rng: Rng;
   private readonly frequency: KeyMomentFrequency;
-  private readonly secondsPerStep: number;
-  private readonly periodSeconds: number;
+  private readonly clock: PlaybookClock;
+  private readonly regulationPeriods: number;
 
   private phaseName: PlaybookPhase = 'awaiting-calls';
   private submitted: [PlaybookCall | null, PlaybookCall | null] = [null, null];
@@ -107,8 +111,8 @@ export class PlaybookMatch<S = unknown> {
   constructor(options: PlaybookMatchOptions<S>) {
     this.adapter = options.adapter;
     this.frequency = options.keyMoments ?? 'standard';
-    this.secondsPerStep = options.secondsPerStep;
-    this.periodSeconds = options.periodSeconds;
+    this.clock = options.adapter.clock;
+    this.regulationPeriods = options.rules.periods;
     this.rng = createRng(options.seed);
     this.machine = new MatchStateMachine(options.rules);
 
@@ -128,7 +132,7 @@ export class PlaybookMatch<S = unknown> {
       playerSide,
       turn: 0,
       period: 1,
-      clock: options.periodSeconds,
+      clock: options.adapter.clock.periodSeconds,
       // The opening possession is a coin toss, forked by label so adding a draw elsewhere in setup
       // cannot change who starts with the ball (INV-8).
       possession: this.rng.fork('tip').bool() ? 1 : 0,
@@ -266,9 +270,9 @@ export class PlaybookMatch<S = unknown> {
     for (const turnEvent of resolution.events) {
       this.machine.bus.emit({ ...turnEvent, step: this.machine.steps });
     }
-    if (resolution.points > 0) {
-      this.machine.addScore(resolution.attacking, resolution.points, resolution.actor);
-      this.state.score[resolution.attacking === 1 ? 1 : 0] += resolution.points;
+    for (const score of scoresOf(resolution)) {
+      this.machine.addScore(resolution.attacking, score.points, score.actor ?? resolution.actor);
+      this.state.score[resolution.attacking === 1 ? 1 : 0] += score.points;
     }
 
     this.adapter.apply?.(this.state, resolution);
@@ -329,7 +333,7 @@ export class PlaybookMatch<S = unknown> {
 
   /** Spends game seconds as simulation steps, so Playbook and Live burn the same clock. */
   private spend(gameSeconds: number): void {
-    const steps = Math.max(1, Math.round(gameSeconds / this.secondsPerStep));
+    const steps = Math.max(1, Math.round(gameSeconds / this.clock.secondsPerStep));
     for (let i = 0; i < steps; i += 1) {
       if (this.machine.isFinished || !this.machine.isRunning) break;
       this.machine.step();
@@ -347,7 +351,10 @@ export class PlaybookMatch<S = unknown> {
     if (this.machine.currentPhase === MatchPhase.PERIOD_BREAK) {
       this.machine.nextPeriod();
       this.state.period = this.machine.currentPeriod;
-      this.state.clock = this.periodSeconds;
+      this.state.clock =
+        this.state.period > this.regulationPeriods
+          ? (this.clock.overtimeSeconds ?? this.clock.periodSeconds)
+          : this.clock.periodSeconds;
       // A new period starts with a fresh jump ball in basketball and a kick-off in soccer; either
       // way the sport decides, and until one does the alternating possession is the fair default.
     }

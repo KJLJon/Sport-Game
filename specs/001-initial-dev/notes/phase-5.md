@@ -51,3 +51,51 @@ proves it: two matches that differ only in whether turn 0 went to a key moment a
 **`playbook?` on `SportModule` is optional for the same stated reason `arcade?` is** — a sport
 arrives in Live first, and soccer's Playbook (T-6.14) lands a phase after its Live rules do. The
 comment on `arcade?` had already anticipated this; it now reads in the past tense.
+
+### T-5.2
+
+*Resolution model: ratings → matchup → outcome distribution → sampled `SportEvent` stream*
+
+**The one decision that makes INV-11 achievable: the shot is Live's shot.** `shotProbability()` from
+`shooting.ts` — the function the Live sim calls — is called with Playbook's circumstances. `09` §7
+asks that "Playbook resolution, Live simulation, and arcade calibration all read the same derived
+ratings"; the cheapest way to guarantee that is to read the same *model*, not merely the same
+numbers. Playbook's job is therefore to decide the circumstances of a shot — zone, distance,
+contest, movement, release — and hand them over. It shows in the first measurement: Playbook's
+eFG% is 44.6% against Live's 44.8%, with nothing tuned to make that true. Two separate curves,
+however carefully written, would have drifted the first time either was touched.
+
+**What stands in for the release meter.** Live gets `release` from the player's timing. A Playbook
+turn has no meter, so the athlete's execution stands in: rating sets the centre, composure narrows
+the spread, and the draw is seeded. Anything flatter would make ratings matter *less* in Playbook
+than in Live, which is exactly the failure INV-11 exists to catch.
+
+**Draw order is fixed and named:** broken scheme → turnover → foul → shot → rebound, each from its
+own labelled fork. Inserting a sixth stage later cannot shift the stages after it.
+
+**Free throws are separate scores, not a lump sum.** `TurnResolution.scores` was added to the engine
+seam for this: the box score reads `score.value` to tell a free throw from a field goal, so booking
+a two-shot trip as one score of 2 would record a made two. This is the kind of thing that only shows
+up three screens later in a stat total, so the seam carries it rather than each sport re-deriving it.
+
+**The shot profile lives on the call.** A play *is* the shot it tends to produce, so `calls.ts`
+carries the zone, the distance, the movement, the turnover and foul rates, the clock cost, and the
+assist share. Resolution reads one table instead of switching on call ids, and a seventh play is a
+row.
+
+**Assists needed their own share.** The first batch booked an assist on 95% of makes, because every
+made shot emitted a pass. `assisted` per call — Isolation 0.15, Motion 0.82 — brought it to 19.7 a
+team, which is basketball. Worth remembering that this was invisible until the box score was built
+off the Playbook stream; the model itself looked fine.
+
+**Playbook is ~105 possessions a team, which is ~210 turns a match.** That is what `09` §2.2's
+"each possession you choose a play" means once the clock is Live's clock, and it is why T-5.7's
+auto-call and fast-forward are not optional polish.
+
+**Deviation: the play catalogue landed here, not in T-5.4.** The model cannot be tuned without all
+six offensive and five defensive calls existing, so `calls.ts` carries `09` §2.2's two tables in
+full. T-5.4 is therefore the call-selection *UI* plus whatever metadata the sheet turns out to need.
+
+**`autoCall` is uniform over the catalogue on purpose** until T-5.8. A placeholder that quietly
+favoured one call would look like tuning and be mistaken for it, and T-5.8's regression harness
+needs a flat baseline to measure a real CPU against.

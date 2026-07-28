@@ -29,7 +29,8 @@
     "verify": "pnpm typecheck && pnpm lint && pnpm test",
     "budget": "tsx tools/budget.ts",
     "bench": "tsx tools/bench.ts",
-    "balance": "tsx tools/balance.ts"
+    "balance": "tsx tools/balance.ts",
+    "balance:playbook": "tsx tools/balance-playbook.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

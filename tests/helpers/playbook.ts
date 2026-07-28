@@ -91,6 +91,7 @@ export function fakeAdapter(options: FakeAdapterOptions = {}): PlaybookAdapter<F
 
   const adapter: PlaybookAdapter<FakeDetail> = {
     turnKind: 'possession',
+    clock: { periodSeconds: 72, overtimeSeconds: 36, secondsPerStep: 1 },
 
     createState(): FakeDetail {
       return { resolutions: 0, lastCall: '' };

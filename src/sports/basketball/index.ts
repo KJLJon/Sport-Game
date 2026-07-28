@@ -133,6 +133,7 @@ import {
 } from './cpu.ts';
 import { cycleControlled, pickControlled, shouldAutoSwitch, type Candidate } from './control.ts';
 import { BASKETBALL_ARCADE } from './arcade/index.ts';
+import { basketballPlaybook } from './playbook/index.ts';
 import type {
   ActionIntent,
   MatchSetup,
@@ -389,6 +390,7 @@ export const basketball: SportModule<BasketballState> = {
   render,
   hud,
   arcade: BASKETBALL_ARCADE,
+  playbook: basketballPlaybook,
 
   createState(setup: MatchSetup, world: World, rng: Rng): BasketballState {
     const squadSize = Math.min(setup.squadSize ?? this.meta.squadSize, roles.roles.length);

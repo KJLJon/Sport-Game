@@ -151,8 +151,16 @@ export interface TurnResolution {
   /** Whoever the turn was about, for narration and for the diagram's highlight. */
   readonly actor?: EntityId;
   readonly target?: EntityId;
-  /** Points scored by `attacking`. Never negative. */
+  /** Points scored by `attacking`, in total. Never negative. */
   readonly points: number;
+  /**
+   * How those points arrived, in order. A trip to the line is two one-pointers and a made three is
+   * one three, because the box score reads `score.value` to tell a free throw from a field goal —
+   * one lump sum would book a two-shot trip as a made two.
+   *
+   * Absent means "one score of `points`", which is what almost every turn is.
+   */
+  readonly scores?: readonly TurnScore[];
   /** Game seconds the turn consumed. `09` §2.1 — a turn is 4–8 s of *resolution*, not game time. */
   readonly seconds: number;
   /** True when the attacking side keeps the ball: an offensive rebound, a foul on a made shot. */
@@ -162,6 +170,12 @@ export interface TurnResolution {
   readonly expectation: TurnExpectation;
   /** Set once an arcade key moment has replaced the sim's own outcome (T-5.5). */
   readonly fromKeyMoment?: KeyMomentOutcome;
+}
+
+/** One scoring play inside a turn. The engine emits each as its own `score` event. */
+export interface TurnScore {
+  readonly points: number;
+  readonly actor?: EntityId;
 }
 
 /** How often the sim hands a moment over (`09` §2.4). */
@@ -214,8 +228,21 @@ export interface PlaybookSetup {
  * The seam. A sport supplies one of these and gains a turn-based mode; the engine below never learns
  * what sport it is running.
  */
+/**
+ * The sport's clock, in the units its HUD shows. Playbook spends the same simulation steps Live
+ * does, so `secondsPerStep` is the sport's own compression and nothing else.
+ */
+export interface PlaybookClock {
+  readonly periodSeconds: number;
+  /** Overtime is usually shorter. Defaults to `periodSeconds`. */
+  readonly overtimeSeconds?: number;
+  /** Game seconds one simulation step is worth. */
+  readonly secondsPerStep: number;
+}
+
 export interface PlaybookAdapter<S = unknown> {
   readonly turnKind: TurnKind;
+  readonly clock: PlaybookClock;
 
   /** The sport's own between-turn state. Seeded, so two matches with one seed are one match. */
   createState(setup: PlaybookSetup, rng: Rng): S;
