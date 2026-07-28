@@ -49,6 +49,13 @@ const CONTEST_SECONDS = 60;
 /** `06` §3.1 geometry — the five spots run corner to corner, all beyond the arc. */
 const SPOT_DISTANCE_M = [7.0, 7.1, 7.24, 7.1, 7.0] as const;
 
+/**
+ * Which zone each rack shoots from, in basketball's own vocabulary (`xp.ts`). The racks really do
+ * run corner → wing → top → wing → corner, so the sub-skill a rack trains is the sub-skill that
+ * spot trains in a match.
+ */
+const SPOT_ZONE = ['cornerThree', 'wingThree', 'topThree', 'wingThree', 'cornerThree'] as const;
+
 const POINTS_PER_MAKE = 100;
 const MONEY_BALL_POINTS = 200;
 
@@ -121,7 +128,7 @@ class ThreePointSession implements ArcadeSession {
       events: shotEvents({
         made,
         points: 3,
-        zone: money ? 'cornerThree' : 'aboveBreakThree',
+        zone: SPOT_ZONE[this.rack] ?? 'topThree',
         distance: SPOT_DISTANCE_M[this.rack] ?? 7.24,
       }),
     });

@@ -127,7 +127,7 @@ class BuzzerBeaterSession implements ArcadeSession {
       events: shotEvents({
         made,
         points: 3,
-        zone: 'aboveBreakThree',
+        zone: 'topThree',
         distance: THREE_DISTANCE_M,
       }),
     });

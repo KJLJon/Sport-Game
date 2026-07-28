@@ -29,6 +29,7 @@ import { arcadeCatalogue, findGame } from '../../modes/arcade/registry.ts';
 import { dailyChallenge, dailyConfig, dateKey } from '../../modes/arcade/daily.ts';
 import { startRun } from '../../modes/arcade/modes.ts';
 import { ArcadeRepository } from '../../modes/arcade/records.ts';
+import { arcadeProgression, progressionSummary } from '../../modes/arcade/progression.ts';
 import { accuracy } from '../../modes/arcade/scoring.ts';
 import {
   isArcadeMode,
@@ -124,6 +125,8 @@ export function arcadeGameScreen(): Screen {
 
       let run = startRun(game, config);
       let recorded = false;
+      /** What the finished run was worth to the athlete (US-16.5). Filled in when the run ends. */
+      let learned = 'Practice runs are not scored or rewarded.';
 
       // ── Chrome ────────────────────────────────────────────────────────────
       const section = el(doc, 'section', { class: 'arcade-run' });
@@ -230,12 +233,7 @@ export function arcadeGameScreen(): Screen {
               result?.attempts ?? 0
             } (${Math.round(accuracy(result?.made ?? 0, result?.attempts ?? 0))}%)`,
           }),
-          el(doc, 'p', {
-            text:
-              config.mode === 'practice'
-                ? 'Practice runs are not scored or rewarded.'
-                : 'Personal best updated.',
-          }),
+          el(doc, 'p', { class: 'arcade-run__learned', text: learned }),
         );
         actions.replaceChildren(
           button(doc, {
@@ -256,13 +254,30 @@ export function arcadeGameScreen(): Screen {
         );
       };
 
-      /** Files the finished run. Practice never reaches storage — `recordRun` refuses it anyway. */
+      /**
+       * Files the finished run: the personal best, and what the athlete learned from it (T-4.10).
+       * Practice never reaches storage — `recordRun` and `arcadeProgression` both refuse it, which
+       * is what makes "unlimited and unrewarded" safe rather than a rule the caller has to keep.
+       */
       const record = (): void => {
         const result = run.result();
         if (result === null || recorded) return;
         recorded = true;
+
+        const progress = arcadeProgression({
+          result,
+          athlete: config.athlete,
+          awards: basketball.xpAwards ?? [],
+        });
+        learned = progressionSummary(progress);
+        renderOverlay();
+
         void appDatabase()
-          .then(({ db }) => new ArcadeRepository(db).recordRun(result, game.stars))
+          .then(async ({ db, athletes }) => {
+            await new ArcadeRepository(db).recordRun(result, game.stars);
+            // The daily's athlete is generated, not one of yours, so there is nothing to store.
+            if (progress !== null && config.mode !== 'daily') await athletes.put(progress.athlete);
+          })
           .catch(() => {
             // A lost personal best is not worth interrupting the run-over screen for.
           });

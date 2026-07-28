@@ -140,7 +140,7 @@ class FastBreakSession implements ArcadeSession {
       events: shotEvents({
         made,
         points: 2,
-        zone: dunk ? 'dunk' : 'rim',
+        zone: 'restricted',
         distance: RIM_DISTANCE_M,
       }),
     });

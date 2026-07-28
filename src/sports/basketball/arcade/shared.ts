@@ -18,6 +18,7 @@
  * shape by Free Throw and another by Buzzer Beater would make arcade XP (T-4.10) a per-game rule.
  */
 import { EventKind, type SportEvent } from '../../../engine/match/events.ts';
+import { BasketballEvent } from '../rules.ts';
 import type { Canvas2D } from '../../../engine/render/renderer.ts';
 import { calibrateForAthlete } from '../../../modes/arcade/calibration.ts';
 import type { ArcadeWindowShape } from '../../../modes/arcade/calibration.ts';
@@ -27,6 +28,13 @@ import type { Difficulty } from '../../../modes/difficulty.ts';
 import { BASKETBALL_PHYSICAL, BASKETBALL_WEIGHTS } from '../weights.ts';
 
 export const BASKETBALL_ARCADE_SPORT = 'basketball';
+
+/**
+ * The entity every arcade event is attributed to. An arcade run has one athlete and no world, but
+ * `xp.ts` awards by entity id, so the run needs *an* id — and one constant beats five games each
+ * picking their own. `0` is a real entity in a match; here it is simply "the athlete playing".
+ */
+export const ARCADE_ACTOR = 0;
 
 const TABLES = { weights: BASKETBALL_WEIGHTS, physicalModifiers: BASKETBALL_PHYSICAL };
 
@@ -54,6 +62,10 @@ export function basketballCalibration(
  * A made shot, in the shape Live emits it (INV-9). `step` is stamped by the framework; `zone` is
  * what `xpAwards` matches on, so an arcade three trains three-point shooting exactly as a Live one
  * does — which is the whole of `09` §3.4.
+ *
+ * **`zone` must come from basketball's own vocabulary** (`xp.ts`): a zone name invented here would
+ * match no award rule and the run would silently train nothing. There is a test asserting every
+ * zone the arcade set emits is one the award table knows.
  */
 export function shotEvents(options: {
   readonly made: boolean;
@@ -65,6 +77,7 @@ export function shotEvents(options: {
     kind: EventKind.SHOT,
     step: 0,
     side: 0,
+    actor: ARCADE_ACTOR,
     value: options.distance,
     detail: { zone: options.zone, made: options.made, points: options.points },
   };
@@ -76,6 +89,7 @@ export function shotEvents(options: {
       kind: EventKind.SCORE,
       step: 0,
       side: 0,
+      actor: ARCADE_ACTOR,
       value: options.points,
       detail: { zone: options.zone },
     },
@@ -84,11 +98,25 @@ export function shotEvents(options: {
 
 /** A steal, and the foul that a mistimed one becomes. */
 export function stealEvent(): SportEvent {
-  return { kind: EventKind.SPORT, sportKind: 'basketball.steal', step: 0, side: 0, value: 1 };
+  return {
+    kind: EventKind.SPORT,
+    sportKind: BasketballEvent.STEAL,
+    step: 0,
+    side: 0,
+    actor: ARCADE_ACTOR,
+    value: 1,
+  };
 }
 
 export function foulEvent(): SportEvent {
-  return { kind: EventKind.FOUL, step: 0, side: 0, value: 1, detail: { kind: 'reach-in' } };
+  return {
+    kind: EventKind.FOUL,
+    step: 0,
+    side: 0,
+    actor: ARCADE_ACTOR,
+    value: 1,
+    detail: { kind: 'reach-in' },
+  };
 }
 
 // ── Drawing ─────────────────────────────────────────────────────────────────
