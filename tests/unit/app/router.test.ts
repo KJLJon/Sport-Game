@@ -137,6 +137,11 @@ describe('the real route table', () => {
     expect(match?.params.id).toBe('abc123');
   });
 
+  it('sends /squad/teams/new to the editor, not to the edit-by-id route', () => {
+    expect(resolveRoute(ROUTES, parseHash('#/squad/teams/new'))?.route.id).toBe('team-new');
+    expect(resolveRoute(ROUTES, parseHash('#/squad/teams/t123'))?.route.id).toBe('team-edit');
+  });
+
   it('sends any other id to the athlete card, with the id as a parameter', () => {
     const match = resolveRoute(ROUTES, parseHash('#/squad/athlete/abc123'));
     expect(match?.route.id).toBe('athlete');

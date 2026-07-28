@@ -90,6 +90,30 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
+    pattern: '/squad/teams',
+    value: {
+      id: 'teams',
+      title: 'Teams',
+      load: async () => (await import('../ui/screens/teams.ts')).teamsScreen(),
+    },
+  },
+  {
+    pattern: '/squad/teams/new',
+    value: {
+      id: 'team-new',
+      title: 'New team',
+      load: async () => (await import('../ui/screens/team-editor.ts')).teamEditorScreen(),
+    },
+  },
+  {
+    pattern: '/squad/teams/:id',
+    value: {
+      id: 'team-edit',
+      title: 'Edit team',
+      load: async () => (await import('../ui/screens/team-editor.ts')).teamEditorScreen(),
+    },
+  },
+  {
     pattern: '/squad/athlete/:id/compare',
     value: {
       id: 'athlete-compare',

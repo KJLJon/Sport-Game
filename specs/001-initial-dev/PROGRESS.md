@@ -12,22 +12,18 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-3.11 team screens (delegated to `sonnet`, in flight)
+- **Task:** T-3.12 — Lineup editor
 - **Status:** in_progress
 - **Started:** 2026-07-28
 - **Branch commit:** (see `git log`)
-- **Done so far:**
-  - [x] T-3.1–T-3.9 — the athlete model, the card, the editor, and the compare view
-  - [x] T-3.11's *data model* — `src/teams/{types,repository}.ts`, settled and pushed before
-        delegating the screen (CLAUDE.md §7.3 rule 1)
-  - [x] T-3.10 roster browser — reviewed, layering inversion fixed, merged
-  - [ ] T-3.11 team screens — agent owns `ui/components/crest.ts`, `ui/screens/team*`
-- **Next step:** review both agents' diffs against the spec (not their summaries), run
-  `pnpm -s verify` over the combined tree, wire their routes **here** — both agents were told not
-  to touch `src/app/routes.ts`, which is how the last round's conflict was avoided — then commit.
-- **Files touched:** src/athletes/**, src/teams/**, src/sports/{types,catalogue}.ts,
-  src/sports/basketball/{weights,xp,index}.ts, src/sports/soccer/weights.ts,
-  src/storage/{idb,app-db}.ts, src/ui/components/**, src/ui/screens/**, src/app/routes.ts
+- **Done so far:** T-3.1 through T-3.11 are `done`. The athlete model, the card, the editor, the
+  compare view, the roster browser, and teams all exist and are routed.
+- **Next step:** T-3.12 (lineup editor) → T-3.13 (stamina/injury) → T-3.14 (starter roster) →
+  T-3.15 (import) → T-3.16 (backup) → **T-3.17**, which finally replaces `rollRatings()` and the
+  local `AthleteRatings` type in `sports/basketball/index.ts` with real athletes. Run
+  `pnpm balance` after T-3.17 — it is the only thing that will say whether the sport survived.
+- **Files touched:** src/athletes/**, src/teams/**, src/sports/**, src/storage/**, src/ui/**,
+  src/app/routes.ts
 - **Blockers:** none for Phase 3. Gate 2 remains unsigned — see its record; Phase 3 is proceeding on
   top of that debt, deliberately, and Gate 3 inherits it.
 - **Notes:** CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27) — verify
@@ -52,7 +48,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
-| 3 | Athletes, cross-sport ratings, roster | 17 | 10 | `in_progress` | v0.2 |
+| 3 | Athletes, cross-sport ratings, roster | 17 | 11 | `in_progress` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 0 | `todo` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
@@ -61,7 +57,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **54** | | |
+| | **Total** | **170** | **55** | | |
 
 ---
 
@@ -140,7 +136,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-3.8 | Athlete card component: compact + full, sport switcher, familiarity ring, "why this rating" | L | `done` | | `tests/unit/ui/athlete-card.test.ts`, `tests/unit/ui/athlete-screen.test.ts`, `tests/unit/athletes/explain.test.ts` | `auto` — asserted on what the card *says*, not how it is laid out | The card computes no rating: it is handed derivation's output and the explanation beside it, so what a player reads and what the sim uses cannot drift. Sentences live in `athletes/explain.ts`, because a string built in a component is a string with no test — and under `10` §11 they are load-bearing, being the non-colour channel for every meter. The "why" is a `<details>`, so it is keyboard-operable and announced with no JavaScript of ours. `sports/catalogue.ts` separates **rateable** from **playable**: the sport switcher needs two rating tables, not two playable sports, and the card says which rather than implying soccer is a real matchup. **Two bugs found:** the familiarity ring computed its own rank in even fifths while `05` §3.3's bands are uneven, so the ring could read "Natural" beside text reading "Comfortable"; and several explanation strings said "1 points". Also added a router test — `/squad/athlete/new` and `/squad/athlete/:id` are both three segments, and if specificity ever stopped preferring the literal, creating an athlete would silently become "No such athlete". |
 | T-3.9 | Cross-sport compare view with projections for unplayed sports | M | `done` | | `tests/unit/ui/athlete-compare.test.ts` | `auto` | Each row shows **two** numbers — what the athlete rates today and what they would rate once they knew the sport — because showing only one would either flatter every athlete or bury the feature. The projection is `derivation.ts`'s own arithmetic with familiarity pinned at the cap, not a separate estimate; a test asserts they agree, since a compare view disagreeing with the sim would be lying about a number the sim is about to use. Rows rank on **potential**, not on today's number: ranking on current sorts by which sport happens to have been played, which is a fact about the save file rather than about the athlete. Adds "about N matches to close it" from T-3.4's `matchesToReach`. |
 | T-3.10 | Roster browser: search, sort, filter, bulk select | M | `done` | | `tests/unit/athletes/roster-query.test.ts`, `tests/unit/ui/roster.test.ts`, `tests/invariants/layering.test.ts` | `auto` — diff reviewed against the spec, not the agent's summary | **Delegated to `sonnet`.** Query logic is pure and DOM-free, so the edge cases are testable without a screen: sorting is **total** rather than relying on `Array.prototype.sort`'s stability (an engine detail, not a contract), rarity orders by `RARITIES`' declared sequence rather than alphabetically, an unrecognised filter value matches nothing rather than everything, and "sort by rating" falls back to each athlete's *own* primary sport rather than ranking everyone through one table. Bulk delete gets both things US-5.5 asks for and that are easy to skip: a confirming dialog and an undo, which is why `deleteMany` returns the records rather than a count. **Architectural fix found in review:** the agent reused `cardOverall` from the athlete *card* as instructed, which made `src/athletes/` depend on `src/ui/` — backwards. The arithmetic moved to `derivation.sportOverall()` and the card now imports it. Guarded by a new `tests/invariants/layering.test.ts`, because the failure is invisible until something headless (a balance run, a migration) drags a DOM module into a context with no DOM. |
-| T-3.11 | Teams: create/edit, name, colours, generic crests | M | `todo` | | | | |
+| T-3.11 | Teams: create/edit, name, colours, generic crests | M | `done` | | `tests/integration/storage/teams.test.ts`, `tests/unit/ui/{crest,teams}.test.ts` | `auto` — diff reviewed against the spec, not the agent's summary | Data model built here first and pushed before delegating (CLAUDE.md §7.3 rule 1); screens delegated to `sonnet`. Two relational rules live in the repository rather than in callers: deleting a team deletes its squads in one transaction, and deleting an athlete strips them from every lineup — both are orphans that stay invisible until they are a bug report. Colour is never the only difference between two teams (`10` §11): a short name and one of eight crest *shapes* carry it too, and palettes ship named so the picker never asks anyone to pick "the green one". CPU teams (`editable: false`) are refused with an explanation rather than silently edited. **The agent hit the account's monthly spend limit mid-run**; it had already finished and self-verified, and this session re-ran `verify` and coverage independently rather than trusting the partial report. |
 | T-3.12 | Lineup editor: formation diagram, drag-to-slot, position-fit warnings, auto-fill best | L | `todo` | | | | |
 | T-3.13 | Stamina, injury, suspension, availability | M | `todo` | | | | |
 | T-3.14 | Starter roster: generated fictional athletes, enough for both sports | M | `todo` | | | | |
