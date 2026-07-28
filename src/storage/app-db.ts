@@ -3,6 +3,7 @@
  * @phase   3 — Athletes, cross-sport ratings, roster
  * @task    T-3.1 — Athlete schema, IndexedDB store, indexes, repository
  * @task    T-3.7 — Profile editor
+ * @task    T-3.11 — Teams: create/edit, name, colours, generic crests
  * @story   US-5.1 — Create an athlete profile
  * @story   US-12.2 — My saves survive an update
  * @design  05-data-model.md §1 (storage overview), §9 (migrations), 04-architecture.md §7
@@ -21,12 +22,14 @@
  * so a failed or too-new migration is surfaced as a rejected open, not swallowed.
  */
 import { AthleteRepository } from '../athletes/repository.ts';
+import { TeamRepository } from '../teams/repository.ts';
 import { Database } from './idb.ts';
 import { describeOutcome, runMigrations, type MigrationOutcome } from './migrations.ts';
 
 export interface AppDatabase {
   readonly db: Database;
   readonly athletes: AthleteRepository;
+  readonly teams: TeamRepository;
   /** What the migration chain did on open. Shown by the data screens (`10` §10). */
   readonly migration: MigrationOutcome;
 }
@@ -53,7 +56,7 @@ async function open(onBlocked?: () => void): Promise<AppDatabase> {
     throw new DatabaseUnavailableError(migration);
   }
 
-  return { db, athletes: new AthleteRepository(db), migration };
+  return { db, athletes: new AthleteRepository(db), teams: new TeamRepository(db), migration };
 }
 
 /**
