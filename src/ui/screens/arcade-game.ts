@@ -51,28 +51,19 @@ import {
   type ArcadeLayout,
   type ArcadeMode,
 } from '../../modes/arcade/types.ts';
+import {
+  applyMotionPreference,
+  arcadeLayout,
+  drawOutcomeFeedback,
+  type FeedbackState,
+} from '../../modes/arcade/accessibility.ts';
 import { appDatabase } from '../../storage/app-db.ts';
-import { prefs } from '../../storage/prefs.ts';
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { button } from '../components/button.ts';
 import { starRating } from '../components/meters.ts';
 import { errorState } from '../components/states.ts';
 import { el } from '../dom.ts';
 import './arcade.css';
-
-/** Preference keys shared with Settings (`10` §11). Read, never written, from here. */
-const LEFT_HANDED_KEY = 'controls.leftHanded';
-const REDUCED_MOTION_KEY = 'display.reducedMotion';
-
-function prefersReducedMotion(view: Window | null): boolean {
-  if (prefs.get<boolean>(REDUCED_MOTION_KEY, false)) return true;
-  try {
-    return view?.matchMedia('(prefers-reduced-motion: reduce)').matches === true;
-  } catch {
-    // `matchMedia` is absent in jsdom and in a few embedded webviews; not a reason to fail a run.
-    return false;
-  }
-}
 
 function seedFor(game: ArcadeGameDef, mode: ArcadeMode): string {
   return `${mode}:${game.id}:${Date.now().toString(36)}`;
@@ -129,12 +120,8 @@ export function arcadeGameScreen(): Screen {
         return;
       }
 
-      const layout: ArcadeLayout = {
-        width: 1,
-        height: 1,
-        mirror: prefs.get<boolean>(LEFT_HANDED_KEY, false),
-        reducedMotion: prefersReducedMotion(view),
-      };
+      const layout: ArcadeLayout = arcadeLayout(view);
+      applyMotionPreference(doc, view);
 
       /**
        * A party, or `null` for a solo run. Everything about the party — the shared seed, the shared
@@ -380,6 +367,10 @@ export function arcadeGameScreen(): Screen {
       renderHud();
       renderOverlay();
 
+      /** The outcome banner's state. Reset every time a new outcome lands (T-4.12). */
+      let feedback: FeedbackState | null = null;
+      let lastOutcomeLabel: string | null = null;
+
       let lastPhase = run.view().phase;
       loop = createLoop({
         step: (stepMs) => {
@@ -388,6 +379,15 @@ export function arcadeGameScreen(): Screen {
           run.step(frame, stepMs / 1000);
           previous = frame;
           pressed = false;
+
+          const outcome = run.view().lastOutcome;
+          const label = outcome === null ? null : `${outcome.label}:${run.view().attempts}`;
+          if (outcome !== null && label !== lastOutcomeLabel) {
+            lastOutcomeLabel = label;
+            feedback = { outcome, age: 0 };
+          } else if (feedback !== null) {
+            feedback = { ...feedback, age: feedback.age + stepMs / 1000 };
+          }
         },
         render: () => {
           const state = run.view();
@@ -403,7 +403,9 @@ export function arcadeGameScreen(): Screen {
           context2d.save();
           context2d.scale(size.dpr, size.dpr);
           context2d.clearRect(0, 0, size.width, size.height);
-          run.draw(context2d, { ...layout, width: size.width, height: size.height });
+          const frameLayout = { ...layout, width: size.width, height: size.height };
+          run.draw(context2d, frameLayout);
+          drawOutcomeFeedback(context2d, frameLayout, feedback);
           context2d.restore();
         },
       });

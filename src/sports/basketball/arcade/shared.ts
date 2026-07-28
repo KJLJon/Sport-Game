@@ -169,6 +169,9 @@ export function label(
   ctx.fillText(text, x, y);
 }
 
+/** Where the meter sits across the stage, as a fraction of the width, for a right-handed player. */
+export const METER_THUMB_SIDE = 0.66;
+
 /**
  * The vertical release meter four of the games draw: a track, the athlete's band, and the marker.
  * The band is drawn *and* outlined, and the marker is a wide bar rather than a tint, so the meter
@@ -183,7 +186,9 @@ export function drawMeter(
     readonly x?: number;
   },
 ): void {
-  const x = mirrorX(options.x ?? layout.width * 0.5, layout);
+  // Off-centre, on the side the thumb is. A centred meter would make left-hand mirroring a no-op —
+  // which it was, until a test asked what mirroring actually changed and the answer was nothing.
+  const x = mirrorX(options.x ?? layout.width * METER_THUMB_SIDE, layout);
   const width = Math.max(24, layout.width * 0.08);
   const top = layout.height * 0.15;
   const height = layout.height * 0.7;
@@ -199,6 +204,16 @@ export function drawMeter(
   bar(ctx, x - width / 2, bandTop, width, bandHeight, ARCADE_COLOURS.band);
   ctx.strokeStyle = ARCADE_COLOURS.bandEdge;
   ctx.strokeRect(x - width / 2, bandTop, width, bandHeight);
+
+  // A tick through the band's middle: the one place worth hitting, marked by a line rather than by
+  // being "the greener part" (`10` §11, T-4.12).
+  const centreY = at((options.band.from + options.band.to) / 2);
+  ctx.strokeStyle = ARCADE_COLOURS.marker;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x - width / 2, centreY);
+  ctx.lineTo(x + width / 2, centreY);
+  ctx.stroke();
 
   const markerY = at(options.position);
   bar(ctx, x - width / 2 - 8, markerY - 3, width + 16, 6, ARCADE_COLOURS.marker);
