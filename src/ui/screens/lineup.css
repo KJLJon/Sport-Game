@@ -1,0 +1,141 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   3 — Athletes, cross-sport ratings, roster
+ * @task    T-3.12 — Lineup editor: formation diagram, drag-to-slot, position-fit warnings, auto-fill best
+ * @story   US-6.2 — Set a lineup
+ * @design  10-ui-ux.md §4 (layout), §11 (accessibility)
+ *
+ * Purpose: the formation diagram and the bench list. Every value is a token, so theme, UI scale,
+ * and reduced motion stay single switches.
+ *
+ * Slots are absolutely positioned from `--x`/`--y` set per slot in TypeScript, because those
+ * fractions come from the sport's own role table — a new sport gets a formation without a rule
+ * being added here.
+ */
+
+.lineup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.lineup__head h2 {
+  font-size: var(--text-24);
+  margin: 0 0 var(--space-4);
+}
+
+.lineup__status,
+.lineup__note {
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  margin: 0;
+}
+
+/* Readiness is a word first; the edge is a second channel, never the only one (`10` §11). */
+.lineup__status[data-ready='true'] {
+  color: var(--text-hi);
+}
+
+.lineup__field {
+  aspect-ratio: 3 / 4;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  position: relative;
+  width: 100%;
+}
+
+.lineup__slot {
+  align-items: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  color: var(--text-hi);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font: inherit;
+  gap: 2px;
+  inset-block-start: var(--y, 50%);
+  inset-inline-start: var(--x, 50%);
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding: var(--space-4) var(--space-8);
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.lineup__slot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.lineup__slot[data-empty='true'] {
+  border-style: dashed;
+  color: var(--text-lo);
+}
+
+/* Out of position: a dashed accent edge *and* the words underneath it. */
+.lineup__slot[data-warn='true'] {
+  border-color: var(--accent-alt);
+  border-style: dashed;
+}
+
+.lineup__slot[data-blocked='true'] {
+  border-color: var(--danger);
+}
+
+.lineup__slot-position {
+  font-size: var(--text-12);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.lineup__slot-name {
+  font-size: var(--text-12);
+  max-width: 8ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lineup__slot-rating {
+  font-size: var(--text-14);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.lineup__slot-warn,
+.lineup__slot-blocked {
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+.lineup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.lineup__bench h3 {
+  font-size: var(--text-12);
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--space-8);
+  text-transform: uppercase;
+}
+
+.lineup__bench-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+@media (width >= 720px) {
+  .lineup__field {
+    aspect-ratio: 4 / 3;
+  }
+}

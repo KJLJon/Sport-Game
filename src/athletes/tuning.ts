@@ -138,6 +138,40 @@ export const XP = {
 } as const;
 
 /**
+ * Stamina, injury, and suspension (US-6.3). `05` gives the `condition` fields but no rates, so
+ * every number here is this task's, written to `05`'s own standard — starting values for a balance
+ * pass, tuned so a starter finishes a match tired rather than spent.
+ */
+export const CONDITION = {
+  dayMs: 24 * 60 * 60 * 1000,
+
+  /** Stamina points per real minute of play at intensity 1, before endurance relief. */
+  drainPerMinute: 3.2,
+  /** Endurance 99 pays this fraction of the base drain; endurance 1 pays all of it. */
+  enduranceFloor: 0.45,
+  /** Stamina points recovered per match rested. */
+  recoveryPerMatch: 42,
+  recoveryAgeFrom: 30,
+  recoveryAgePerYear: 0.03,
+  recoveryAgeFloor: 0.6,
+
+  /** Above this stamina nothing is degraded at all, so a fresh athlete costs the sim nothing. */
+  fatigueFrom: 60,
+  /** An exhausted athlete keeps this much of themselves — markedly worse, never useless. */
+  fatigueFloor: 0.72,
+
+  /** Band thresholds, so the stamina bar always has a word beside it (`10` §11). */
+  bands: { fresh: 75, working: 50, tiring: 25 },
+
+  /** Per unit of contact severity. Deliberately rare — see `rollInjury`. */
+  injuryBaseChance: 0.004,
+  /** A fully spent athlete is this much more likely to get hurt. */
+  injuryTirednessFactor: 2.5,
+  injuryMaxChance: 0.06,
+  injuryDays: { min: 2, max: 12 },
+} as const;
+
+/**
  * Behavioural coupling (`05` §3.3's last paragraph). Every value is a *maximum*, reached only by a
  * complete novice; all of them are zero at `fadeOut` familiarity and above.
  *

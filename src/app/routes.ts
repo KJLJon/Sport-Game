@@ -106,6 +106,14 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
+    pattern: '/squad/teams/:id/lineup/:sport',
+    value: {
+      id: 'lineup',
+      title: 'Lineup',
+      load: async () => (await import('../ui/screens/lineup.ts')).lineupScreen(),
+    },
+  },
+  {
     pattern: '/squad/teams/:id',
     value: {
       id: 'team-edit',

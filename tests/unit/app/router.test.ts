@@ -142,6 +142,12 @@ describe('the real route table', () => {
     expect(resolveRoute(ROUTES, parseHash('#/squad/teams/t123'))?.route.id).toBe('team-edit');
   });
 
+  it('routes a team lineup by team and sport', () => {
+    const match = resolveRoute(ROUTES, parseHash('#/squad/teams/t1/lineup/basketball'));
+    expect(match?.route.id).toBe('lineup');
+    expect(match?.params).toMatchObject({ id: 't1', sport: 'basketball' });
+  });
+
   it('sends any other id to the athlete card, with the id as a parameter', () => {
     const match = resolveRoute(ROUTES, parseHash('#/squad/athlete/abc123'));
     expect(match?.route.id).toBe('athlete');

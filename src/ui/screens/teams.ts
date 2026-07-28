@@ -204,6 +204,13 @@ export function teamsScreen(): Screen {
                   variant: 'secondary',
                   onClick: () => context.navigate(`/squad/teams/${team.id}`),
                 }),
+                // Basketball is the only playable sport until Phase 6, so the lineup editor is
+                // offered for it alone rather than for every sport the catalogue can rate.
+                button(doc, {
+                  label: `Basketball lineup for ${team.name}`,
+                  variant: 'secondary',
+                  onClick: () => context.navigate(`/squad/teams/${team.id}/lineup/basketball`),
+                }),
                 button(doc, {
                   label: `Delete ${team.name}`,
                   variant: 'destructive',
