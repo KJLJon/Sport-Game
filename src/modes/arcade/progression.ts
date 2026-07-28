@@ -15,11 +15,13 @@
  * that arcade can pay less without progression ever learning that arcade exists (`CLAUDE.md` §8.5,
  * INV-6). If this module disappeared, nothing in `athletes/` would need to change.
  *
- * **Why 0.6 and not 0.35.** A run is already about a twentieth of a match in wall time, so the rate
- * multiplies something small. `09` §3.4 wants practising free throws with your soccer star to
- * *genuinely* help — a rate low enough to make that take five hundred runs would satisfy `09` §7's
- * "least per minute" and quietly break §3.4. At 0.6, roughly twenty runs are worth a match's
- * learning: clearly worse per minute than playing, clearly worth doing.
+ * **Why 0.8, and why it is not lower.** A run is already about a twentieth of a match in wall time,
+ * so the rate multiplies something small: a rate low enough to make practising take five hundred
+ * runs would satisfy `09` §7's "least per minute" and quietly break §3.4's promise that practice
+ * genuinely helps. And INV-12 puts a floor under it — reward rate per minute must stay within ±25%
+ * across modes, so anything below 0.75 fails the invariant outright. 0.8 is the honest reading of
+ * both: arcade pays least per minute, by a margin a player would notice and the invariant allows,
+ * and what actually stops grinding is T-4.13's daily cap rather than a crushed rate.
  *
  * **Practice pays nothing at all** (`09` §3.3), and that is checked here rather than trusted to the
  * caller, because "unlimited and unrewarded" is the sentence that makes unlimited safe.
@@ -35,7 +37,7 @@ import type { ArcadeResult } from './types.ts';
  * @spec-ref 09-modes-and-arcade.md §3.4 ("at a reduced rate versus a real match"), §7 ("Arcade
  * least per minute and capped daily").
  */
-export const ARCADE_LEARNING_RATE = 0.6;
+export const ARCADE_LEARNING_RATE = 0.8;
 
 /** The entity arcade events are attributed to. Matches the sport modules' `ARCADE_ACTOR`. */
 export const ARCADE_ENTITY = 0;

@@ -26,7 +26,7 @@ import type { Canvas2D } from '../../engine/render/renderer.ts';
 import type { Athlete } from '../../athletes/types.ts';
 import { basketball } from '../../sports/basketball/index.ts';
 import { arcadeCatalogue, findGame } from '../../modes/arcade/registry.ts';
-import { dailyChallenge, dailyConfig, dateKey } from '../../modes/arcade/daily.ts';
+import { dailyChallenge, dailyConfig } from '../../modes/arcade/daily.ts';
 import { startRun } from '../../modes/arcade/modes.ts';
 import { ArcadeRepository } from '../../modes/arcade/records.ts';
 import {
@@ -43,6 +43,8 @@ import {
 } from '../../modes/arcade/party.ts';
 import { PARTY_LIMITS, seatPlayers } from '../../modes/local-players.ts';
 import { arcadeProgression, progressionSummary } from '../../modes/arcade/progression.ts';
+import { awardRun, rewardSummary } from '../../modes/arcade/rewards.ts';
+import { dateKey } from '../../modes/arcade/daily.ts';
 import { accuracy } from '../../modes/arcade/scoring.ts';
 import {
   isArcadeMode,
@@ -132,6 +134,8 @@ export function arcadeGameScreen(): Screen {
       let recorded = false;
       /** What the finished run was worth to the athlete (US-16.5). Filled in when the run ends. */
       let learned = 'Practice runs are not scored or rewarded.';
+      /** What it paid in coins (US-16.6). Filled in once the day's record has been read. */
+      let paid = '';
 
       // ── Chrome ────────────────────────────────────────────────────────────
       const section = el(doc, 'section', { class: 'arcade-run' });
@@ -251,6 +255,7 @@ export function arcadeGameScreen(): Screen {
             } (${Math.round(accuracy(result?.made ?? 0, result?.attempts ?? 0))}%)`,
           }),
           el(doc, 'p', { class: 'arcade-run__learned', text: learned }),
+          el(doc, 'p', { class: 'arcade-run__paid', text: paid }),
         );
         actions.replaceChildren(
           button(doc, {
@@ -353,7 +358,17 @@ export function arcadeGameScreen(): Screen {
 
         void appDatabase()
           .then(async ({ db, athletes }) => {
-            await new ArcadeRepository(db).recordRun(result, game.stars);
+            const arcade = new ArcadeRepository(db);
+            await arcade.recordRun(result, game.stars);
+
+            // Coins are computed against *today's* record, so the decay and the cap are facts about
+            // the day rather than about this run (T-4.13, US-16.6).
+            const today = dateKey();
+            const reward = awardRun(result, await arcade.day(today));
+            await arcade.putDay(reward.day);
+            paid = rewardSummary(reward);
+            renderOverlay();
+
             // The daily's athlete is generated, not one of yours, so there is nothing to store.
             if (progress !== null && config.mode !== 'daily') await athletes.put(progress.athlete);
           })
