@@ -12,17 +12,18 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-5.1 — `PlaybookAdapter` interface + turn engine
+- **Task:** T-5.2 — Resolution model
 - **Status:** in_progress
 - **Started:** 2026-07-28
 - **Branch:** `claude/phase-5-playbook-tooling-sac3hy`
 - **Done so far:**
   - [x] Phase-5 session tooling: `pnpm api`, `pnpm spec`, the `PROGRESS.md` notes split
-  - [ ] T-5.1 — `PlaybookAdapter`, turn state, the seeded turn loop
-  - [ ] T-5.2 … T-5.11
-- **Next step:** T-5.1 — add `playbook?: PlaybookAdapter` to `SportModule` the same way `arcade?`
-  was added, then the turn engine in `src/modes/playbook/`. Design is `09` §2 and §5
-  (`pnpm spec 09 2`).
+  - [x] T-5.1 — `PlaybookAdapter`, turn state, the seeded turn loop
+  - [ ] T-5.2 — basketball's resolution model
+  - [ ] T-5.3 … T-5.11
+- **Next step:** T-5.2 — basketball's `PlaybookAdapter` in `src/sports/basketball/playbook/`:
+  ratings → matchup → outcome distribution → sampled `SportEvent` stream. Design is `09` §2.2
+  (`pnpm spec 09 2.2`) and `06` §3.1 for the shooting model Live already uses.
 - **Blockers:** the device matrix and the deploy, unchanged since Gate 2 and now **three** gates
   deep. Nothing in Phase 4 changes the analysis in the Gate 3 record — the deploy is a user action
   and is the only route to a real device for this project.
@@ -184,8 +185,8 @@ there; this file is read at every session start and the notes file only when you
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-5.1 | `PlaybookAdapter` interface + turn engine: turn loop, state, seeded resolution | L | `todo` | | | | |
-| T-5.2 | Resolution model: ratings → matchup → outcome distribution → sampled `SportEvent` stream | XL | `todo` | | | | |
+| T-5.1 | `PlaybookAdapter` interface + turn engine: turn loop, state, seeded resolution | L | `done` | | `tests/unit/modes/playbook/match.test.ts` | `auto` | The adapter owns everything sport-shaped and the turn engine owns everything turn-shaped; the clock is Live's own `MatchStateMachine`, so both modes spend the same steps. [notes](./notes/phase-5.md#t-51) |
+| T-5.2 | Resolution model: ratings → matchup → outcome distribution → sampled `SportEvent` stream | XL | `in_progress` | | | | |
 | T-5.3 | Narration + animated court-diagram renderer for turn outcomes | L | `todo` | | | | |
 | T-5.4 | Basketball play catalogue (offence + defence calls) and call-selection UI | L | `todo` | | | | |
 | T-5.5 | Key-moment detection → arcade invocation → result fed back into resolution | L | `todo` | | | | |
