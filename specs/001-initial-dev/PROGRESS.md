@@ -12,7 +12,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-4.5 — Free Throw
+- **Task:** T-4.3 — Arcade hub
 - **Status:** in_progress
 - **Started:** 2026-07-28
 - **Branch commit:** (see `git log`)
@@ -22,16 +22,21 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-4.2 — calibration, the four difficulty levels as data, INV-10 asserted three ways
   - [x] T-4.4 — practice / scored / daily, the seeded daily challenge, challenge codes, and the
         `arcade` record store
+  - [x] T-4.5–4.9 — the five basketball games, the shared release meter, and the score-profile
+        measurement that tunes their star thresholds
   - [ ] T-4.3 — hub grid, locked tiles, personal bests, athlete picker
-  - [ ] T-4.5–4.9 — the five basketball games
   - [ ] T-4.10 — arcade → progression at a reduced rate
   - [ ] T-4.11 — hot-seat party rounds
   - [ ] T-4.12 — accessibility pass
   - [ ] T-4.13 — reward caps and the anti-farm verification (INV-12)
-- **Next step:** the five games (T-4.5–4.9) on top of `arcade/meter.ts`, then T-4.3's hub — the hub
-  is easier to build once there are real tiles to put in it. **Task order deviates from strict
-  numeric order here, deliberately:** T-4.3 depends only on T-4.1, but a hub grid written before the
-  games exist is a hub written against imagined tiles.
+- **Next step:** T-4.3's hub screen, then T-4.10 (progression), T-4.11 (hot-seat), T-4.12
+  (accessibility), T-4.13 (reward caps). **Task order deviated from strict numeric order,
+  deliberately:** T-4.3 depends only on T-4.1, but a hub grid written before the games exist is a hub
+  written against imagined tiles.
+- **Delegation:** none. `CLAUDE.md` §7.1 marks T-4.3 and T-4.5–4.9 as `sonnet` candidates; this
+  session's own instructions say not to spawn subagents unless asked, so they were built here. The
+  five games would have been a poor delegation anyway — the two design bugs in the T-4.5 note were
+  only visible once all five could be measured against each other.
 - **Files touched:** `src/modes/difficulty.ts`, `src/modes/arcade/{types,session,scoring,
   calibration,registry,modes,daily,records,meter}.ts`, `src/achievements/ids.ts`,
   `src/sports/types.ts` (the `arcade` member), `src/storage/idb.ts` (the `arcade` store).
@@ -60,7 +65,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 1 | Engine core | 13 | 13 | `done` | — |
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
-| 4 | Arcade framework + basketball arcade set | 13 | 3 | `in_progress` | v0.3 |
+| 4 | Arcade framework + basketball arcade set | 13 | 8 | `in_progress` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
@@ -68,7 +73,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **64** | | |
+| | **Total** | **170** | **69** | | |
 
 ---
 
@@ -163,11 +168,11 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | T-4.2 | Calibration: ratings + familiarity → window sizes and speeds (INV-10) | M | `done` | | `tests/unit/modes/arcade/calibration.test.ts`, `tests/invariants/inv-10-arcade-calibration.test.ts` | `auto` | **INV-10 is a signature, not a convention.** `calibrate(athlete, difficulty)` has no parameter through which a personal best could arrive, and the invariant test asserts that three ways: behaviourally (identical inputs, identical window, forever), structurally (the module imports nothing matching `storage|bests|history|session`), and textually (no `calibrate()` anywhere in `src/` takes a third argument). Six interpolated pairs turn a rating into `09` §2.4's two poles — "wide, slow, forgiving" against "narrow, fast, drifting" — and a game may reshape them without changing their direction. **Difficulty enters exactly once, at the end, on the window and the reaction allowance only** (INV-1); the rating that goes in is the rating the athlete card shows, on every level. `src/modes/difficulty.ts` is new: `06` §7's table read straight across, with no field a rating could be multiplied by, so INV-1 holds by the shape of the record before a test looks at it. T-7.7 owns the full model and will extend it. The picker's hint names *both* halves — "Narrow window — new to this sport." — because narrow without the reason reads as a punishment rather than as the thing practice fixes. |
 | T-4.3 | Arcade hub: grid, locked/unlocked states, personal bests, athlete picker with window hint | M | `todo` | | | | |
 | T-4.4 | Practice / scored / daily modes; seeded daily challenge | M | `done` | | `tests/unit/modes/arcade/{modes,daily}.test.ts`, `tests/integration/storage/arcade-records.test.ts` | `auto` — codes round-tripped, day boundary asserted in UTC | **Modifiers are applied outside `calibrate()`, deliberately.** A modifier is a fact about today's scenario — the same for everyone — while a calibration is a fact about the athlete; folding them together would widen INV-10's signature to admit something that is not the athlete, and the next thing through that door is a personal best. So `startRun()` calibrates first and applies the day's twists on top, and it is the one door every arcade entry point uses. **The daily rolls its own athlete.** "Identical for everyone" and "played with your own squad" cannot both be true and US-16.4 picks the first, so the day's seed rolls a `rare` athlete in the game's own sport: everyone plays the same person, and the challenge measures the run rather than the collection. **The day boundary is UTC** — a local one means two players disagree about which challenge is today's, and a code shared across a timezone resolves to a different run at each end; the screen will say so rather than implying it follows your clock. Challenge codes are Crockford base32 (no `I`/`L`/`O`/`U`) with a two-character checksum, so a mistyped code fails immediately instead of starting the wrong run; the format is versioned (`SG1`) so T-10.1 can extend the payload without invalidating codes already in someone's messages. New `arcade` IndexedDB store, `DB_VERSION` 2 → 3 — a *new* store, so structural only and no entry in the data chain, same as T-3.1's index fix. Backups pick it up with no change, since `backup.ts` walks `STORES`. |
-| T-4.5 | Free Throw — release timing under mounting pressure | M | `todo` | | | | |
-| T-4.6 | Three-Point Contest — five racks, rhythm and timing, 60 s | M | `todo` | | | | |
-| T-4.7 | Buzzer Beater — contested shot, shrinking window | M | `todo` | | | | |
-| T-4.8 | Fast Break — finish past a recovering defender | M | `todo` | | | | |
-| T-4.9 | Pickpocket — reaction test, jump the lane without fouling | M | `todo` | | | | |
+| T-4.5 | Free Throw — release timing under mounting pressure | M | `done` | | `tests/unit/sports/basketball/arcade/{games,rules}.test.ts`, `tests/unit/modes/arcade/meter.test.ts`, `tests/sim/arcade-calibration.test.ts` | `auto` — score profiles measured across four athlete tiers with a human-like driver | **The pressure ramp speeds the meter and narrows nothing.** The band stays exactly as wide as the athlete earned, *in seconds*; the marker crossing it faster is what turns a comfortable window into a nervy one. Narrowing the band as you succeed would be difficulty reacting to your scores, which is the thing INV-10 forbids. **Two bugs the tests found, both real.** First, a lives-only game never ends for a player who simply does not shoot — hence the five-second shot clock, which is also the rulebook's own answer. Second, and much worse: a run bounded by *time* hands a novice more attempts, because a novice's meter is faster. Measured, an attribute-35 athlete outscored an attribute-92 one at Fast Break — the fairness rule running exactly backwards. Every game is now a fixed count of attempts, so the athlete's speed decides how hard each one is and never how many you get. |
+| T-4.6 | Three-Point Contest — five racks, rhythm and timing, 60 s | M | `done` | | `tests/unit/sports/basketball/arcade/{games,rules}.test.ts`, `tests/sim/arcade-calibration.test.ts` | `auto` — score profiles measured across four athlete tiers with a human-like driver | Rhythm is the second skill, and it keys on the *variance* between releases rather than on how short they are — so a steady slow tempo pays and mashing does not. The money ball is the last ball of each rack, worth two, and it is the only reason the rhythm bonus has a decision in it: taking the extra half-second breaks the tempo. The contest is the one game with no lives — twenty-five balls and a clock — because ending a sixty-second contest on a miss would make the clock meaningless. Its fixed ball count is also why it was the *only* game already immune to the attempts-inflation bug T-4.5's note describes. |
+| T-4.7 | Buzzer Beater — contested shot, shrinking window | M | `done` | | `tests/unit/sports/basketball/arcade/{games,rules}.test.ts`, `tests/sim/arcade-calibration.test.ts` | `auto` — score profiles measured across four athlete tiers with a human-like driver | The window shrinks **within** a possession and never between them: every possession opens at the full width the athlete earned and closes as the defender's hand rises. The pressure is therefore the clock inside the moment rather than the scoreboard outside it, which is what keeps it clear of INV-10. Points ramp steeply with lateness, so the whole game is one trade made fifteen times. Getting blocked (a release outside the band) costs a life; a contested shot that rimmed out does not — `09` §2.4 splits input from athlete, and lives measure the input. |
+| T-4.8 | Fast Break — finish past a recovering defender | M | `done` | | `tests/unit/sports/basketball/arcade/{games,rules}.test.ts`, `tests/sim/arcade-calibration.test.ts` | `auto` — score profiles measured across four athlete tiers with a human-like driver | The one game where the meter reads as a *place* rather than a moment: the marker is the athlete running at the rim, the band is where the layup is on, and the recovering defender shuts its late edge. Same arithmetic as the other three, different reading — and the reading is what makes `courtSpeed` matter, since a quicker athlete arrives with more of the window still open. A dunk needs a clean look *and* a clean release; an and-one needs the defender genuinely on you, which is the reason to hold. |
+| T-4.9 | Pickpocket — reaction test, jump the lane without fouling | M | `done` | | `tests/unit/sports/basketball/arcade/{games,rules}.test.ts`, `tests/sim/arcade-calibration.test.ts` | `auto` — score profiles measured across four athlete tiers with a human-like driver | The only game in the set that is not a release meter, and the one that forced an honest test harness. **A fixed quarter-second tell, identical for every athlete** — a great defender does not see the pass sooner, they have longer to act on it, which is `perimeterD` setting the lane's duration. Fouling is the only thing that costs a life; letting a pass through costs the possession and nothing else, because punishing patience would teach exactly the wrong instinct for the behaviour being practised. Most of the score is the *earliness* bonus rather than the base, since everyone who reacts at all gets the ball. |
 | T-4.10 | Arcade → progression: XP, familiarity, `SportEvent` emission at reduced rate | M | `todo` | | | | |
 | T-4.11 | Arcade hot-seat: party rounds, seeded fairness, ranking, elimination formats | M | `todo` | | | | |
 | T-4.12 | Arcade accessibility: left-hand mirroring, colour-independent meters, reduced motion | M | `todo` | | | | |

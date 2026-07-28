@@ -72,7 +72,10 @@ export interface ArcadeCalibration {
 export const ARCADE_WINDOW_LABELS = ['narrow', 'tight', 'fair', 'wide', 'very wide'] as const;
 export type ArcadeWindowLabel = (typeof ARCADE_WINDOW_LABELS)[number];
 
-/** How a scored run ends. Exactly one of the two is set; practice sets neither. */
+/**
+ * How a scored run ends. Most games set one or the other; a game may set both, and then whichever
+ * runs out first ends the run. Practice sets neither.
+ */
 export interface ArcadeRunRules {
   /** Lives before the run ends, or `null` for a clock-limited game. */
   readonly lives: number | null;
