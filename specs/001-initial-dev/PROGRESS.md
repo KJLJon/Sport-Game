@@ -12,8 +12,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.8 — Defending: pressure, standing and slide tackles, foul/card risk
-- **Status:** todo (T-6.1 – T-6.7 `done`; Phase 6 open)
+- **Task:** T-6.9 — Goalkeeper AI: positioning, shot-stopping, claims, distribution
+- **Status:** todo (T-6.1 – T-6.8 `done`; Phase 6 open)
 - **Session budget note (2026-07-29):** the user's weekly usage is near its cap, so this session is
   running **one task at a time, no concurrent work, commit and push after every task**. Keep it
   that way until told otherwise — every task must leave the tree pushed and this block accurate.
@@ -41,15 +41,21 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-6.7 — `src/sports/soccer/dribbling.ts`, 21 unit tests. Carrier movement profiles, a
         sprint with three costs, `touchDistance` close control, per-athlete stamina, and a
         geometry-first shielding contest.
-  - [ ] T-6.8 — defending: pressure, tackles, foul/card risk
-  - [ ] T-6.9 … T-6.18
-- **Next step:** T-6.8 (defending). Deps (T-6.4) `done`, and it is the task those pieces were built
-  for: `FoulContext`'s `severity` (`careless`/`reckless`/`excessive`) is exactly the tackle model's
-  output, and `commitFoul` turns it into a card. So T-6.8 decides *how badly the challenge went*
-  with a seeded draw and hands that to `fouls.ts` — it must not decide cards itself. Reuse
-  `shieldPosition`/`contest` from `dribbling.ts` for the standing tackle rather than a third contest
-  model. Ratings: `tackling` and `marking`. A slide tackle is the one that should be genuinely
-  dangerous: high reward, and the only challenge that can reach `excessive`.
+  - [x] T-6.8 — `src/sports/soccer/defending.ts`, 23 unit tests. `pressureOn` (consumed by passing
+        and shooting), tackle timing that gates the ratings, one RNG draw per challenge, and
+        severity handed to `fouls.ts`.
+  - [ ] T-6.9 — goalkeeper AI
+  - [ ] T-6.10 … T-6.18
+- **Next step:** T-6.9 (goalkeeper). Deps (T-6.6) `done`. The pieces are in place and the shape is
+  set by them: `ShotInFlight` carries `aim` and `speed`, and T-6.6 deliberately took flight time
+  from the distance to the *aim point*, so a far-corner shot hangs longer — the keeper's reaction
+  model should read that rather than re-deriving it. `goalAngle`/`goalOpenness` give the arc to
+  position on. Rating: `goalkeeping` (and `SOCCER_PHYSICAL` gives tall keepers a bonus already).
+  `06` §3.2 asks for four things — positioning, reflex saves, claims, distribution — plus **manual
+  control on penalties**, which is a control-layer flag rather than a fifth model.
+- **Skill models still to write after T-6.9:** heading is not its own task; it belongs to whichever
+  of T-6.9/T-6.10 needs it first, and `PASS_PROFILES.cross.arrivalHeight` (1.9 m) is already the
+  hook for it.
 - **Contract T-6.5 established (honour it in T-6.9 and T-6.15):** `throwPass` is the only place an
   offside snapshot is taken. Anything else that releases the ball towards a teammate goes through
   it, or documents why offside cannot apply.
@@ -115,7 +121,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 18 | 7 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 18 | 8 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -258,7 +264,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.5 | Passing suite: short, through-ball, lofted, cross, with weight and rating-driven error | L | `done` | | `tests/unit/sports/soccer/passing.test.ts` | `auto` — **needs a phone** for whether the through ball reads as skill or as noise | Error has two halves, and *weight* is the soccer-shaped one: the four passes differ mostly in `weightError`, and the engine's rolling friction turns out linear in distance, so weighting a ground pass is a sum. [notes](./notes/phase-6.md#t-65) |
 | T-6.6 | Shooting: power meter, placement, curve, deflections | M | `done` | | `tests/unit/sports/soccer/shooting.test.ts` | `auto` — **needs a phone** for whether 0.8 s is the right meter fill | Error is placement in the plane of the goal mouth, not an angle, so it composes with `goalOpenness` for free; power buys speed *and* costs accuracy, which is the only reason a meter exists. [notes](./notes/phase-6.md#t-66) |
 | T-6.7 | Dribbling, sprint, shielding, stamina drain | M | `done` | | `tests/unit/sports/soccer/dribbling.test.ts` | `auto` — **needs a phone** for whether the sprint turn penalty makes sprinting unusable | No second movement model: this produces the engine's `MovementProfile`. `touchDistance` makes a poor dribbler dispossessable with no dice, and stamina changes the profile without ever touching a rating. [notes](./notes/phase-6.md#t-67) |
-| T-6.8 | Defending: pressure, standing and slide tackles, foul/card risk | M | `todo` | | | | |
+| T-6.8 | Defending: pressure, standing and slide tackles, foul/card risk | M | `done` | | `tests/unit/sports/soccer/defending.test.ts` | `auto` — **needs a phone** for whether committing to a slide feels worth pressing | Timing beats ratings: below `hopelessTiming` no rating saves a challenge, so a well-timed poor defender beats a wild good one. Severity is handed to `fouls.ts`; this module never decides a card. [notes](./notes/phase-6.md#t-68) |
 | T-6.9 | Goalkeeper AI: positioning, shot-stopping, claims, distribution; manual on penalties | L | `todo` | | | | |
 | T-6.10 | Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase | L | `todo` | | | | |
 | T-6.11 | 22-entity performance work: LOD, culling, spatial-hash tuning, zero-allocation hot path | L | `todo` | | | | |

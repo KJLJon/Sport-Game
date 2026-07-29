@@ -387,3 +387,50 @@ someone is legal and whether *this* one was a foul is T-6.8's question.
 **Feel note:** the numbers say a clumsy sprinter should be robbable on sight, which is the right
 shape. The risk is the opposite one — that `sprintTurnPenalty` at 1.9 makes sprinting feel like
 driving a bus, and a player just never uses it. That is a thumb question, not a test question.
+
+### T-6.8
+
+*Defending: pressure, standing and slide tackles, foul/card risk*
+
+**This module decides how badly a challenge went; it never decides a card.** `FoulSeverity` was put
+in `fouls.ts` in T-6.4 for exactly this handover: T-6.8 draws the outcome and hands back
+`{ kind, severity }`, and `commitFoul` turns that into a caution, a dismissal, or nothing. Two
+modules that both know the card table is one too many — and it is the kind of duplication that
+survives happily until the day they disagree. There is a test that runs `severityOf` straight into
+`cardFor` to pin the seam.
+
+**Timing beats ratings, and that is the point of the whole file.** Ratings decide how *wide* the
+window is; where you swung inside it decides what happens. Below `hopelessTiming` no rating saves
+the challenge at all. The test that matters is the comparison — a well-timed tackle from a
+20-rated defender beating a wild one from a 95-rated defender — because the alternative model
+rewards having rather than playing.
+
+**The slide is the interesting button because it is the only dangerous one.** Twice the reach, a
+better chance when it lands, a much worse chance of a foul when it doesn't, and the only challenge
+that can reach `excessive` — a straight red. It also commits: the defender is on the ground and out
+of the play whether or not it worked, which is the cost that makes the reward legible.
+
+A standing challenge can never be `excessive`. A standing tackle that hurts somebody is a different
+offence from a mistimed one — violent conduct, not a bad tackle — and this model has no honest way
+to tell them apart, so it does not try.
+
+**One draw per tackle.** `resolveTackle` spends exactly one RNG value and partitions it: below the
+odds is a clean win, and the remainder is split between a clean miss and a foul. Drawing twice would
+work and would double the seed consumption of the most frequent event in the sport, which matters
+for replay size and for determinism auditing (INV-8).
+
+**Winning the ball is never a foul.** By definition here: getting there first is what a fair
+challenge *is*, and "won it but caught him afterwards" is a judgement call with no honest model
+behind it. Flagged as a simplification — real referees give that foul.
+
+**Closing speed makes fouls worse, never more likely.** A fast, well-timed tackle is the best tackle
+in the sport, and a model where speed itself is risky would teach players to jog into challenges.
+
+**`pressureOn` lives here because it is consumed everywhere.** `passing.ts` and `shooting.ts` both
+take a `pressure` term and neither knows how to compute one. Saturating rather than summing, so a
+fourth defender arriving cannot push it past 1 and flatten the term.
+
+**Feel note:** unplayed, and the slide is the thing to watch. On paper it is a good risk/reward
+trade; in the hand, a challenge that commits you to the floor for a second may simply feel bad
+enough that nobody presses it, in which case the reach or the win bonus goes up rather than the
+foul rate going down.
