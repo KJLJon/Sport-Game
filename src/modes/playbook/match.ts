@@ -208,7 +208,7 @@ export class PlaybookMatch<S = unknown> {
     const resolution = this.adapter.resolve(this.state, pair, this.turnRng('resolve'));
     this.pending = resolution;
 
-    const proposed = this.adapter.keyMoment(resolution);
+    const proposed = this.adapter.keyMoment(this.state, resolution);
     if (proposed !== null && this.wantsKeyMoment(proposed)) {
       this.invocation = proposed;
       this.phaseName = 'key-moment';

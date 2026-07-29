@@ -37,6 +37,7 @@ import type { TurnDiagram } from '../../../modes/playbook/diagram.ts';
 import { BASKETBALL_RULES, TIMING, stepsToGameSeconds } from '../rules.ts';
 import { BASKETBALL_CALLS, defensiveProfile, offensiveProfile } from './calls.ts';
 import { buildDiagram } from './diagram.ts';
+import { applyKeyMomentOutcome, detectKeyMoment } from './key-moments.ts';
 import { narrateTurn } from './narration.ts';
 import { drainStamina, resolvePossession, type BasketballPlaybookState } from './resolution.ts';
 
@@ -99,8 +100,11 @@ export const basketballPlaybook: BasketballPlaybook = {
     return resolvePossession({ state, calls, rng });
   },
 
-  keyMoment(): ArcadeInvocation | null {
-    return null;
+  keyMoment(
+    state: PlaybookState<BasketballPlaybookState>,
+    resolution: TurnResolution,
+  ): ArcadeInvocation | null {
+    return detectKeyMoment(state, resolution);
   },
 
   narrate(
@@ -115,11 +119,11 @@ export const basketballPlaybook: BasketballPlaybook = {
   },
 
   applyKeyMoment(
-    _state: PlaybookState<BasketballPlaybookState>,
+    state: PlaybookState<BasketballPlaybookState>,
     resolution: TurnResolution,
     outcome: KeyMomentOutcome,
   ): TurnResolution {
-    return { ...resolution, fromKeyMoment: outcome };
+    return applyKeyMomentOutcome(state, resolution, outcome);
   },
 
   /**
@@ -177,6 +181,7 @@ export function createBasketballPlaybook(options: {
   });
 }
 
+export { MOMENT_GAMES, detectKeyMoment, leverageFor } from './key-moments.ts';
 export { BASKETBALL_CALLS } from './calls.ts';
 export { basketballSquad, basketballSquads, playbookRatings } from './squad.ts';
 export type { BasketballPlaybookState } from './resolution.ts';

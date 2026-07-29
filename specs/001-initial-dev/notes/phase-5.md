@@ -167,3 +167,52 @@ turn.
 **The cards take `--target-primary` (56 px), not the 44 px floor.** They are the primary target on
 the screen and there are up to six of them in a grid; 44 px is the minimum for anything, not the
 size for the thing the screen is *for*.
+
+### T-5.5
+
+*Key-moment detection → arcade invocation → result fed back into resolution*
+
+**The second caller of the arcade seam, and the first outside the hub.** Everything goes through
+`startRun(game, config)` in `modes/arcade/modes.ts`, so a modifier, a calibration rule, or a scoring
+change applied in one place is applied here too. The seam held: no changes to `ArcadeGameDef`,
+`ArcadeRun`, or `calibrate()` were needed to make Playbook a second consumer. `09` §5's third
+consequence — "arcade games are reusable components" — is now demonstrated rather than asserted.
+
+**`09` §2.4's five moments map one-to-one onto `09` §3.2's five games.** Wide-open three →
+three-point, clutch free throw → free-throw, fast-break finish → fast-break, buzzer-beater →
+buzzer-beater, steal opportunity → pickpocket. No new mini-games, and a test asserts every mapped id
+exists in `BASKETBALL_ARCADE`.
+
+**A key moment is unrewarded, and that is INV-12 talking.** The match already pays for the
+possession through the event stream and `applyMatch`. Paying arcade coins on top would make
+Playbook-with-key-moments the efficient farm, which `09` §7 forbids. The run is `practice`, whose
+`isRewarded` is already `false`; the reason is stated once in `key-moment.ts` rather than
+re-derived at each caller.
+
+**The run's own events are thrown away.** The arcade session emits `SportEvent`s for T-4.10's
+progression, describing the same possession the turn is about. Forwarding them would book the shot
+twice. `applyKeyMoment` rebuilds the turn's stream instead, and a test asserts no committed turn
+ever carries two field-goal attempts.
+
+**Leverage is what makes the frequency setting mean something specific.** Each moment carries a
+base, lifted by how late and how close the match is. On "Clutch only" a three in the first quarter
+of a blowout never interrupts and the same three to tie it with twenty seconds left always does. A
+garbage-time buzzer-beater stays at its base, which is the case worth getting right — it is the one
+that would otherwise interrupt for nothing.
+
+**A moment belongs to the player, not to the sim.** The steal is offered when the human is
+*defending*; the other four when they are attacking; a CPU-vs-CPU match proposes nothing, because
+there is nobody to play it. That last one is also why the balance harness and the parity batches
+can ignore key moments entirely.
+
+**Deviation: `keyMoment` takes the state.** Same reasoning as `narrate` — leverage is a function of
+the score, the clock, and which side the human is on, none of which are on a `TurnResolution`.
+
+**A missed key-moment shot keeps the board the sim gave out.** The player changed whether it went
+in, not who was standing under the rim. Getting this wrong would have quietly deleted an offensive
+rebound every time a moment was missed.
+
+**Bug found writing the tests:** the first pass computed the sim's contribution to a free-throw trip
+as `totalMade − 1`, which is wrong whenever the sim missed the first and made the second — the
+player's make would silently eat the sim's. It now reads the drawn attempts in order and keeps the
+results for attempts 2..n.

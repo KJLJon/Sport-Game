@@ -12,7 +12,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-5.5 — Key moments → arcade → back into resolution
+- **Task:** T-5.6 — Expectation comparison and post-match reporting
 - **Status:** in_progress
 - **Started:** 2026-07-28
 - **Branch:** `claude/phase-5-playbook-tooling-sac3hy`
@@ -22,11 +22,12 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-5.2 — basketball's resolution model, `pnpm balance:playbook` green on 14 bands
   - [x] T-5.3 — narration and the court diagram
   - [x] T-5.4 — the call sheet
-  - [ ] T-5.5 — key moments into the arcade seam
-  - [ ] T-5.6 … T-5.11
-- **Next step:** T-5.5 — `basketballPlaybook.keyMoment()` returns `null` today. `09` §2.4 names five
-  basketball moments; map them onto `BASKETBALL_ARCADE` ids and fold the result back through
-  `applyKeyMoment`. Entry point for the run is `startRun(game, config)` in `modes/arcade/modes.ts`.
+  - [x] T-5.5 — key moments into the arcade seam
+  - [ ] T-5.6 — the expectation comparison
+  - [ ] T-5.7 … T-5.11
+- **Next step:** T-5.6 — `09` §2.4's "the sim also computes what would have happened". Every
+  settled key moment already carries `fromKeyMoment.simWouldHave`; the work is the post-match
+  report that adds them up and says it honestly.
 - **Blockers:** the device matrix and the deploy, unchanged since Gate 2 and now **three** gates
   deep. Nothing in Phase 4 changes the analysis in the Gate 3 record — the deploy is a user action
   and is the only route to a real device for this project.
@@ -192,8 +193,8 @@ there; this file is read at every session start and the notes file only when you
 | T-5.2 | Resolution model: ratings → matchup → outcome distribution → sampled `SportEvent` stream | XL | `done` | | `tests/unit/sports/basketball/playbook/resolution.test.ts` | `auto` + `pnpm balance:playbook` (14 bands green, eFG% 44.6 against Live's 44.8) | The shot is *Live's* shot: `shotProbability()` is called with Playbook's circumstances rather than a second curve, which is what makes INV-11 achievable by construction. [notes](./notes/phase-5.md#t-52) |
 | T-5.3 | Narration + animated court-diagram renderer for turn outcomes | L | `done` | | `tests/unit/modes/playbook/diagram.test.ts`, `tests/unit/sports/basketball/playbook/narration.test.ts` | `auto` — **still needs a phone** for whether 5.5 s of animation is right | The timeline is a pure function of `(diagram, seconds)`, so every claim about the animation is a test with no canvas in it. [notes](./notes/phase-5.md#t-53) |
 | T-5.4 | Basketball play catalogue (offence + defence calls) and call-selection UI | L | `done` | | `tests/unit/ui/play-call.test.ts` | `auto` — **still needs a phone** for whether six cards fit a portrait thumb | The sheet knows no sport: it renders `CallOption`s, and a test mounts an invented soccer-shaped catalogue to prove it. [notes](./notes/phase-5.md#t-54) |
-| T-5.5 | Key-moment detection → arcade invocation → result fed back into resolution | L | `in_progress` | | | | |
-| T-5.6 | Expectation comparison ("the sim would have made it") + post-match reporting | M | `todo` | | | | |
+| T-5.5 | Key-moment detection → arcade invocation → result fed back into resolution | L | `done` | | `tests/unit/sports/basketball/playbook/key-moments.test.ts` | `auto` | The arcade seam held: Playbook became a second consumer with no change to `ArcadeGameDef`, `ArcadeRun`, or `calibrate()`. [notes](./notes/phase-5.md#t-55) |
+| T-5.6 | Expectation comparison ("the sim would have made it") + post-match reporting | M | `in_progress` | | | | |
 | T-5.7 | Auto-call assistant coach, fast-forward, turn-speed control | M | `todo` | | | | |
 | T-5.8 | Playbook CPU: call selection, weakness exploitation, per-difficulty competence | L | `todo` | | | | |
 | T-5.9 | Playbook hot-seat: pass-the-device screens, hidden calls, local player names | M | `todo` | | | | |

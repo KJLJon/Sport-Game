@@ -258,8 +258,14 @@ export interface PlaybookAdapter<S = unknown> {
    */
   resolve(state: PlaybookState<S>, calls: CallPair, rng: Rng): TurnResolution;
 
-  /** The moment worth playing yourself, or `null`. The engine applies the frequency setting. */
-  keyMoment(resolution: TurnResolution): ArcadeInvocation | null;
+  /**
+   * The moment worth playing yourself, or `null`. The engine applies the frequency setting.
+   *
+   * Takes the state as well, for the same reason `narrate` does: how big a moment is depends on
+   * the score, the clock, and which side the human is on — a steal opportunity is offered when the
+   * player is *defending*, and a CPU-vs-CPU match has nobody to offer anything to (`09` §2.4).
+   */
+  keyMoment(state: PlaybookState<S>, resolution: TurnResolution): ArcadeInvocation | null;
 
   /**
    * The one line the turn screen shows. Takes the state as well as the resolution — `09` §5's

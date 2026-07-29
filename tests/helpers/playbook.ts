@@ -130,7 +130,10 @@ export function fakeAdapter(options: FakeAdapterOptions = {}): PlaybookAdapter<F
       };
     },
 
-    keyMoment(resolution: TurnResolution): ArcadeInvocation | null {
+    keyMoment(
+      _state: PlaybookState<FakeDetail>,
+      resolution: TurnResolution,
+    ): ArcadeInvocation | null {
       if (!proposes) return null;
       return {
         game: 'fake-game',
