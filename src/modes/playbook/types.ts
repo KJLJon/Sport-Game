@@ -302,6 +302,13 @@ export interface PlaybookAdapter<S = unknown> {
   /** True once the sport considers the match over on its own terms, beyond the clock. */
   isFinished?(state: PlaybookState<S>): boolean;
 
-  /** The CPU's and the assistant coach's call (T-5.7, T-5.8). Seeded, like everything else. */
+  /** The CPU's call (T-5.8). Seeded, like everything else. */
   autoCall?(state: PlaybookState<S>, side: Side, rng: Rng): PlaybookCall;
+
+  /**
+   * The assistant coach's call for the *human's* side (T-5.7, `09` §2.1). Separate from `autoCall`
+   * on purpose: the coach answers "what suits us" and stops, while the CPU reads the opponent. A
+   * toggle the player leaves on must not quietly out-think the opponent they are playing.
+   */
+  coach?(state: PlaybookState<S>, side: Side, rng: Rng): PlaybookCall;
 }

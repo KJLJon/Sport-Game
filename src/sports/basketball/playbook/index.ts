@@ -36,6 +36,7 @@ import type {
 import type { TurnDiagram } from '../../../modes/playbook/diagram.ts';
 import { BASKETBALL_RULES, TIMING, stepsToGameSeconds } from '../rules.ts';
 import { BASKETBALL_CALLS, defensiveProfile, offensiveProfile } from './calls.ts';
+import { coachCall } from './coach.ts';
 import { buildDiagram } from './diagram.ts';
 import { applyKeyMomentOutcome, detectKeyMoment } from './key-moments.ts';
 import { narrateTurn } from './narration.ts';
@@ -73,9 +74,11 @@ function autoCall(
 }
 
 /**
- * The adapter. `keyMoment` and `narrate` are filled in by T-5.5 and T-5.3 respectively; until then
- * they answer honestly rather than plausibly — no key moments, and a line that says what the
- * outcome was without pretending to be commentary.
+ * The adapter. Every member delegates to the module that owns it: `calls.ts` for the catalogue,
+ * `resolution.ts` for the model, `key-moments.ts` for the arcade hand-off, `narration.ts` and
+ * `diagram.ts` for what the turn screen shows, `coach.ts` for the Auto-call toggle.
+ *
+ * `autoCall` — the *CPU's* call — is still the uniform placeholder until T-5.8; the coach is not.
  */
 export const basketballPlaybook: BasketballPlaybook = {
   turnKind: 'possession',
@@ -155,6 +158,8 @@ export const basketballPlaybook: BasketballPlaybook = {
   },
 
   autoCall,
+
+  coach: coachCall,
 };
 
 /**
@@ -182,6 +187,7 @@ export function createBasketballPlaybook(options: {
 }
 
 export { MOMENT_GAMES, detectKeyMoment, leverageFor } from './key-moments.ts';
+export { coachCall, explainCall, scoreCalls, scoreDefence, scoreOffence } from './coach.ts';
 export { BASKETBALL_CALLS } from './calls.ts';
 export { basketballSquad, basketballSquads, playbookRatings } from './squad.ts';
 export type { BasketballPlaybookState } from './resolution.ts';

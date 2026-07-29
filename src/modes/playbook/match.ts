@@ -181,10 +181,21 @@ export class PlaybookMatch<S = unknown> {
     this.submitted[call.side] = call;
   }
 
-  /** The CPU's or the assistant coach's call for a side, when the adapter offers one (T-5.7/5.8). */
+  /** The CPU's call for a side, when the adapter offers one (T-5.8). */
   autoCall(side: Side): PlaybookCall | null {
     if (this.adapter.autoCall === undefined || (side !== 0 && side !== 1)) return null;
     return this.adapter.autoCall(this.state, side, this.turnRng(`auto-${side}`));
+  }
+
+  /**
+   * The assistant coach's call, for the Auto-call toggle (T-5.7). Falls back to the CPU's when a
+   * sport has no coach of its own, which is a worse answer than a coach and a much better one than
+   * leaving the player's side without a call.
+   */
+  coachCall(side: Side): PlaybookCall | null {
+    if (side !== 0 && side !== 1) return null;
+    if (this.adapter.coach === undefined) return this.autoCall(side);
+    return this.adapter.coach(this.state, side, this.turnRng(`coach-${side}`));
   }
 
   get callsSubmitted(): boolean {

@@ -246,3 +246,33 @@ requires the tallies *and* the points to agree.
 **Honest before funny.** `09` §2.4 asks for "both honest and funny", and the funny half only works
 if the honest half is unflinching, so the sentence names the number even when it is unkind: "That
 cost you 5 points."
+
+### T-5.7
+
+*Auto-call assistant coach, fast-forward, turn-speed control*
+
+**Speed is one multiplier on the diagram's own clock.** T-5.3 made the beats fractions of the
+diagram's duration precisely so this could be a single number. Nothing in `pace.ts` touches
+resolution: fast-forwarding changes how long you watch a possession, never what happened in it.
+
+**Reduced motion is `instant`, not `fast`.** A quadruple-speed animation is still animation, and
+`10` §6 is about people motion makes ill rather than people in a hurry. Asked for it, playback lands
+on the final frame in one call — and a test asserts the picture is identical however it got there.
+
+**The coach and the CPU are separate members.** `coach?` answers "what suits us" and stops;
+`autoCall?` is T-5.8's opponent, which reads the other side. Keeping them apart means a toggle the
+player leaves on cannot quietly out-think the opponent they are playing against — and it leaves
+T-5.8's regression harness the flat `autoCall` baseline it needs.
+
+**Auto-call always hands back for a key moment.** "For stretches" is the whole point of `09` §2.1's
+toggle: the coach covers the possessions you do not care about, and the ones you do are still yours.
+
+**Flat jitter did not work, and the failure is worth recording.** The first version added
+`rng.float(0, 0.08)` to each score. On an even roster one call still won all forty times, because
+the gap between the best call and the rest is roster-dependent — any fixed noise is invisible on one
+roster and decisive on another. It now samples a softmax at 0.12 points-per-possession: a call a
+tenth of a point worse gets picked about a third as often, one three tenths worse almost never.
+Two hundred turns of the identical play is not a coach, and neither is a coin toss.
+
+**The coach names a target.** A targeted call gets the athlete the play would have found anyway, so
+auto-calling never produces a call the player could not have made themselves.
