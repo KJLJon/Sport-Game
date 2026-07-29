@@ -12,8 +12,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.3 — Offside detection and enforcement
-- **Status:** todo (T-6.1 and T-6.2 `done`; Phase 6 open)
+- **Task:** T-6.5 — Passing suite: short, through-ball, lofted, cross
+- **Status:** todo (T-6.1 – T-6.4 `done`; Phase 6 open)
 - **Started:** 2026-07-29
 - **Branch:** `claude/phase-6-start-lb7kbt`
 - **Done so far:**
@@ -24,13 +24,22 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
         through stoppages, added time that matches the board, and the four boundary restarts.
         **One engine change:** `MatchStateMachine.extendPeriod(steps)` — justified in the notes
         against the Gate 6 criterion.
-  - [ ] T-6.3 — offside
-  - [ ] T-6.4 … T-6.18
-- **Next step:** T-6.3 (offside). Deps (T-6.2) `done`. The pieces it needs already exist:
-  `isInAttackingHalf` and `attackDirection` from `pitch.ts`, `lastTouch`/`possession` from
-  `RulesState`. The judgement call to make is *when* the position is frozen — offside is judged at
-  the moment the ball is played, not when it arrives, so the pass suite (T-6.5) and offside have to
-  agree on that instant; decide it in T-6.3 and make T-6.5 conform.
+  - [x] T-6.3 — `src/sports/soccer/offside.ts`, 20 unit tests. A two-part transaction:
+        `captureOffside()` freezes the picture as the ball is played, `judgeOffside()` reads it when
+        the ball arrives. Only "interfering with play" is modelled; the omission is documented.
+  - [x] T-6.4 — `src/sports/soccer/fouls.ts`, 20 unit tests. Free kicks and penalties, the Laws'
+        three severities, cards including second-yellow and the 2016 double-jeopardy amendment, and
+        an advantage window that carries its restart so a pull-back is taken from the right spot.
+  - [ ] T-6.5 — the passing suite
+  - [ ] T-6.6 … T-6.18
+- **Next step:** T-6.5 (passing). Deps (T-1.6) `done` — read the engine's projectile/physics helpers
+  before writing anything, since lofted passes and crosses are ball-height work and `06` §3.2 wants
+  one ball model serving passes, crosses, headers, and curled shots rather than four special cases.
+  **It must honour the offside contract below.** `06` §3.2 also fixes the error model: pass error is
+  rating-driven (`shortPass`, `longPass`, `crossing` from `SOCCER_WEIGHTS`), never a flat miss rate.
+- **Contract T-6.5 must honour:** offside is judged at the instant the ball is *played*. The passing
+  suite calls `captureOffside()` at release and carries the returned snapshot with the ball; it must
+  not re-measure positions on arrival.
 - **Engine-core changes so far this phase** (Gate 6 asks for exactly this list):
   1. `MatchStateMachine.extendPeriod(steps)` + `extension` getter + optional
      `MatchSnapshot.periodExtension` (T-6.2) — generic period lengthening; nothing in it knows what
@@ -90,7 +99,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 18 | 2 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 18 | 4 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -228,8 +237,8 @@ there; this file is read at every session start and the notes file only when you
 |---|---|---|---|---|---|---|---|
 | T-6.1 | Pitch geometry, zones, goals, boundary lines | M | `done` | | `tests/unit/sports/soccer/pitch.test.ts` | `auto` | A goal is a mouth rather than a point, which is the whole of what soccer needed from the field seam that basketball did not: `isGoal` tests posts and bar, and `goalOpenness` divides distance out so a tight angle is not confused with a long shot. [notes](./notes/phase-6.md#t-61) |
 | T-6.2 | Soccer Live rules: halves, clock, stoppage, throw-ins, corners, goal kicks | L | `done` | | `tests/unit/sports/soccer/rules.test.ts`, `tests/unit/engine/match.test.ts` | `auto` | `clockRunsInStoppage` was waiting in the seam since Phase 1 and cost nothing; added time needed one genuine core addition, `MatchStateMachine.extendPeriod()`, which knows nothing about soccer. [notes](./notes/phase-6.md#t-62) |
-| T-6.3 | Offside detection and enforcement | M | `todo` | | | | |
-| T-6.4 | Fouls, advantage, cards, free kicks, penalties | L | `todo` | | | | |
+| T-6.3 | Offside detection and enforcement | M | `done` | | `tests/unit/sports/soccer/offside.test.ts` | `auto` | Offside is a two-part transaction — the picture is frozen when the ball is *played* and read when it arrives — so "level at the pass, clear when it lands" is onside by construction rather than by call ordering. [notes](./notes/phase-6.md#t-63) |
+| T-6.4 | Fouls, advantage, cards, free kicks, penalties | L | `done` | | `tests/unit/sports/soccer/fouls.test.ts` | `auto` — the 3 s advantage window **needs playing**, not testing | An advantage carries a fully-built `Restart` so a foul pulled back is taken from where it happened, not from wherever the ball ended up; double jeopardy is handled on purpose rather than by accident. [notes](./notes/phase-6.md#t-64) |
 | T-6.5 | Passing suite: short, through-ball, lofted, cross, with weight and rating-driven error | L | `todo` | | | | |
 | T-6.6 | Shooting: power meter, placement, curve, deflections | M | `todo` | | | | |
 | T-6.7 | Dribbling, sprint, shielding, stamina drain | M | `todo` | | | | |

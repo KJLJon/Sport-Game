@@ -132,3 +132,106 @@ future session doesn't file it as a bug.
 watching a test half tick past 45:00 and keep going because someone scored — the clock behaving
 differently from basketball's is the first place the two sports stop being the same game with
 different numbers.
+
+### T-6.3
+
+*Offside detection and enforcement*
+
+**The whole law turns on one instant, so the module is a two-part transaction.**
+`captureOffside()` freezes the picture as the ball is played; `judgeOffside()` reads that frozen
+picture when someone next touches it. Nothing recomputes a position in between. The alternative —
+one function that measures everything at arrival time — is subtly, permanently wrong, because a
+striker level at the pass and ten metres clear when it lands is *onside*, and that single fact is
+what every argument about offside is actually about. Making it a snapshot means the rule is right
+by construction rather than by the caller remembering to call things in the right order.
+
+That instant is a contract with T-6.5: the passing suite calls `captureOffside` at release and
+carries the snapshot with the ball. Written down here because it is the kind of coupling that gets
+quietly broken by a later refactor.
+
+**`attackDepth` is the reason nothing else in the file branches on side.** Every comparison in
+Law 11 is "nearer to the opponents' goal line than", so one projection — distance towards the goal
+you are attacking — turns the whole law into `>` on a number. Without it every predicate carries
+its own `side === 0 ? x : length - x`, and the second-last-defender sort has to be written twice.
+
+**Sorting rather than special-casing the keeper.** "Second-last opponent" is worded that way
+precisely because the keeper is *usually* but not *always* the last man. Sorting the defenders by
+depth and taking index 1 gets a keeper caught upfield right for free; a `defenders.filter(isKeeper)`
+implementation would have needed a rule it doesn't have. There is a test for the rushed keeper.
+
+**Level is a band, not a plane.** `LEVEL_TOLERANCE = 0.15 m`. The Law says level is onside and
+measures to the millimetre; a simulation that decides a match on a centimetre of float error is a
+bug however technically correct it is. Fifteen centimetres is roughly a shoulder, which is the unit
+real offside arguments are conducted in anyway.
+
+**What is deliberately not modelled.** The Law lists three ways to be "involved in active play":
+interfering with play, interfering with an opponent, and gaining an advantage. Only the first is
+here — a flagged player becomes the first attacker to touch the ball. The other two need a judgement
+about intent and sight-lines that a simulation cannot make honestly, and faking them would produce
+calls a player could not predict, which is worse than not making them. The visible consequence: a
+player standing offside who lets the ball run to an onside teammate is not penalised here and
+sometimes would be in a real match. Flagged rather than hidden.
+
+**The three exempt restarts live in the snapshot.** Throw-in, goal kick, corner. Putting the
+exemption in `captureOffside` rather than at judgement time means there is one place to be wrong
+about it, and it survives the fact that by the time the ball arrives the restart is long over.
+
+**Enforcement returns rather than mutates.** `offsideOffence()` hands back a `Restart` and the
+events; it never touches `RulesState`. Offside is a judgement, and keeping it one means the module
+tests with no rules state at all, and T-6.4's fouls can reuse the same shape when they land.
+
+**Feel note:** not playable yet, but the level-at-the-pass test is the first test in the phase that
+would make a soccer fan nod. If that case is right, the rest of the law is bookkeeping.
+
+### T-6.4
+
+*Fouls, advantage, cards, free kicks, penalties*
+
+**Three questions, kept apart.** Where the restart is (`restartForFoul`), what card is shown
+(`cardFor`), and whether play stops at all (advantage). Only `commitFoul` knows all three. Tangling
+them is how a rules module acquires the one function nobody dares change, and the three have
+genuinely different inputs — geometry, discipline, and the state of the attack.
+
+**It is the offender's *own* box that makes a penalty.** Not "the box the ball is in". An attacker
+fouling a defender inside the opposition penalty area concedes an ordinary free kick. Obvious once
+stated, easy to get wrong with an `isInPenaltyArea(x, y)` that forgot to take a side, and there is a
+test for it in both directions.
+
+**Double jeopardy is handled deliberately rather than by accident.** A foul denying an obvious
+goal-scoring opportunity is a red — *unless* it was a genuine attempt to play the ball inside the
+offender's own penalty area, where since 2016 it is a caution because the penalty is punishment
+enough. Handball and holding are not attempts to play the ball, so those stay red. This is the
+single most-argued line in the Laws; the code should land on a side of it on purpose.
+
+**Advantage carries a fully-built `Restart`, and that is the whole design.** The free kick, if the
+advantage is pulled back, is taken from *where the foul happened*. By the time the referee decides
+the attack came to nothing, three seconds of play have passed and everybody has moved — so
+rebuilding the restart from the state at pull-back time would award a completely different free
+kick. Building it at the moment of the foul and carrying it is the fix, and it is why
+`AdvantageState` lives in `rules.ts` (as plain data, holding a `Restart`) rather than in `fouls.ts`:
+that way `RulesState` needs no import from `fouls.ts` and there is no cycle.
+
+**The advantage window is in real seconds, not game seconds.** Three real seconds. At 11.25×
+compression the equivalent game-second figure would be over before a player could see it happen —
+this is a window on *play*, not on the clock, and it is the first place in the phase where the
+compression forced a unit choice. Basketball hit the same wall from the other side and dropped the
+eight-second backcourt count for it.
+
+**A caution is applied at the foul, not at the next stoppage.** The Laws defer the card when
+advantage is played. Modelling that faithfully leaves an athlete on two yellows still playing for
+several seconds, which reads as a bug and changes no outcome.
+
+**No advantage on a penalty.** There is no advantage better than a penalty, so `commitFoul` refuses
+to play one on even when the caller asks.
+
+**Nothing here rolls dice.** `FoulSeverity` is the Laws' own three degrees — careless, reckless,
+excessive — which gives T-6.8's tackle model an honest place to put its output: it decides how badly
+the challenge went with a seeded RNG, and this decides what that costs (INV-2).
+
+**Fouls mutate `RulesState`; offside does not.** A deliberate inconsistency. Discipline is a running
+record that has to live somewhere, and basketball's `recordFoul` set the precedent that it lives
+with the rule producing it. Offside has no record to keep, so it stayed pure.
+
+**Feel note:** the advantage window is the first thing in the phase that will need playing rather
+than testing. Three seconds is a guess; whether letting a promising move run *feels* like a
+reward or like the referee missing a foul is not something the suite can tell me.

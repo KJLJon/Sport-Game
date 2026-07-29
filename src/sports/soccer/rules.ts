@@ -43,6 +43,7 @@
  */
 import { EventKind, event, type Side, type SportEvent } from '../../engine/match/events.ts';
 import type { MatchRules } from '../../engine/match/state-machine.ts';
+import type { EntityId } from '../../engine/world.ts';
 import {
   cornerSpot,
   crossedBoundary,
@@ -138,6 +139,12 @@ export const SoccerEvent = {
   RESTART_FORFEIT: 'soccer.restartForfeit',
   ADDED_TIME: 'soccer.addedTime',
   KICK_OFF: 'soccer.kickOff',
+  OFFSIDE: 'soccer.offside',
+  CARD: 'soccer.card',
+  SENT_OFF: 'soccer.sentOff',
+  ADVANTAGE: 'soccer.advantage',
+  ADVANTAGE_PLAYED: 'soccer.advantagePlayed',
+  ADVANTAGE_PULLED_BACK: 'soccer.advantagePulledBack',
 } as const;
 
 export interface Restart {
@@ -181,6 +188,38 @@ export interface RulesState {
    * other side's, and a kick-off after a goal belongs to whoever conceded and changes nothing.
    */
   kickOffSide: PitchSide;
+
+  /**
+   * Yellow cards per athlete, keyed by entity id. A record rather than a `Map` for the same reason
+   * basketball's foul counts are: this goes into snapshots and replays, and a `Map` does not
+   * survive `JSON.stringify`.
+   */
+  yellowCards: Record<number, number>;
+  /** Athletes sent off. Their side plays the rest of the match a player short. */
+  sentOff: EntityId[];
+  /** Fouls conceded per side, for the box score. Soccer has no bonus, so nothing turns on it. */
+  teamFouls: [number, number];
+  /** An advantage being played, or `null`. See `fouls.ts`. */
+  advantage: AdvantageState | null;
+}
+
+/**
+ * A foul the referee has seen but not yet whistled, because the fouled side still has the ball.
+ *
+ * The restart is built at the moment of the foul and carried, rather than recomputed if the
+ * advantage is pulled back — the free kick is taken from where the foul happened, and by the time
+ * the referee decides the advantage came to nothing, everybody has moved.
+ *
+ * It lives here rather than in `fouls.ts` so that `RulesState` stays free of a cycle: `fouls.ts`
+ * builds these and hands them over, and this file never imports it back.
+ */
+export interface AdvantageState {
+  /** The side that was fouled — the one being given the advantage. */
+  readonly side: PitchSide;
+  /** What to award if it is pulled back. */
+  readonly restart: Restart;
+  /** Steps left in the window before the advantage is considered to have come off. */
+  steps: number;
 }
 
 export function createRulesState(kickOffSide: PitchSide = 0): RulesState {
@@ -194,12 +233,33 @@ export function createRulesState(kickOffSide: PitchSide = 0): RulesState {
     addedGameSeconds: 0,
     boardAddedMinutes: 0,
     kickOffSide,
+    yellowCards: {},
+    sentOff: [],
+    teamFouls: [0, 0],
+    advantage: null,
   };
 }
 
 /** The other side. Soccer asks this constantly. */
 export function opponent(side: PitchSide): PitchSide {
   return side === 0 ? 1 : 0;
+}
+
+/** Yellows an athlete is carrying. Two is a red, which `fouls.ts` enforces. */
+export function yellowCards(state: RulesState, athlete: EntityId): number {
+  return state.yellowCards[athlete] ?? 0;
+}
+
+export function isSentOff(state: RulesState, athlete: EntityId): boolean {
+  return state.sentOff.includes(athlete);
+}
+
+/**
+ * How many of a side's athletes are still on the pitch. Takes the squad rather than a side,
+ * because the roster is the module's to know and the rule book's only job is to say who is off.
+ */
+export function playersRemaining(state: RulesState, squad: readonly EntityId[]): number {
+  return squad.filter((id) => !isSentOff(state, id)).length;
 }
 
 /** Records who touched the ball last, which is what decides every out-of-play award. */
