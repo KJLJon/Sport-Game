@@ -91,7 +91,7 @@ export function startKeyMoment<S>(
 }
 
 /** What the caller passes to `settleKeyMoment()`. */
-export type KeyMomentResult = Omit<KeyMomentOutcome, 'invocation' | 'simWouldHave'>;
+export type KeyMomentResult = Omit<KeyMomentOutcome, 'invocation' | 'simWouldHave' | 'simPoints'>;
 
 /**
  * Reads a finished — or first-attempt — run as an outcome.

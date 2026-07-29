@@ -216,3 +216,33 @@ rebound every time a moment was missed.
 as `totalMade − 1`, which is wrong whenever the sim missed the first and made the second — the
 player's make would silently eat the sim's. It now reads the drawn attempts in order and keeps the
 results for attempts 2..n.
+
+### T-5.6
+
+*Expectation comparison ("the sim would have made it") + post-match reporting*
+
+**The counterfactual is recorded, not reconstructed.** The first draft computed what the sim's shot
+was worth by dividing `expectedPoints` by `successChance` — which is only correct if the turnover
+term happens to be zero, and is guesswork dressed as arithmetic either way. `KeyMomentOutcome` now
+carries `simPoints`, written by `settleKeyMoment()` at the only moment it is knowable: after the sim
+drew and before the player touched it. The swing is `turn.points − simPoints` and nothing else.
+
+**Expected points come from the model, not from the outcome.** Every `TurnResolution` already
+carried the `TurnExpectation` its own resolution computed before drawing, so "you were unlucky" is a
+claim with a number behind it rather than a consolation.
+
+**The report knows no sport.** Calls are ids and outcomes are strings; it groups and counts. Soccer's
+phases will produce the same shape with different words.
+
+**A steal belongs to the side that made it.** Key moments are attributed by who took them, not by
+who had the ball — otherwise every defensive moment would be credited to the opponent, which is
+exactly the bug that would go unnoticed until someone read their own report.
+
+**One copy bug, caught by a test that was wrong first.** `describeKeyMoments` said "the sim would
+have gone exactly the same" whenever the tallies matched — including when the player made a three
+the sim would have missed and missed a two it would have made. Same tally, different match. It now
+requires the tallies *and* the points to agree.
+
+**Honest before funny.** `09` §2.4 asks for "both honest and funny", and the funny half only works
+if the honest half is unflinching, so the sentence names the number even when it is unkind: "That
+cost you 5 points."

@@ -98,6 +98,7 @@ function outcome(game: string, made: boolean, actor = 0): KeyMomentOutcome {
     made,
     quality: made ? 0.9 : 0.1,
     simWouldHave: !made,
+    simPoints: made ? 0 : 2,
   };
 }
 

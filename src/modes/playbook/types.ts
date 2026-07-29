@@ -206,6 +206,12 @@ export interface KeyMomentOutcome {
   readonly quality: number;
   /** What the sim would have done, kept so the post-match report can be honest (`09` §2.4). */
   readonly simWouldHave: boolean;
+  /**
+   * Points the sim's own draw was worth, recorded at the only moment it is knowable. T-5.6's
+   * comparison is `turn.points − simPoints` and nothing else: a report that re-derived the
+   * counterfactual from the final box score would be guessing.
+   */
+  readonly simPoints: number;
 }
 
 export interface NarrationLine {

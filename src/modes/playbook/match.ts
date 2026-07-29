@@ -229,7 +229,9 @@ export class PlaybookMatch<S = unknown> {
    * an adapter that does not implement `applyKeyMoment` keeps the sim's own outcome, which is the
    * honest fallback rather than a silent guess at what the player earned.
    */
-  settleKeyMoment(outcome: Omit<KeyMomentOutcome, 'invocation' | 'simWouldHave'>): TurnResolution {
+  settleKeyMoment(
+    outcome: Omit<KeyMomentOutcome, 'invocation' | 'simWouldHave' | 'simPoints'>,
+  ): TurnResolution {
     if (this.phaseName !== 'key-moment' || this.invocation === null || this.pending === null) {
       throw new Error(`settleKeyMoment() requires a pending key moment, not ${this.phaseName}`);
     }
@@ -240,6 +242,7 @@ export class PlaybookMatch<S = unknown> {
       // What the sim drew before the player touched it — `09` §2.4's counterfactual, recorded at
       // the only moment it is knowable.
       simWouldHave: this.pending.points > 0,
+      simPoints: this.pending.points,
     };
 
     this.pending =
