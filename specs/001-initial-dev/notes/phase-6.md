@@ -235,3 +235,61 @@ with the rule producing it. Offside has no record to keep, so it stayed pure.
 **Feel note:** the advantage window is the first thing in the phase that will need playing rather
 than testing. Three seconds is a guess; whether letting a promising move run *feels* like a
 reward or like the referee missing a foul is not something the suite can tell me.
+
+### T-6.5
+
+*Passing suite: short, through-ball, lofted, cross, with weight and rating-driven error*
+
+**Weight is the soccer-shaped half, and basketball genuinely does not have it.** A basketball pass
+goes wrong by being aimed wrong; `passing.ts` there has one error term and it is angular. A soccer
+pass mostly goes wrong by being hit too hard or not hard enough — an underweighted through ball is
+cut out, an overweighted one runs through to the keeper — and neither of those is a direction
+error. So `passError` returns two independent numbers, and `weightError` is where the four pass
+types actually differ. A through ball's is three times a short pass's; that single figure is the
+whole reason one is the safe option and the other wins matches. Not a separate code path, not a
+success rate bolted on top.
+
+**Grounded and aerial are two code paths, and trying to unify them was the first thing that
+failed.** `launchVelocity` given a short pass's distance and speed produces an eighty-centimetre
+apex — a floated ten-metre pass, which nobody has ever played. A ground pass has no vertical
+component at all: it is released flat with `vz = 0` and rolls. Lofted balls and crosses do use
+`launchVelocity`, because an arc over a defensive line is precisely what it computes.
+
+**The engine's rolling friction turned out to be linear in distance, which made weighting trivial.**
+The integrator decays a rolling ball at `rollingFriction` per second: `dv/dt = −k·v`. Divide by
+`dx/dt = v` and you get `dv/dx = −k` — speed falls **linearly with distance**, k m/s per metre. So
+"how hard must I hit this to arrive at 7 m/s twenty metres away" is `7 + k·20`, a sum rather than a
+solve, and the arrival speed of a mis-weighted pass is the same arithmetic backwards. An underhit
+pass arrives slower; hit badly enough it stops short, and the model produces that with no special
+case. `ROLL_DECAY_PER_METRE` in `ball.ts` records the derivation so nobody has to redo it.
+
+The flight *time*, on the other hand, is a logarithm rather than a division, because the ball is
+slowing the whole way. `distance / releaseSpeed` is optimistic by better than a tenth on any pass
+long enough for weight to matter — which is exactly the passes where the lead has to be right, so
+the cheap version would have been wrong precisely where it counted.
+
+**Weight means something different in the air.** An overhit cross is not a faster cross, it is one
+that sails long — so on an aerial ball the weight error divides the flight time rather than
+multiplying the speed, which comes out as a flatter, faster ball arriving past its target.
+
+**`arrivalHeight` is where "that was a bad cross" lives.** A cross arrives at 1.9 m and a lofted
+pass at 0.6 m. Putting head height in the pass profile rather than in the header model (T-6.9's
+neighbour) means a cross whipped in too flat is bad because of *where it arrives*, which is the
+reason it is actually bad.
+
+**The offside contract is enforced by construction.** `throwPass` calls `captureOffside` itself, at
+release, and hands the snapshot back on the `PassInFlight`. There is deliberately no way to build a
+`PassInFlight` with a snapshot taken at any other moment — the T-6.3 note warned this was the kind
+of coupling a later refactor breaks quietly, and this is the version that cannot be broken by
+calling things in the wrong order. `PassContext` is optional as a whole, because a practice mode or
+an arcade game has no defensive line and offside cannot apply to it.
+
+**No composure rating.** Basketball's passer has one; soccer's derived set (`05` §3.2) does not —
+composure is an attribute, already spent inside `finishing`. Rather than invent a thirteenth rating
+to make this file symmetrical with basketball's, pressure is resisted by the same rating that
+strikes the pass. Noted because it is the sort of asymmetry that looks like an oversight.
+
+**Feel note:** untested by hand, but the numbers say the through ball should already be the most
+interesting button in the game — it is the only one where getting it *slightly* wrong is worse than
+getting it very wrong, because a slightly underhit through ball arrives at a defender's feet at
+walking pace. Whether that reads as skill or as noise is the thing to watch when it is playable.
