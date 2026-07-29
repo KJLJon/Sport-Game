@@ -67,7 +67,22 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
   },
   {
     pattern: '/play/playbook',
-    value: stub('play-playbook', 'Playbook', 'Turn-based tactics with key moments.', 'Phase 5'),
+    value: {
+      id: 'play-playbook',
+      title: 'Playbook',
+      load: async () => (await import('../ui/screens/playbook.ts')).playbookScreen(),
+    },
+  },
+  {
+    // Full-bleed: the diagram wants the width, and `10` §8.4 puts the call sheet where the tab bar
+    // would otherwise be.
+    pattern: '/play/playbook/match',
+    value: {
+      id: 'play-playbook-match',
+      title: 'Playbook',
+      chrome: 'bare',
+      load: async () => (await import('../ui/screens/playbook-match.ts')).playbookMatchScreen(),
+    },
   },
   {
     pattern: '/play/arcade',

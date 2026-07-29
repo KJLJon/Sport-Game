@@ -974,3 +974,113 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* ── Playbook setup and turn screens (T-5.10) ────────────────────────────────
+   `10` §8.4: court diagram up top, call sheet along the bottom, score always
+   visible. */
+
+.playbook-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.playbook-setup__title {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.playbook-setup__blurb,
+.playbook-setup__hint {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.playbook-match {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.playbook-match__board {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.playbook-match__board canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.playbook-match__score {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-16);
+  font-variant-numeric: tabular-nums;
+}
+
+.playbook-match__points {
+  font-size: var(--text-24);
+  font-weight: 700;
+  color: var(--text-hi);
+}
+
+.playbook-match__sep {
+  color: var(--text-lo);
+}
+
+.playbook-match__clock {
+  margin-left: auto;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.playbook-match__narration {
+  margin: 0;
+  min-height: calc(var(--text-16) * 1.5);
+  padding: 0 var(--space-16) var(--space-8);
+  font-size: var(--text-16);
+  color: var(--text-hi);
+}
+
+.playbook-match__stage {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border-top: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+}
+
+.playbook-match__handover,
+.playbook-match__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  align-items: flex-start;
+}
+
+.playbook-match__prompt {
+  margin: 0;
+  font-size: var(--text-20);
+  color: var(--text-hi);
+}
+
+.playbook-match__results h2 {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.playbook-match__results p {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}

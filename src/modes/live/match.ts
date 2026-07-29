@@ -22,6 +22,7 @@
  * There is no rendering and no input here. This module is headless on purpose: the balance harness
  * (T-2.13) runs five hundred games through it with no canvas in sight.
  */
+import type { Athlete } from '../../athletes/types.ts';
 import { createRng, type Rng } from '../../engine/rng.ts';
 import { EventBus, EventKind, type Side, type SportEvent } from '../../engine/match/events.ts';
 import {
@@ -54,6 +55,12 @@ export interface MatchOptions {
   readonly playerSide?: 0 | 1 | -1;
   /** Overrides the sport's squad size — the balance harness and practice modes use it. */
   readonly squadSize?: number;
+  /**
+   * The actual athletes, per side. Absent means the sport rolls anonymous ones, which is what the
+   * Live balance harness wants; INV-11's parity batch supplies real rosters so that the two modes
+   * are being asked about the same players.
+   */
+  readonly rosters?: readonly (readonly Athlete[])[];
 }
 
 /**
@@ -90,13 +97,12 @@ export class LiveMatch {
 
     const rng = createRng(options.seed);
     this.sportState = this.sport.createState(
-      options.squadSize === undefined
-        ? { seed: options.seed, playerSide: this.playerSide as 0 | 1 | -1 }
-        : {
-            seed: options.seed,
-            playerSide: this.playerSide as 0 | 1 | -1,
-            squadSize: options.squadSize,
-          },
+      {
+        seed: options.seed,
+        playerSide: this.playerSide as 0 | 1 | -1,
+        ...(options.squadSize === undefined ? {} : { squadSize: options.squadSize }),
+        ...(options.rosters === undefined ? {} : { rosters: options.rosters }),
+      },
       this.world,
       rng,
     );
