@@ -12,8 +12,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.9 — Goalkeeper AI: positioning, shot-stopping, claims, distribution
-- **Status:** todo (T-6.1 – T-6.8 `done`; Phase 6 open)
+- **Task:** T-6.10 — Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase
+- **Status:** todo (T-6.1 – T-6.9 `done`; Phase 6 open — **halfway**)
 - **Session budget note (2026-07-29):** the user's weekly usage is near its cap, so this session is
   running **one task at a time, no concurrent work, commit and push after every task**. Keep it
   that way until told otherwise — every task must leave the tree pushed and this block accurate.
@@ -44,18 +44,26 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-6.8 — `src/sports/soccer/defending.ts`, 23 unit tests. `pressureOn` (consumed by passing
         and shooting), tackle timing that gates the ratings, one RNG draw per challenge, and
         severity handed to `fouls.ts`.
-  - [ ] T-6.9 — goalkeeper AI
-  - [ ] T-6.10 … T-6.18
-- **Next step:** T-6.9 (goalkeeper). Deps (T-6.6) `done`. The pieces are in place and the shape is
-  set by them: `ShotInFlight` carries `aim` and `speed`, and T-6.6 deliberately took flight time
-  from the distance to the *aim point*, so a far-corner shot hangs longer — the keeper's reaction
-  model should read that rather than re-deriving it. `goalAngle`/`goalOpenness` give the arc to
-  position on. Rating: `goalkeeping` (and `SOCCER_PHYSICAL` gives tall keepers a bonus already).
-  `06` §3.2 asks for four things — positioning, reflex saves, claims, distribution — plus **manual
-  control on penalties**, which is a control-layer flag rather than a fifth model.
-- **Skill models still to write after T-6.9:** heading is not its own task; it belongs to whichever
-  of T-6.9/T-6.10 needs it first, and `PASS_PROFILES.cross.arrivalHeight` (1.9 m) is already the
-  hook for it.
+  - [x] T-6.9 — `src/sports/soccer/keeper.ts`, 31 unit tests. Positioning on the bisector,
+        `interceptPoint` so advancing is worth something, a three-valued save, claims, and
+        distribution that returns a `PassKind`.
+  - [ ] T-6.10 — formations and shape by phase
+  - [ ] T-6.11 … T-6.18
+- **Next step:** T-6.10 (formations). Deps (T-6.2) `done`. This is the task that turns nine modules
+  into something that can be assembled: it owns `RoleTable` for the seam, the three formations, and
+  where all 22 athletes stand as the phase of play changes. `pitch.ts` already exposes thirds
+  (`third0`/`middleThird`/`third1`, `thirdFor`) for exactly this, and `mirrorX` means shapes are
+  authored once for the side attacking high x. The keeper's `aggression` term is a formation
+  input — wire it here rather than inventing a second control for it.
+- **Known gaps to clear before the Gate 6 record:**
+  1. **The chip is not modelled** (T-6.9). `interceptPoint` uses the chord, not the parabola, so a
+     lofted ball over an advanced keeper reads *lower* rather than higher. Fix = thread the launch
+     velocity through and evaluate the true arc. Likely first real caller: T-6.15's arcade set.
+  2. **Heading has no task of its own.** It belongs to whichever of T-6.10/T-6.15 needs it first;
+     `PASS_PROFILES.cross.arrivalHeight` (1.9 m) is already the hook.
+  3. **No `SportModule` yet.** Nothing is playable until the assembly task wires these into the
+     seam. That is not an explicit Phase 6 row — fold it into T-6.10 or raise it as a scope
+     question before T-6.11's performance work, which needs 22 entities actually moving.
 - **Contract T-6.5 established (honour it in T-6.9 and T-6.15):** `throwPass` is the only place an
   offside snapshot is taken. Anything else that releases the ball towards a teammate goes through
   it, or documents why offside cannot apply.
@@ -121,7 +129,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 18 | 8 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 18 | 9 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -265,7 +273,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.6 | Shooting: power meter, placement, curve, deflections | M | `done` | | `tests/unit/sports/soccer/shooting.test.ts` | `auto` — **needs a phone** for whether 0.8 s is the right meter fill | Error is placement in the plane of the goal mouth, not an angle, so it composes with `goalOpenness` for free; power buys speed *and* costs accuracy, which is the only reason a meter exists. [notes](./notes/phase-6.md#t-66) |
 | T-6.7 | Dribbling, sprint, shielding, stamina drain | M | `done` | | `tests/unit/sports/soccer/dribbling.test.ts` | `auto` — **needs a phone** for whether the sprint turn penalty makes sprinting unusable | No second movement model: this produces the engine's `MovementProfile`. `touchDistance` makes a poor dribbler dispossessable with no dice, and stamina changes the profile without ever touching a rating. [notes](./notes/phase-6.md#t-67) |
 | T-6.8 | Defending: pressure, standing and slide tackles, foul/card risk | M | `done` | | `tests/unit/sports/soccer/defending.test.ts` | `auto` — **needs a phone** for whether committing to a slide feels worth pressing | Timing beats ratings: below `hopelessTiming` no rating saves a challenge, so a well-timed poor defender beats a wild good one. Severity is handed to `fouls.ts`; this module never decides a card. [notes](./notes/phase-6.md#t-68) |
-| T-6.9 | Goalkeeper AI: positioning, shot-stopping, claims, distribution; manual on penalties | L | `todo` | | | | |
+| T-6.9 | Goalkeeper AI: positioning, shot-stopping, claims, distribution; manual on penalties | L | `done` | | `tests/unit/sports/soccer/keeper.test.ts` | `auto` — **needs a phone** for whether `softness` 0.45 reads as reflexes or as flapping | A save is a race, not a dice roll; the first dive-speed tuning had an average keeper saving 58% of top corners and a failing test fixed it. **Known gap:** the chip is not modelled — intercept height is the chord, not the arc. [notes](./notes/phase-6.md#t-69) |
 | T-6.10 | Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase | L | `todo` | | | | |
 | T-6.11 | 22-entity performance work: LOD, culling, spatial-hash tuning, zero-allocation hot path | L | `todo` | | | | |
 | T-6.12 | Camera and minimap tuning for the larger pitch | M | `todo` | | | | |

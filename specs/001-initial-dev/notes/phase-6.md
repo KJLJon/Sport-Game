@@ -434,3 +434,60 @@ fourth defender arriving cannot push it past 1 and flatten the term.
 trade; in the hand, a challenge that commits you to the floor for a second may simply feel bad
 enough that nobody presses it, in which case the reach or the win bonus goes up rather than the
 foul rate going down.
+
+### T-6.9
+
+*Goalkeeper AI: positioning, shot-stopping, claims, distribution; manual on penalties*
+
+**A save is a race, not a dice roll.** The keeper has a position and a reach; the shot has an aim
+point and a flight time. Cover the distance in the time available and it is saved. `goalkeeping`
+decides how fast they cover ground, not how often a hidden number comes up — so the far corner beats
+a good keeper because it is *further away*, which is also what it will look like on screen.
+
+This is what T-6.6's flight-time decision was for. Taking flight time from the distance to the aim
+point rather than the goal centre means a far-corner shot hangs longer, partly offsetting the longer
+dive. The two effects fighting is what makes the near post correct from a tight angle without anyone
+writing a rule that says so.
+
+**The tuning was wrong on the first pass and the test caught it.** At `diveSpeed` 4.6 + 3.4 an
+*average* keeper saved 58% of top-corner shots from twelve metres — a wall with a radius rather than
+a goalkeeper. Around 4 m/s of lateral dive is what footage supports; at 3.0 + 2.2 the same shot sits
+near 16%. Worth recording as a number that came from a failing assertion rather than from taste,
+because it will be re-tuned in T-6.18's balance pass and the starting reasoning should be visible.
+
+**`interceptPoint` is what makes coming off the line worth anything — and it exposed a claim I had
+written but not implemented.** The first draft measured the dive to the aim point in the plane of
+the goal, which is the right answer only for a keeper standing *on* the line: it made advancing
+worth precisely nothing, and the test asserting otherwise failed. The fix is to measure where the
+ball passes the keeper's own depth.
+
+**Known limitation, stated rather than papered over: the chip is not modelled.** Height along the
+intercept is the *chord*, not the parabola. A real lofted shot peaks above the bar and drops, so an
+advanced keeper meets it higher and it goes over them; a straight line from boot to goal is never
+above the bar, so here they meet it lower. My header comment originally claimed the chip fell out of
+the same geometry — it does not, and the test I wrote to prove it failed. The test that replaced it
+asserts what the model *actually does* and says why. Fixing it properly means threading the launch
+velocity through and evaluating the true parabola; the right time is when something needs the chip,
+which is probably T-6.15's arcade set.
+
+**`saveOutcome` is three-valued on purpose.** Caught, parried, beaten. A keeper who only catches or
+concedes has no rebounds in them, and a rebound is most of what makes a penalty box interesting. A
+ball is held only when it is slow enough *and* the keeper had it comfortably.
+
+**Softness, not a cliff.** The save chance is a logistic on `reach − distance`, so a shot just
+inside range is usually but not always saved and one just outside is occasionally clawed out. That
+is the difference between a goalkeeper and a collision circle.
+
+**Distribution returns a `PassKind`.** It goes through `passing.ts` like every other pass rather
+than growing its own throw model, which means playing out from the back can go wrong in exactly the
+ways passing can.
+
+**Manual on penalties is a flag, not a fifth model.** `06` §3.2 offers it there and nowhere else;
+the same `saveOutcome` runs either way and `isKeeperManual` only says who supplies the dive.
+
+**`aggression` belongs to the formation, not to difficulty.** A sweeper-keeper is a tactical choice
+(T-6.10); scaling it by difficulty would be the rating-tampering INV-1 forbids, one level removed.
+
+**Feel note:** unplayed. The number to watch is `softness` (0.45) — too low and every save is
+predetermined by geometry, too high and a keeper flaps at shots they should hold, and there is no
+way to tell which from a test.
