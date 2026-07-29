@@ -842,3 +842,135 @@
   width: 22px;
   height: 22px;
 }
+
+/* ── Play-call sheet (T-5.4) ─────────────────────────────────────────────────
+   `10` §8.4: three-to-six large cards along the bottom of the turn screen. The
+   cards are the primary target on this screen, so they take `--target-primary`
+   rather than the 44 px minimum. */
+
+.play-call-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.play-call-sheet__opponent,
+.play-call-sheet__prompt,
+.play-call-sheet__hidden {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.play-call-sheet__prompt {
+  color: var(--text-hi);
+  font-size: var(--text-16);
+  font-weight: 600;
+}
+
+.play-call-sheet__calls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-8);
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.play-call__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.play-call {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: var(--target-primary);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  cursor: pointer;
+}
+
+/* Selection is a border weight and an inset mark as well as a colour (`10` §11). */
+.play-call__input:checked + .play-call {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.play-call__input:focus-visible + .play-call {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.play-call__name {
+  font-size: var(--text-16);
+  font-weight: 600;
+  color: var(--text-hi);
+}
+
+.play-call__blurb {
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+.play-call__keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.play-call__key {
+  font-size: var(--text-12);
+  padding: 2px var(--space-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-lo);
+}
+
+.play-call__targeted {
+  font-size: var(--text-12);
+  color: var(--accent-alt);
+}
+
+.play-call-sheet__targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-8);
+}
+
+.play-call-target {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-height: var(--target-primary);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  color: var(--text-hi);
+  font: inherit;
+  cursor: pointer;
+}
+
+.play-call-target__role {
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+.play-call-sheet__back {
+  min-height: var(--target-min);
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  color: var(--text-lo);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

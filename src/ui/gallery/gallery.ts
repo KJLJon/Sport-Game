@@ -23,6 +23,7 @@ import {
 } from '../components/meters.ts';
 import { banner, sheet, toast } from '../components/feedback.ts';
 import { emptyState, errorState, skeleton } from '../components/states.ts';
+import { callSheet } from '../components/play-call.ts';
 
 const ICON_PLAY = 'M8 5v14l11-7z';
 
@@ -174,6 +175,43 @@ export function galleryScreen(): Screen {
         ['skeleton', skeleton(doc, { lines: 3 })],
       ]);
 
+      // `10` §5's inventory names the play-call card; the gallery is where it is looked at.
+      const playbook = section(doc, 'Playbook', [
+        [
+          'call sheet',
+          callSheet(doc, {
+            calls: [
+              {
+                id: 'isolation',
+                name: 'Isolation',
+                side: 'offence',
+                blurb: 'Best when you have a star mismatch.',
+                keys: ['ballHandling', 'finishing'],
+                targeted: true,
+              },
+              {
+                id: 'motion',
+                name: 'Motion',
+                side: 'offence',
+                blurb: 'Best with a balanced roster and no star.',
+                keys: ['passing', 'awareness'],
+              },
+              {
+                id: 'spot-up',
+                name: 'Spot-Up / Three-Set',
+                side: 'offence',
+                blurb: 'Best with shooters, against a packed paint.',
+                keys: ['threePoint', 'awareness'],
+                targeted: true,
+              },
+            ],
+            squad: [],
+            opponentLastCall: '2-3 Zone',
+            onChoose: noop,
+          }).element,
+        ],
+      ]);
+
       host.replaceChildren(
         el(doc, 'div', {
           class: 'gallery',
@@ -187,6 +225,7 @@ export function galleryScreen(): Screen {
             meters,
             feedback,
             states,
+            playbook,
           ],
         }),
       );

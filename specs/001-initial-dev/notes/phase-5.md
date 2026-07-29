@@ -140,3 +140,30 @@ same reasoning as `arcade?` and `playbook?`.
 `09` §2.1's 4–8 s band, but whether a possession *feels* like 5.5 seconds is a question about a
 thumb and a phone, and neither is available to this session. It is the first thing to check on a
 device, and the first number I would expect to change.
+
+### T-5.4
+
+*Basketball play catalogue (offence + defence calls) and call-selection UI*
+
+**The catalogue itself landed with T-5.2** — the resolution model cannot be tuned without all eleven
+calls existing. What is here is the sheet: `10` §8.4's "three-to-six large cards along the bottom",
+the opponent's last call, and the confirm-by-tap target picker.
+
+**The sheet knows no sport.** It renders `CallOption`s and `PlaybookAthlete`s, both mode-layer
+types. Basketball's catalogue is `09` §2.2's table and soccer's will be its intent controls; neither
+is named in the component, and there is a test that mounts an invented soccer-shaped catalogue to
+prove it.
+
+**Radio semantics, not buttons.** A call sheet is one choice from a set, which is what a radio group
+is — so roving focus, keyboard navigation, and the screen reader's "3 of 6" come from the platform
+rather than being approximated. Selection shows as a border weight and an inset mark as well as a
+colour (`10` §11).
+
+**Two taps, never a sheet over a sheet.** A targeted call switches the same rectangle into its
+target picker, with one back affordance. On a phone, a layer over a layer is where a mis-tap becomes
+a call you did not make. `reset()` exists so a half-made choice cannot survive a force-resolved
+turn.
+
+**The cards take `--target-primary` (56 px), not the 44 px floor.** They are the primary target on
+the screen and there are up to six of them in a grid; 44 px is the minimum for anything, not the
+size for the thing the screen is *for*.
