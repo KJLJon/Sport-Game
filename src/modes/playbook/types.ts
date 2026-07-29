@@ -302,8 +302,20 @@ export interface PlaybookAdapter<S = unknown> {
   /** True once the sport considers the match over on its own terms, beyond the clock. */
   isFinished?(state: PlaybookState<S>): boolean;
 
-  /** The CPU's call (T-5.8). Seeded, like everything else. */
-  autoCall?(state: PlaybookState<S>, side: Side, rng: Rng): PlaybookCall;
+  /**
+   * The CPU's call (T-5.8). Seeded, like everything else.
+   *
+   * `turns` is the match's *committed* history — exactly what the player also watched happen. It is
+   * passed in rather than left on the state so that "what the opponent is allowed to know" is a
+   * parameter with a name: a CPU that could reach for arbitrary match state is a CPU that will
+   * eventually reach for the pending resolution.
+   */
+  autoCall?(
+    state: PlaybookState<S>,
+    side: Side,
+    rng: Rng,
+    turns: readonly TurnResolution[],
+  ): PlaybookCall;
 
   /**
    * The assistant coach's call for the *human's* side (T-5.7, `09` §2.1). Separate from `autoCall`

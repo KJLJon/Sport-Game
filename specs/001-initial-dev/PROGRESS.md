@@ -12,8 +12,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** — (none; T-5.1 … T-5.7 are `done`, T-5.8 is next and not started)
-- **Status:** —
+- **Task:** T-5.9 — Playbook hot seat
+- **Status:** in_progress
 - **Started:** 2026-07-28
 - **Branch:** `claude/phase-5-playbook-tooling-sac3hy`
 - **Done so far:**
@@ -25,12 +25,10 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-5.5 — key moments into the arcade seam
   - [x] T-5.6 — the expectation comparison and the post-match report
   - [x] T-5.7 — auto-call, fast-forward, turn speed
-  - [ ] T-5.8 — the CPU · T-5.9 hot seat · T-5.10 flow UI · T-5.11 parity (INV-11/INV-12)
-- **Next step:** T-5.8. `basketballPlaybook.autoCall` is still the uniform placeholder from T-5.2 —
-  deliberately flat, so the CPU has a baseline to be measured against. Build it on `coach.ts`'s
-  `scoreOffence`/`scoreDefence` plus tendency reading of the opponent's committed calls
-  (`match.turns` carries every one), degraded per difficulty through
-  `DIFFICULTY_PROFILES[…].decisionNoise`. INV-1: difficulty may never touch attributes or ratings.
+  - [x] T-5.8 — the CPU, reading tendencies, competence by difficulty
+  - [ ] T-5.9 hot seat · T-5.10 flow UI · T-5.11 parity (INV-11/INV-12)
+- **Next step:** T-5.9 — pass-the-device screens and hidden calls. `callSheet`'s `hidden` option
+  already exists (T-5.4) and `src/modes/local-players.ts` already holds local names from T-4.11.
 - **Not yet run this phase:** `pnpm e2e`, `pnpm bench`, `pnpm build && pnpm budget`, and
   `pnpm test:coverage`. `pnpm verify` and `pnpm balance:playbook` are green (2 186 tests / 14 bands).
   Gate 5 cannot be evaluated until T-5.8–T-5.11 land; nothing has been assumed about it.
@@ -202,8 +200,8 @@ there; this file is read at every session start and the notes file only when you
 | T-5.5 | Key-moment detection → arcade invocation → result fed back into resolution | L | `done` | | `tests/unit/sports/basketball/playbook/key-moments.test.ts` | `auto` | The arcade seam held: Playbook became a second consumer with no change to `ArcadeGameDef`, `ArcadeRun`, or `calibrate()`. [notes](./notes/phase-5.md#t-55) |
 | T-5.6 | Expectation comparison ("the sim would have made it") + post-match reporting | M | `done` | | `tests/unit/modes/playbook/report.test.ts` | `auto` | The counterfactual is recorded at settle time as `simPoints`, so the report only counts — it never re-derives what would have happened. [notes](./notes/phase-5.md#t-56) |
 | T-5.7 | Auto-call assistant coach, fast-forward, turn-speed control | M | `done` | | `tests/unit/modes/playbook/pace.test.ts`, `tests/unit/sports/basketball/playbook/coach.test.ts` | `auto` — **still needs a phone** for whether hold-to-fast-forward is the right gesture | The coach and the CPU are separate adapter members, so a toggle the player leaves on cannot out-think the opponent they are playing. [notes](./notes/phase-5.md#t-57) |
-| T-5.8 | Playbook CPU: call selection, weakness exploitation, per-difficulty competence | L | `todo` | | | | |
-| T-5.9 | Playbook hot-seat: pass-the-device screens, hidden calls, local player names | M | `todo` | | | | |
+| T-5.8 | Playbook CPU: call selection, weakness exploitation, per-difficulty competence | L | `done` | | `tests/unit/sports/basketball/playbook/cpu.test.ts` | `auto` + `pnpm balance:playbook` (14 bands green; 3PA share 47.8% against Live's 53.1%) | Difficulty only widens the softmax the CPU samples its own sheet at — a test asserts no rating on either side differs by level (INV-1). [notes](./notes/phase-5.md#t-58) |
+| T-5.9 | Playbook hot-seat: pass-the-device screens, hidden calls, local player names | M | `in_progress` | | | | |
 | T-5.10 | Playbook flow UI: setup, turn screen, key-moment transition, results | L | `todo` | | | | |
 | T-5.11 | Cross-mode parity tests (INV-11) and reward parity (INV-12) | M | `todo` | | | | |
 

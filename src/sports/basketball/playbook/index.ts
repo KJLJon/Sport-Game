@@ -3,17 +3,18 @@
  * @phase   5 — Playbook (turn-based) + basketball Playbook
  * @task    T-5.2 — Resolution model: ratings → matchup → outcome distribution → sampled events
  * @task    T-5.4 — Basketball play catalogue (offence + defence calls) and call-selection UI
+ * @task    T-5.8 — Playbook CPU: call selection, weakness exploitation, per-difficulty competence
  * @story   US-15.2 — Call plays and see them resolve
  * @design  09-modes-and-arcade.md §2.2 (possession turns), §5 (mode architecture)
  * @invariant INV-5 (no sport branching outside the sport module), INV-8 (determinism)
  *
  * Purpose: basketball's `PlaybookAdapter` — the object `SportModule.playbook` points at. It wires
  * the call catalogue (`calls.ts`), the resolution model (`resolution.ts`), the narration
- * (`narration.ts`), and the key-moment detector (`key-moments.ts`) into the five members `09` §5
- * names, plus the three the turn engine needs.
+ * (`narration.ts`), the key-moment detector (`key-moments.ts`), the coach (`coach.ts`), and the
+ * opponent (`cpu.ts`) into the five members `09` §5 names, plus the ones the turn engine needs.
  *
- * Everything here is assembly. If a rule lives in this file rather than in one of the four modules
- * beside it, that is a mistake worth fixing rather than a pattern worth following.
+ * Everything here is assembly. If a rule lives in this file rather than in one of the modules beside
+ * it, that is a mistake worth fixing rather than a pattern worth following.
  */
 import type { Rng } from '../../../engine/rng.ts';
 import type { Side } from '../../../engine/match/events.ts';
@@ -27,7 +28,6 @@ import type {
   KeyMomentOutcome,
   NarrationLine,
   PlaybookAdapter,
-  PlaybookCall,
   PlaybookSetup,
   PlaybookSquad,
   PlaybookState,
@@ -37,6 +37,7 @@ import type { TurnDiagram } from '../../../modes/playbook/diagram.ts';
 import { BASKETBALL_RULES, TIMING, stepsToGameSeconds } from '../rules.ts';
 import { BASKETBALL_CALLS, defensiveProfile, offensiveProfile } from './calls.ts';
 import { coachCall } from './coach.ts';
+import { cpuCall } from './cpu.ts';
 import { buildDiagram } from './diagram.ts';
 import { applyKeyMomentOutcome, detectKeyMoment } from './key-moments.ts';
 import { narrateTurn } from './narration.ts';
@@ -59,26 +60,10 @@ function callsFor(
 }
 
 /**
- * The CPU's call, until T-5.8 gives it a brain. Uniform over the catalogue on purpose: a
- * placeholder that quietly favoured one call would look like tuning and be mistaken for it, and
- * T-5.8's regression harness needs a flat baseline to measure a real CPU against.
- */
-function autoCall(
-  state: PlaybookState<BasketballPlaybookState>,
-  side: Side,
-  rng: Rng,
-): PlaybookCall {
-  const options = callsFor(state, side);
-  const chosen = rng.pick(options) ?? options[0];
-  return { side, call: chosen?.id ?? 'motion' };
-}
-
-/**
  * The adapter. Every member delegates to the module that owns it: `calls.ts` for the catalogue,
  * `resolution.ts` for the model, `key-moments.ts` for the arcade hand-off, `narration.ts` and
- * `diagram.ts` for what the turn screen shows, `coach.ts` for the Auto-call toggle.
- *
- * `autoCall` — the *CPU's* call — is still the uniform placeholder until T-5.8; the coach is not.
+ * `diagram.ts` for what the turn screen shows, `coach.ts` for the Auto-call toggle, and `cpu.ts`
+ * for the opponent.
  */
 export const basketballPlaybook: BasketballPlaybook = {
   turnKind: 'possession',
@@ -157,7 +142,7 @@ export const basketballPlaybook: BasketballPlaybook = {
     }
   },
 
-  autoCall,
+  autoCall: cpuCall,
 
   coach: coachCall,
 };
@@ -188,6 +173,7 @@ export function createBasketballPlaybook(options: {
 
 export { MOMENT_GAMES, detectKeyMoment, leverageFor } from './key-moments.ts';
 export { coachCall, explainCall, scoreCalls, scoreDefence, scoreOffence } from './coach.ts';
+export { READ_WINDOW, cpuCall, readTendencies, starOf, temperatureFor } from './cpu.ts';
 export { BASKETBALL_CALLS } from './calls.ts';
 export { basketballSquad, basketballSquads, playbookRatings } from './squad.ts';
 export type { BasketballPlaybookState } from './resolution.ts';

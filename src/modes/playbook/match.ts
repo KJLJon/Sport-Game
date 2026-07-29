@@ -184,7 +184,7 @@ export class PlaybookMatch<S = unknown> {
   /** The CPU's call for a side, when the adapter offers one (T-5.8). */
   autoCall(side: Side): PlaybookCall | null {
     if (this.adapter.autoCall === undefined || (side !== 0 && side !== 1)) return null;
-    return this.adapter.autoCall(this.state, side, this.turnRng(`auto-${side}`));
+    return this.adapter.autoCall(this.state, side, this.turnRng(`auto-${side}`), this.history);
   }
 
   /**

@@ -276,3 +276,42 @@ Two hundred turns of the identical play is not a coach, and neither is a coin to
 
 **The coach names a target.** A targeted call gets the athlete the play would have found anyway, so
 auto-calling never produces a call the player could not have made themselves.
+
+### T-5.8
+
+*Playbook CPU: call selection, weakness exploitation, per-difficulty competence*
+
+**Difficulty is competence, never a thumb on the scale.** INV-1 is enforced by construction: the CPU
+reads the same ratings the player's athletes have and resolves through the same model, and the only
+thing a level changes is the softmax temperature it samples its own scored sheet at. A test
+serialises every rating on both sides at all four levels and asserts they are byte-identical.
+Legend takes its best call about 40 percentage points more often than Rookie — and Rookie is still
+recognisably *trying*, which is the other half of the requirement: worse, not random.
+
+**Weakness exploitation is memory, not clairvoyance.** The CPU reads `match.turns` — the committed
+history, exactly what the player also watched happen. It never sees the pending resolution or the
+RNG. The history is passed as a parameter rather than left on the state so that "what the opponent
+is allowed to know" has a name: a CPU that could reach for arbitrary match state is a CPU that will
+eventually reach for the pending resolution.
+
+**A read decays.** Twelve possessions — about an eighth of a side's match. `09` §2.2 wants soft
+counters, and a CPU that permanently punished the third possession of a match would be the hard
+counter that section forbids. A test feeds it twelve post-ups followed by twelve spot-ups and
+asserts it has forgotten the post-ups entirely.
+
+**The read is symmetrical.** On defence it leans towards the scheme that suppresses whatever the
+opponent keeps shooting; on offence it leans towards whatever the opponent's schemes keep conceding.
+Without the second half the CPU would happily shoot into a zone that was built to stop it.
+
+**Doubling reads the match, not the roster sheet.** `starOf` picks whoever has actually been
+scoring, falling back to the best shooter only before anyone has.
+
+**The balance numbers moved, and for a good reason.** Three-point share went from 16.7% under the
+flat placeholder to 47.8% under the CPU, against Live's 53.1% — the CPU shoots threes because they
+are efficient, which is both modern basketball and evidence the scoring function agrees with the
+resolution model. All fourteen bands stayed green; eFG% is 46.9% against Live's 44.8%.
+
+**A pre-existing flake, fixed in passing.** `tests/unit/ui/arcade-game.test.ts` waited a fixed 40 ms
+of wall clock for an animation-frame swap. It passed on an idle machine and failed roughly one run
+in three once this phase's extra work shifted the scheduling. It now waits for the condition. The
+test was never wrong about the behaviour, only about how to wait for it.
