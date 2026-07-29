@@ -12,16 +12,27 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** — (none; Phase 5 complete, Gate 5 evaluated and **not passed** — see the Gate 5 row)
-- **Status:** —
-- **Started:** 2026-07-28
-- **Branch:** `claude/phase-5-playbook-tooling-sac3hy`
-- **Done so far:** All eleven Phase 5 tasks are `done`. Every automatable gate check is green:
+- **Task:** T-6.2 — Soccer Live rules: halves, clock, stoppage, throw-ins, corners, goal kicks
+- **Status:** todo (T-6.1 `done`; Phase 6 open)
+- **Started:** 2026-07-29
+- **Branch:** `claude/phase-6-start-lb7kbt`
+- **Done so far:**
+  - [x] T-6.1 — `src/sports/soccer/pitch.ts`, 28 unit tests. The pitch mirrors `court.ts` member for
+        member except where soccer genuinely differs: `isGoal` (posts and bar, not a radius) and
+        `goalAngle`/`goalOpenness` (how much mouth the shooter can see).
+  - [ ] T-6.2 — halves, compressed clock, stoppage time, and the restart decisions
+  - [ ] T-6.3 … T-6.18
+- **Next step:** T-6.2. Its deps (T-6.1) are `done`. Read `06` §3.2 and basketball's
+  `src/sports/basketball/rules.ts` for the `MatchRules` shape, then decide restarts from
+  `crossedBoundary()` plus last-touch — geometry already answers *where* each restart is taken
+  (`throwInSpot`, `cornerSpot`, `goalKickSpot`), and the rules module only has to answer *which*.
+- **Prior context (Phase 5, still true):** all eleven Phase 5 tasks `done`; Gate 5 evaluated and
+  **not passed** — see the Gate 5 row. Every automatable gate check is green:
   2 249 tests across 130 files, 32 E2E specs, coverage 94.8%, budgets 38.2 KB / 411 KB, bench 0.018 ms
   per step, and both balance harnesses green (Live 15 bands, Playbook 14). INV-11 and INV-12 both
-  hold with real assertions.
-- **Next step:** Phase 6 starts at T-6.1 (pitch geometry), which depends on T-1.11 — done. The seam
-  is about to be tested properly: soccer must land in all three modes without an engine-core change,
+  hold with real assertions. Baseline `pnpm verify` on this branch: green.
+- **Phase 6 framing:** the seam is being tested properly for the first time — soccer must land in all
+  three modes without an engine-core change,
   and T-6.14's soccer Playbook is the first `PlaybookAdapter` that is not basketball's.
 - **Blockers:** the device matrix and the deploy, unchanged since Gate 2 and now **three** gates
   deep. Nothing in Phase 4 changes the analysis in the Gate 3 record — the deploy is a user action
@@ -70,7 +81,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
+| 6 | Soccer · all three modes | 18 | 1 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -206,7 +217,7 @@ there; this file is read at every session start and the notes file only when you
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-6.1 | Pitch geometry, zones, goals, boundary lines | M | `todo` | | | | |
+| T-6.1 | Pitch geometry, zones, goals, boundary lines | M | `done` | | `tests/unit/sports/soccer/pitch.test.ts` | `auto` | A goal is a mouth rather than a point, which is the whole of what soccer needed from the field seam that basketball did not: `isGoal` tests posts and bar, and `goalOpenness` divides distance out so a tight angle is not confused with a long shot. [notes](./notes/phase-6.md#t-61) |
 | T-6.2 | Soccer Live rules: halves, clock, stoppage, throw-ins, corners, goal kicks | L | `todo` | | | | |
 | T-6.3 | Offside detection and enforcement | M | `todo` | | | | |
 | T-6.4 | Fouls, advantage, cards, free kicks, penalties | L | `todo` | | | | |
