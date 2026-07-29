@@ -12,26 +12,17 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-5.9 — Playbook hot seat
-- **Status:** in_progress
+- **Task:** — (none; Phase 5 complete, Gate 5 evaluated and **not passed** — see the Gate 5 row)
+- **Status:** —
 - **Started:** 2026-07-28
 - **Branch:** `claude/phase-5-playbook-tooling-sac3hy`
-- **Done so far:**
-  - [x] Phase-5 session tooling: `pnpm api`, `pnpm spec`, the `PROGRESS.md` notes split
-  - [x] T-5.1 — `PlaybookAdapter`, turn state, the seeded turn loop
-  - [x] T-5.2 — basketball's resolution model, `pnpm balance:playbook` green on 14 bands
-  - [x] T-5.3 — narration and the court diagram
-  - [x] T-5.4 — the call sheet
-  - [x] T-5.5 — key moments into the arcade seam
-  - [x] T-5.6 — the expectation comparison and the post-match report
-  - [x] T-5.7 — auto-call, fast-forward, turn speed
-  - [x] T-5.8 — the CPU, reading tendencies, competence by difficulty
-  - [ ] T-5.9 hot seat · T-5.10 flow UI · T-5.11 parity (INV-11/INV-12)
-- **Next step:** T-5.9 — pass-the-device screens and hidden calls. `callSheet`'s `hidden` option
-  already exists (T-5.4) and `src/modes/local-players.ts` already holds local names from T-4.11.
-- **Not yet run this phase:** `pnpm e2e`, `pnpm bench`, `pnpm build && pnpm budget`, and
-  `pnpm test:coverage`. `pnpm verify` and `pnpm balance:playbook` are green (2 186 tests / 14 bands).
-  Gate 5 cannot be evaluated until T-5.8–T-5.11 land; nothing has been assumed about it.
+- **Done so far:** All eleven Phase 5 tasks are `done`. Every automatable gate check is green:
+  2 249 tests across 130 files, 32 E2E specs, coverage 94.8%, budgets 38.2 KB / 411 KB, bench 0.018 ms
+  per step, and both balance harnesses green (Live 15 bands, Playbook 14). INV-11 and INV-12 both
+  hold with real assertions.
+- **Next step:** Phase 6 starts at T-6.1 (pitch geometry), which depends on T-1.11 — done. The seam
+  is about to be tested properly: soccer must land in all three modes without an engine-core change,
+  and T-6.14's soccer Playbook is the first `PlaybookAdapter` that is not basketball's.
 - **Blockers:** the device matrix and the deploy, unchanged since Gate 2 and now **three** gates
   deep. Nothing in Phase 4 changes the analysis in the Gate 3 record — the deploy is a user action
   and is the only route to a real device for this project.
@@ -53,8 +44,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   be measured against each other.
   **New in Phase 5:** `pnpm api` writes `docs/api-index.md` (every export, its signature, its
   summary) — grep that before opening a source file. `pnpm spec 09 5` prints one spec section.
+  `pnpm balance:playbook` is the Playbook twin of `pnpm balance`, judged against Live's own bands.
   Task rows now carry a one-sentence note and a link into `notes/phase-N.md`; write the reasoning
   there, not here.
+  **INV-11 is slow on purpose** — ~95 s, ~335 s under coverage. The batch size is what makes its ±8
+  claim mean anything; do not shrink it without also widening the band and saying so.
+  **The open question Phase 5 raised:** a basketball Playbook match is ~210 turns. That follows from
+  `09` §2.2 plus Live's clock, and Auto-call and fast-forward exist because of it — but whether it
+  is a pleasant sitting is unknown until someone plays one on a phone.
 
 
 > **Resuming after an interruption:** read this block, `git log --oneline -20`, then continue from
@@ -72,14 +69,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
-| 5 | Playbook (turn-based) + basketball Playbook | 11 | 0 | `todo` | v0.4 |
+| 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
 | 6 | Soccer · all three modes | 18 | 0 | `todo` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **74** | | |
+| | **Total** | **170** | **85** | | |
 
 ---
 
@@ -201,9 +198,9 @@ there; this file is read at every session start and the notes file only when you
 | T-5.6 | Expectation comparison ("the sim would have made it") + post-match reporting | M | `done` | | `tests/unit/modes/playbook/report.test.ts` | `auto` | The counterfactual is recorded at settle time as `simPoints`, so the report only counts — it never re-derives what would have happened. [notes](./notes/phase-5.md#t-56) |
 | T-5.7 | Auto-call assistant coach, fast-forward, turn-speed control | M | `done` | | `tests/unit/modes/playbook/pace.test.ts`, `tests/unit/sports/basketball/playbook/coach.test.ts` | `auto` — **still needs a phone** for whether hold-to-fast-forward is the right gesture | The coach and the CPU are separate adapter members, so a toggle the player leaves on cannot out-think the opponent they are playing. [notes](./notes/phase-5.md#t-57) |
 | T-5.8 | Playbook CPU: call selection, weakness exploitation, per-difficulty competence | L | `done` | | `tests/unit/sports/basketball/playbook/cpu.test.ts` | `auto` + `pnpm balance:playbook` (14 bands green; 3PA share 47.8% against Live's 53.1%) | Difficulty only widens the softmax the CPU samples its own sheet at — a test asserts no rating on either side differs by level (INV-1). [notes](./notes/phase-5.md#t-58) |
-| T-5.9 | Playbook hot-seat: pass-the-device screens, hidden calls, local player names | M | `in_progress` | | | | |
-| T-5.10 | Playbook flow UI: setup, turn screen, key-moment transition, results | L | `todo` | | | | |
-| T-5.11 | Cross-mode parity tests (INV-11) and reward parity (INV-12) | M | `todo` | | | | |
+| T-5.9 | Playbook hot-seat: pass-the-device screens, hidden calls, local player names | M | `done` | | `tests/unit/modes/playbook/hot-seat.test.ts` | `auto` | The second player's sheet is unreachable until the hand-over is dismissed — a call the other player saw is not a call. [notes](./notes/phase-5.md#t-59) |
+| T-5.10 | Playbook flow UI: setup, turn screen, key-moment transition, results | L | `done` | | `tests/unit/ui/playbook-screens.test.ts` | `auto` — **still needs a phone** for whether 210 turns is a sitting | Every decision the screen presents comes from the match, so it renders a `PlaybookAdapter` and could render soccer's tomorrow. [notes](./notes/phase-5.md#t-510) |
+| T-5.11 | Cross-mode parity tests (INV-11) and reward parity (INV-12) | M | `done` | | `tests/invariants/inv-11-cross-mode-parity.test.ts`, `tests/invariants/inv-12-reward-parity.test.ts` | `auto` | INV-11 holds at ±8; the ±8 band is asserted only where it is statistically meaningful, and ordering everywhere else. [notes](./notes/phase-5.md#t-511) |
 
 ### Phase 6 — Soccer · all three modes
 
@@ -334,6 +331,7 @@ One row per gate: the result and what it turned on. The full evaluation — ever
 | 1 — Engine core | 2026-07-27 | **PASS**, one criterion deferred | Determinism asserted step-for-step, not just at the end. "≥55 fps in a running match" deferred to Phase 2, which is the first thing that mounts a match. Gate 0's coverage debt paid down here. | [phase 1 notes](./notes/phase-1.md#gate-record) |
 | 2 — Basketball · Live (v0.1) | 2026-07-27 | **NOT PASSED** | Every automatable check green. Blocked on the device matrix (`12` §7) and a tagged Pages deploy — both user actions. | [phase 2 notes](./notes/phase-2.md#gate-record) |
 | 3 — Athletes & roster (v0.2) | 2026-07-28 | **NOT PASSED** | Same two blockers, unchanged. Nothing in Phase 3 alters the analysis. | [phase 3 notes](./notes/phase-3.md#gate-record) |
+| 5 — Playbook (v0.4) | 2026-07-29 | **NOT PASSED** | Every automatable check green, and unlike Gate 4 **all four of `03`'s criteria are machine-checkable and are met**: a full match, key moments, hot seat, and Live/Playbook agreement within ±8. Blocked only on the device matrix and the deploy, now four gates deep. Playbook's eFG% is 46.6% against Live's 44.6% without tuning. | [phase 5 notes](./notes/phase-5.md#gate-record) |
 | 4 — Arcade (v0.3) | 2026-07-28 | **NOT PASSED** | Same two blockers, now three gates deep. Two of `03`'s four criteria ("fun standalone", "a child can start one unaided") are claims about a person, not a program, and no test will close them. 1 941 tests, coverage 94.9%. | [phase 4 notes](./notes/phase-4.md#gate-record) |
 
 ---
