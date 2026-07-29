@@ -12,20 +12,29 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.2 — Soccer Live rules: halves, clock, stoppage, throw-ins, corners, goal kicks
-- **Status:** todo (T-6.1 `done`; Phase 6 open)
+- **Task:** T-6.3 — Offside detection and enforcement
+- **Status:** todo (T-6.1 and T-6.2 `done`; Phase 6 open)
 - **Started:** 2026-07-29
 - **Branch:** `claude/phase-6-start-lb7kbt`
 - **Done so far:**
   - [x] T-6.1 — `src/sports/soccer/pitch.ts`, 28 unit tests. The pitch mirrors `court.ts` member for
         member except where soccer genuinely differs: `isGoal` (posts and bar, not a radius) and
         `goalAngle`/`goalOpenness` (how much mouth the shooter can see).
-  - [ ] T-6.2 — halves, compressed clock, stoppage time, and the restart decisions
-  - [ ] T-6.3 … T-6.18
-- **Next step:** T-6.2. Its deps (T-6.1) are `done`. Read `06` §3.2 and basketball's
-  `src/sports/basketball/rules.ts` for the `MatchRules` shape, then decide restarts from
-  `crossedBoundary()` plus last-touch — geometry already answers *where* each restart is taken
-  (`throwInSpot`, `cornerSpot`, `goalKickSpot`), and the rules module only has to answer *which*.
+  - [x] T-6.2 — `src/sports/soccer/rules.ts`, 30 unit tests. Halves, an 11.25× clock that runs
+        through stoppages, added time that matches the board, and the four boundary restarts.
+        **One engine change:** `MatchStateMachine.extendPeriod(steps)` — justified in the notes
+        against the Gate 6 criterion.
+  - [ ] T-6.3 — offside
+  - [ ] T-6.4 … T-6.18
+- **Next step:** T-6.3 (offside). Deps (T-6.2) `done`. The pieces it needs already exist:
+  `isInAttackingHalf` and `attackDirection` from `pitch.ts`, `lastTouch`/`possession` from
+  `RulesState`. The judgement call to make is *when* the position is frozen — offside is judged at
+  the moment the ball is played, not when it arrives, so the pass suite (T-6.5) and offside have to
+  agree on that instant; decide it in T-6.3 and make T-6.5 conform.
+- **Engine-core changes so far this phase** (Gate 6 asks for exactly this list):
+  1. `MatchStateMachine.extendPeriod(steps)` + `extension` getter + optional
+     `MatchSnapshot.periodExtension` (T-6.2) — generic period lengthening; nothing in it knows what
+     a stoppage is. Rationale in [notes](./notes/phase-6.md#t-62).
 - **Prior context (Phase 5, still true):** all eleven Phase 5 tasks `done`; Gate 5 evaluated and
   **not passed** — see the Gate 5 row. Every automatable gate check is green:
   2 249 tests across 130 files, 32 E2E specs, coverage 94.8%, budgets 38.2 KB / 411 KB, bench 0.018 ms
@@ -81,7 +90,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 18 | 1 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 18 | 2 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -218,7 +227,7 @@ there; this file is read at every session start and the notes file only when you
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
 | T-6.1 | Pitch geometry, zones, goals, boundary lines | M | `done` | | `tests/unit/sports/soccer/pitch.test.ts` | `auto` | A goal is a mouth rather than a point, which is the whole of what soccer needed from the field seam that basketball did not: `isGoal` tests posts and bar, and `goalOpenness` divides distance out so a tight angle is not confused with a long shot. [notes](./notes/phase-6.md#t-61) |
-| T-6.2 | Soccer Live rules: halves, clock, stoppage, throw-ins, corners, goal kicks | L | `todo` | | | | |
+| T-6.2 | Soccer Live rules: halves, clock, stoppage, throw-ins, corners, goal kicks | L | `done` | | `tests/unit/sports/soccer/rules.test.ts`, `tests/unit/engine/match.test.ts` | `auto` | `clockRunsInStoppage` was waiting in the seam since Phase 1 and cost nothing; added time needed one genuine core addition, `MatchStateMachine.extendPeriod()`, which knows nothing about soccer. [notes](./notes/phase-6.md#t-62) |
 | T-6.3 | Offside detection and enforcement | M | `todo` | | | | |
 | T-6.4 | Fouls, advantage, cards, free kicks, penalties | L | `todo` | | | | |
 | T-6.5 | Passing suite: short, through-ball, lofted, cross, with weight and rating-driven error | L | `todo` | | | | |

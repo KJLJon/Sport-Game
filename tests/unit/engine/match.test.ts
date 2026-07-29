@@ -305,7 +305,81 @@ describe('scoring and result', () => {
   });
 });
 
+describe('period extension', () => {
+  it('lengthens the period in progress and nothing else', () => {
+    const { match } = machine();
+    match.start();
+    expect(match.extension).toBe(0);
+    expect(match.stepsRemaining).toBe(60);
+
+    match.extendPeriod(20);
+    expect(match.extension).toBe(20);
+    expect(match.stepsRemaining).toBe(80);
+
+    runSteps(match, 60);
+    expect(match.currentPhase).toBe(MatchPhase.LIVE);
+    runSteps(match, 20);
+    expect(match.currentPhase).toBe(MatchPhase.PERIOD_BREAK);
+  });
+
+  it('accumulates, rounds, and ignores a non-positive request', () => {
+    const { match } = machine();
+    match.start();
+    match.extendPeriod(10);
+    match.extendPeriod(5.4);
+    expect(match.extension).toBe(15);
+    match.extendPeriod(0);
+    match.extendPeriod(-30);
+    expect(match.extension).toBe(15);
+  });
+
+  it('is allowed during a stoppage, since that is when a referee decides it', () => {
+    const { match } = machine();
+    match.start();
+    match.stoppage('injury');
+    match.extendPeriod(30);
+    expect(match.extension).toBe(30);
+  });
+
+  it('refuses to reopen a period that is not in progress', () => {
+    const { match } = machine();
+    expect(() => match.extendPeriod(10)).toThrow(/requires a period in progress/);
+    match.start();
+    runSteps(match, 60);
+    expect(match.currentPhase).toBe(MatchPhase.PERIOD_BREAK);
+    expect(() => match.extendPeriod(10)).toThrow(/requires a period in progress/);
+  });
+
+  it('clears at the next period, so extra time is not inherited', () => {
+    const { match } = machine();
+    match.start();
+    match.extendPeriod(25);
+    runSteps(match, 85);
+    match.nextPeriod();
+    expect(match.extension).toBe(0);
+    expect(match.stepsRemaining).toBe(60);
+  });
+});
+
 describe('snapshot and restore', () => {
+  it('round-trips an extended period, and treats an older snapshot as unextended', () => {
+    const { match } = machine();
+    match.start();
+    match.extendPeriod(25);
+    runSteps(match, 40);
+
+    const resumed = new MatchStateMachine(RULES, new EventBus());
+    resumed.restore(match.snapshot());
+    expect(resumed.extension).toBe(25);
+    expect(resumed.stepsRemaining).toBe(45);
+
+    // A snapshot written before extensions existed still restores.
+    const { periodExtension: _dropped, ...old } = match.snapshot();
+    const legacy = new MatchStateMachine(RULES, new EventBus());
+    legacy.restore(old);
+    expect(legacy.extension).toBe(0);
+  });
+
   it('round-trips the clock and score', () => {
     const { match } = machine();
     match.start();
