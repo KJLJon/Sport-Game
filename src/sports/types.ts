@@ -26,6 +26,7 @@ import type { Canvas2D, ViewTransform } from '../engine/render/renderer.ts';
 import type { EntityId, World } from '../engine/world.ts';
 import type { Athlete } from '../athletes/types.ts';
 import type { ArcadeGameDef } from '../modes/arcade/types.ts';
+import type { PlaybookAdapter } from '../modes/playbook/types.ts';
 
 export type SportId = string;
 
@@ -267,11 +268,18 @@ export interface SportModule<S extends SportState = SportState> {
   readonly hud: SportHudSpec;
 
   /**
-   * The sport's mini-games (`09` §5). Optional for the same reason `playbook` will be: a Phase-1
-   * test fixture is not a shippable sport, and a sport whose arcade set has not landed yet still
-   * has to be playable in Live.
+   * The sport's mini-games (`09` §5). Optional for the same reason `playbook` is: a Phase-1 test
+   * fixture is not a shippable sport, and a sport whose arcade set has not landed yet still has to
+   * be playable in Live.
    */
   readonly arcade?: readonly ArcadeGameDef[];
+
+  /**
+   * The sport's turn-based mode (`09` §5). Optional, and for exactly the same stated reason as
+   * `arcade`: a sport arrives in Live first, and soccer's Playbook (T-6.14) lands a phase after its
+   * Live rules do. A sport without one simply does not appear in the Playbook mode picker.
+   */
+  readonly playbook?: PlaybookAdapter;
 
   /**
    * What to show about this sport right now. Optional so a Phase-1 test fixture stays valid; a

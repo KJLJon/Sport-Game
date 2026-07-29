@@ -842,3 +842,245 @@
   width: 22px;
   height: 22px;
 }
+
+/* ── Play-call sheet (T-5.4) ─────────────────────────────────────────────────
+   `10` §8.4: three-to-six large cards along the bottom of the turn screen. The
+   cards are the primary target on this screen, so they take `--target-primary`
+   rather than the 44 px minimum. */
+
+.play-call-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.play-call-sheet__opponent,
+.play-call-sheet__prompt,
+.play-call-sheet__hidden {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.play-call-sheet__prompt {
+  color: var(--text-hi);
+  font-size: var(--text-16);
+  font-weight: 600;
+}
+
+.play-call-sheet__calls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-8);
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.play-call__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.play-call {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: var(--target-primary);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  cursor: pointer;
+}
+
+/* Selection is a border weight and an inset mark as well as a colour (`10` §11). */
+.play-call__input:checked + .play-call {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.play-call__input:focus-visible + .play-call {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.play-call__name {
+  font-size: var(--text-16);
+  font-weight: 600;
+  color: var(--text-hi);
+}
+
+.play-call__blurb {
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+.play-call__keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.play-call__key {
+  font-size: var(--text-12);
+  padding: 2px var(--space-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-lo);
+}
+
+.play-call__targeted {
+  font-size: var(--text-12);
+  color: var(--accent-alt);
+}
+
+.play-call-sheet__targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-8);
+}
+
+.play-call-target {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-height: var(--target-primary);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  color: var(--text-hi);
+  font: inherit;
+  cursor: pointer;
+}
+
+.play-call-target__role {
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+.play-call-sheet__back {
+  min-height: var(--target-min);
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  color: var(--text-lo);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── Playbook setup and turn screens (T-5.10) ────────────────────────────────
+   `10` §8.4: court diagram up top, call sheet along the bottom, score always
+   visible. */
+
+.playbook-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.playbook-setup__title {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.playbook-setup__blurb,
+.playbook-setup__hint {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.playbook-match {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.playbook-match__board {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.playbook-match__board canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.playbook-match__score {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-16);
+  font-variant-numeric: tabular-nums;
+}
+
+.playbook-match__points {
+  font-size: var(--text-24);
+  font-weight: 700;
+  color: var(--text-hi);
+}
+
+.playbook-match__sep {
+  color: var(--text-lo);
+}
+
+.playbook-match__clock {
+  margin-left: auto;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.playbook-match__narration {
+  margin: 0;
+  min-height: calc(var(--text-16) * 1.5);
+  padding: 0 var(--space-16) var(--space-8);
+  font-size: var(--text-16);
+  color: var(--text-hi);
+}
+
+.playbook-match__stage {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border-top: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+}
+
+.playbook-match__handover,
+.playbook-match__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  align-items: flex-start;
+}
+
+.playbook-match__prompt {
+  margin: 0;
+  font-size: var(--text-20);
+  color: var(--text-hi);
+}
+
+.playbook-match__results h2 {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.playbook-match__results p {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}

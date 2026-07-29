@@ -89,7 +89,13 @@ One row per task, mirroring `03`. Statuses: `todo` · `in_progress` · `blocked`
 | Commits | short SHAs of the commits implementing it |
 | Tests | the test files added or extended |
 | Verified | `auto` · `auto+device` · a note on what was checked manually |
-| Notes | anything a future session needs, including a feel note for gameplay tasks |
+| Notes | **one sentence** — the headline, plus a `[notes](./notes/phase-N.md#t-xy)` link |
+
+The long version — the decisions taken, the bugs verification found, the feel note, anything a
+future session would otherwise rediscover — goes in `specs/001-initial-dev/notes/phase-N.md` under
+a `### T-x.y` heading. `pnpm progress:check` resolves every one of those links, so a note that
+points at nothing fails the same way a bad task ID does. `PROGRESS.md` is read at every session
+start; the notes file is read only when you touch that code.
 
 ### 3.3 Gate records
 
@@ -182,7 +188,7 @@ Rules:
 - Non-obvious blocks get inline `// @spec-ref 05-data-model.md §3.3` comments pointing at the rule
   they implement — especially tuning constants and rules logic.
 - `tools/spec-trace.ts` generates `docs/traceability.md`: task → files and file → task, both ways.
-  Regenerate it at every phase gate and commit it.
+  Regenerate it at every phase gate and commit it, together with `docs/api-index.md` (`pnpm api`).
 
 Beyond the header, comment density matches the surrounding code. Explain *why*, not *what*.
 
@@ -307,8 +313,9 @@ So: never run Prettier manually, never hand-fix a formatting diff, and never spe
 |---|---|---|
 | `pnpm test` (per-file listing) | `pnpm -s test` | Dot reporter; failures still print in full |
 | three separate checks | `pnpm -s verify` | One call: typecheck → lint → test |
-| `cat`-ing a whole spec file | `grep -n` for the section, then read the range | Spec files run to hundreds of lines |
-| re-reading all of `PROGRESS.md` | read the **In-flight** block plus your task's row | The rest is history |
+| `cat`-ing a whole spec file | `pnpm spec 09 5` — or `pnpm spec 09` for the outline | Prints exactly one section, with its line range |
+| `grep -n "^export"` then reading the file | `grep` `docs/api-index.md` | Every exported name, signature, and summary, in one file |
+| re-reading all of `PROGRESS.md` | read the **In-flight** block plus your task's row | The rest is history, and the long notes moved to `notes/phase-N.md` |
 
 `pnpm test:verbose` still exists for when the per-file breakdown is what you actually need.
 
@@ -334,3 +341,32 @@ So: never run Prettier manually, never hand-fix a formatting diff, and never spe
 | Open questions | `specs/001-initial-dev/08-open-questions.md` |
 | Branch | The branch named in this session's instructions — one feature branch per session |
 | Deploy | Tagged releases only, via GitHub Actions to Pages |
+| Long-form task rationale | `specs/001-initial-dev/notes/phase-N.md`, linked from each task row |
+| Every exported symbol and its signature | `docs/api-index.md` — `pnpm api` |
+| One section of one spec | `pnpm spec 09 5` · `pnpm spec 03 "Phase 5"` · `pnpm spec 09` for the outline |
+| Task → files, files → task | `docs/traceability.md` — `pnpm trace` |
+
+### Codebase map
+
+The seams, and the file that defines each. **Check `docs/api-index.md` before opening any of
+these** — it carries every exported name and signature in the project, and it is one file.
+
+| Seam | File | What it is |
+|---|---|---|
+| `SportModule` | `src/sports/types.ts` | The sport seam. A sport supplies rules, field, rating weights, roles, state, AI, render, HUD. `arcade?` and `playbook?` are optional members: a sport can land in Live before it has the other two modes. |
+| `ArcadeGameDef` | `src/modes/arcade/types.ts` | One mini-game. `calibrate(athlete, difficulty)` is the whole of INV-10 — the signature has nowhere for a personal best to arrive. |
+| `ArcadeRun` | `src/modes/arcade/session.ts` | The headless run: construct via `startRun(game, config)` in `modes.ts`, `step(input, dt)`, read `view()` / `result()`. No DOM. |
+| `SportEvent`, `EventBus` | `src/engine/match/events.ts` | The one stream every mode emits. There is no `mode` field to branch on, deliberately (INV-9). `event()` builds them; `EventKind` names the shared kinds and `sportKind` carries a sport's own. |
+| `Athlete`, `deriveRatings`, `applyMatch` | `src/athletes/{types,derivation,progression}.ts` | Attributes → derived ratings per sport; `applyMatch({…, rate})` is progression's single door. A mode that pays less passes a smaller `rate`; it never gets a branch (INV-6). |
+| `Rng`, `createRng`, `fork` | `src/engine/rng.ts` | Seeded sfc32. Everything random forks from one seed by **label** — `createRng(seed).fork('shooting')` — never by draw order, or determinism dies at the next refactor (INV-2, INV-8). |
+| `Database`, `STORES` | `src/storage/{idb,scope}.ts` | `STORES` is `05` §1. Every name — database, key, cache — is built in `scope.ts` and nowhere else (INV-3). Schema change ⇒ migration in the same commit. |
+| `Screen`, `ScreenContext`, `ROUTES` | `src/app/{screen,routes}.ts` | Hash routing; screens are `{ mount, unmount }` and load lazily. `chrome: 'bare'` drops the shell for full-bleed modes. |
+| `Canvas2D` | `src/engine/render/renderer.ts` | The subset of the 2D context the renderer actually uses, so layer/LOD policy is unit-tested against a recording double with no browser. |
+| `el()`, `svg()`, `append()` | `src/ui/dom.ts` | The only way UI builds DOM. No `innerHTML` anywhere — roster data is untrusted input. |
+| Design tokens | `src/ui/tokens.css`, primitives in `src/ui/components.css` | `10` §3.1–3.3: colour, type scale under one `--ui-scale`, spacing, radius, motion. Dark-first with a light theme and an OS-following default. Gallery at `#/dev/ui` (dev-only). |
+
+**Coverage floors** (`12` §2, in `vitest.config.ts`; never lowered to make a build pass):
+85% lines/statements/functions and 80% branches overall; **95%** lines/statements/functions
+(85% branches) for `src/athletes/**`, `src/economy/**`, `src/achievements/**`, `src/storage/**`;
+90% for `src/sports/*/rules.ts`; 80% for `src/engine/**`; 85% for `src/p2p/**`; 70% for
+`src/ui/**`. `src/main.ts`, `src/pwa/sw.ts`, and `src/ui/gallery/**` are excluded.

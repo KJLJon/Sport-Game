@@ -23,6 +23,20 @@ import { forgetPlayers, savePlayers } from '../../../src/modes/local-players.ts'
 // "draw nothing"; stubbing it here keeps the suite's output about failures rather than about jsdom.
 HTMLCanvasElement.prototype.getContext = (() => null) as HTMLCanvasElement['getContext'];
 
+/**
+ * Waits for something to become truthy, up to a generous deadline. Returns whatever the probe last
+ * produced, so the assertion — not the timeout — is what reports the failure.
+ */
+async function until<T>(probe: () => T, timeoutMs = 2000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  let value = probe();
+  while (!value && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    value = probe();
+  }
+  return value;
+}
+
 function context(params: Record<string, string>, query: Record<string, string> = {}) {
   const host = document.createElement('div');
   document.body.replaceChildren(host);
@@ -83,11 +97,13 @@ describe('the run screen', () => {
     const screen = arcadeGameScreen();
     await screen.mount(ctx);
 
-    // A tap starts the run, which swaps the overlay for the live-region outcome line.
+    // A tap starts the run, which swaps the overlay for the live-region outcome line. The swap
+    // happens on an animation frame, so this waits for the *condition* rather than for a fixed
+    // number of milliseconds — a wall-clock sleep passes on an idle machine and flakes on a busy
+    // one, which is the worst way for a suite to fail.
     ctx.host.querySelector('.arcade-run__tap')?.dispatchEvent(new Event('click'));
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    const live = await until(() => ctx.host.querySelector('[aria-live="polite"]'));
 
-    const live = ctx.host.querySelector('[aria-live="polite"]');
     expect(live).not.toBeNull();
     screen.unmount?.();
   });

@@ -33,10 +33,22 @@ import { startRun } from '../../src/modes/arcade/modes.ts';
 import type { ArcadeResult } from '../../src/modes/arcade/types.ts';
 import { arcadeConfig } from '../helpers/arcade.ts';
 import { athlete, attributes } from '../helpers/athletes.ts';
+import type { Athlete } from '../../src/athletes/types.ts';
+import type { SportEvent } from '../../src/engine/match/events.ts';
+import { simulateMatch } from '../../src/modes/live/match.ts';
+import { basketball } from '../../src/sports/basketball/index.ts';
+import {
+  basketballSquads,
+  createBasketballPlaybook,
+} from '../../src/sports/basketball/playbook/index.ts';
+import { evenRosters } from '../../tools/playbook-rosters.ts';
 import { drive, humanPlayer } from '../helpers/arcade-drive.ts';
 
 /** ±25%, as `12` §3 states it. */
 const TOLERANCE = 0.25;
+
+/** Real minutes a full basketball match takes: four quarters of three real minutes (`06` §3.1). */
+const PLAYED_MINUTES = 12;
 
 const SUBJECT = athlete({ id: 'inv12', attributes: attributes(70) });
 
@@ -140,5 +152,99 @@ describe('INV-12 — arcade cannot be farmed (US-16.6)', () => {
 
     expect(day.coins).toBe(0);
     expect(day.runs).toEqual({});
+  });
+});
+
+/**
+ * Playbook joins the comparison in Phase 5. `09` §7 puts it between the other two: "Live pays most
+ * per match, Playbook slightly less for a shorter match, Arcade least per minute and capped daily."
+ *
+ * The rate is measured the same way for both sim modes — the events a match produced, through
+ * `applyMatch`, over the real minutes it took. Playbook and Live spend the same simulation steps
+ * (T-5.1), so "real minutes" means the same thing in both, which is the only reason this comparison
+ * is meaningful rather than merely arithmetic.
+ */
+describe('INV-12 — Playbook pays the same rate as Live (T-5.11)', () => {
+  const [home, away] = evenRosters('inv12-playbook');
+
+  /** XP per real minute for one whole match, from its own event stream. */
+  function xpPerMinute(
+    events: readonly SportEvent[],
+    entities: Map<number, Athlete>,
+    realMinutes: number,
+  ): number {
+    const minutes = new Map([...entities.keys()].map((id) => [id, realMinutes]));
+    const results = applyMatch({
+      sport: 'basketball',
+      events,
+      awards: BASKETBALL_XP_AWARDS,
+      entities,
+      minutes,
+    });
+    let total = 0;
+    for (const result of results.values()) total += result.report.skill.xpGained;
+    return total / realMinutes;
+  }
+
+  function playbookRate(seed: string): number {
+    const squads = basketballSquads(home, away);
+    const match = createBasketballPlaybook({ seed, squads, playerSide: -1, keyMoments: 'off' });
+    let guard = 0;
+    while (!match.finished && guard < 600) {
+      for (const side of [0, 1] as const) {
+        const call = match.autoCall(side);
+        if (call !== null) match.submit(call);
+      }
+      match.resolve();
+      match.advance();
+      guard += 1;
+    }
+
+    const entities = new Map<number, Athlete>();
+    for (const squad of squads) {
+      for (const player of squad.players) entities.set(player.id, player.athlete);
+    }
+    // A Playbook match is the same twelve-minute quarters Live plays, at the same compression.
+    return xpPerMinute(match.events, entities, PLAYED_MINUTES);
+  }
+
+  function liveRate(seed: string): number {
+    const match = simulateMatch({
+      seed,
+      sport: basketball,
+      playerSide: -1,
+      rosters: [home, away],
+    });
+    const entities = new Map<number, Athlete>();
+    home.forEach((subject, index) => entities.set(index, subject));
+    away.forEach((subject, index) => entities.set(100 + index, subject));
+    return xpPerMinute(match.bus.history(), entities, PLAYED_MINUTES);
+  }
+
+  it('is within ±25% of Live’s, for the same rosters', () => {
+    const playbook = playbookRate('inv12-pb-1');
+    const live = liveRate('inv12-live-1');
+
+    expect(playbook).toBeGreaterThan(0);
+    expect(live).toBeGreaterThan(0);
+    expect(Math.abs(playbook - live) / live).toBeLessThanOrEqual(TOLERANCE);
+  }, 60_000);
+
+  it('does not pay more than Live (`09` §7 — Live pays most)', () => {
+    // The band above is symmetrical; `09` §7 is not. Playbook must not become the efficient farm,
+    // and "slightly less" is a direction as well as a magnitude.
+    const playbook = playbookRate('inv12-pb-2');
+    const live = liveRate('inv12-live-2');
+    expect(playbook).toBeLessThanOrEqual(live * (1 + TOLERANCE));
+  }, 60_000);
+
+  it('pays a key moment nothing of its own, so the arcade cannot be farmed inside a match', () => {
+    // T-5.5's run is `practice`, which `isRewarded` already answers `false` for. This asserts the
+    // consequence rather than the implementation: a match with every moment played is not worth
+    // more coins than the same match with none.
+    const withMoments: ArcadeResult = { ...play(0), mode: 'practice', rewarded: false };
+    let day = emptyDay('2026-07-29');
+    for (let i = 0; i < 50; i++) day = awardRun(withMoments, day).day;
+    expect(day.coins).toBe(0);
   });
 });
