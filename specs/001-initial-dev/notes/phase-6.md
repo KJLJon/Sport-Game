@@ -293,3 +293,55 @@ strikes the pass. Noted because it is the sort of asymmetry that looks like an o
 interesting button in the game — it is the only one where getting it *slightly* wrong is worse than
 getting it very wrong, because a slightly underhit through ball arrives at a defender's feet at
 walking pace. Whether that reads as skill or as noise is the thing to watch when it is playable.
+
+### T-6.6
+
+*Shooting: power meter, placement, curve, deflections*
+
+**Placement error, not angular error.** A pass misses by an angle; a shot misses *the goal*, and the
+goal is a rectangle. So error is applied in the plane of the mouth — metres across, metres up —
+which makes "he dragged it wide" and "he skied it" separate outcomes with separate causes instead
+of one number pointing somewhere random. It also composes with `goalOpenness` for free: a tight
+angle shrinks the target the same error is sprayed across, with no extra term saying so. Vertical
+error is 0.6× horizontal, because dragging a shot wide is commoner than ballooning it.
+
+**Power is a trade, and that is the only reason the meter exists.** More power buys speed and costs
+accuracy, both. If power were free there would be no meter, only a shoot button — so the test that
+matters is the pair: `shotSpeed` rises with power *and* `placementError` rises with power. A full
+blast from thirty metres should be a bad idea most of the time and a wonderful one occasionally.
+
+`shotPower` raises the *ceiling*, not the floor: a weak striker's tap and a strong one's tap are the
+same shot, and the rating shows up only when both wind up. That is both truer and better for the
+game than scaling the whole range.
+
+**Curve is earned by the run, not asked for with a button.** `06` §3.2: "curve comes from approach
+angle and `coordination`". Zero running straight at goal, most cutting across the ball, sign
+following the approach so a right-sided run curls back towards the near post. The player never
+requests bend; they get it by making the run, which is the whole appeal.
+
+**And `coordination` is an attribute, not a derived rating.** Soccer's `05` §3.2 table has no
+coordination row — it is an attribute, already spent inside `finishing`. `06` §3.2 nonetheless names
+it directly for curve, so `ShooterRatings` carries it and this is the one place in the sport module
+that reads an attribute rather than a rating derived from one. Substituting "the nearest rating"
+would have been the easy answer and would have quietly made the spec line untrue.
+
+**Nothing here decides whether it goes in.** The ball gets a real velocity towards a real point and
+the keeper, the defenders, and `isGoal` settle it between them — same reason passes are flown rather
+than resolved, and the reason a save is something a *player* can make rather than a number the sim
+rolled. Flight time comes from the distance to the *aim point* rather than to the goal centre, so a
+shot into the far corner is in the air longer than one down the middle. That is what gives a keeper
+a chance, and it falls out of the geometry instead of being a keeper-model fudge.
+
+**A shot deflects once.** `ShotInFlight.deflected` latches. A ball ricocheting off three legs in a
+row is a physics bug, not drama. The deflection turns the ball in the horizontal plane only and
+kills the spin — a boot that lifts a shot over the bar is a different event and belongs to T-6.9.
+
+**Two bugs the tests caught, both mine and both in the tests.** `curveFrom(angle, 0)` returns `-0`,
+which `toBe(0)` rejects; and my "tight angle" fixture was 16 m out against a "good chance" at 10 m,
+so the assertion that the bad chance is the *closer* one failed on a position that was simply
+further away. The second is worth recording because it is the exact confusion `goalOpenness` exists
+to prevent, and I still made it while writing the test for it.
+
+**Feel note:** unplayed. The number I most expect to move after a phone test is `chargeRealSeconds`
+(0.8 s) — a power meter that fills faster than a thumb can react is a random number generator, and
+0.8 s is a guess made without a thumb.
