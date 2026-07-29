@@ -345,3 +345,45 @@ to prevent, and I still made it while writing the test for it.
 **Feel note:** unplayed. The number I most expect to move after a phone test is `chargeRealSeconds`
 (0.8 s) — a power meter that fills faster than a thumb can react is a random number generator, and
 0.8 s is a guess made without a thumb.
+
+### T-6.7
+
+*Dribbling, sprint, shielding, stamina drain*
+
+**No second movement model.** This file produces the `MovementProfile` that
+`engine/physics/movement.ts` already consumes: a carrier is an athlete with a worse profile than
+they would have without the ball. Writing soccer's own integrator would have been the fastest route
+to making the engine's basketball's in disguise, which is precisely what Gate 6 is checking for.
+
+**Sprinting is three costs for one benefit.** Speed, in exchange for stamina, close control, and
+turning. A sprint button that only made you faster is a button nobody ever releases, which is not a
+mechanic — so the test file pins all three costs rather than just the speed gain.
+
+**`touchDistance` is the heart of dribbling and it needs no dice.** A poor dribbler at a full sprint
+pushes the ball over a metre ahead; an elite one keeps it inside 0.9 m flat out. That single number
+is what makes a bad dribbler dispossessable — the defender simply arrives at the ball first —
+without a "retain possession" roll anywhere. Skill shortens the leash, speed lengthens it.
+
+**Stamina is in real seconds, like the advantage window and for the same reason.** It is a budget on
+the player's aggression across a match; at 11.25× compression a game-second figure would empty a
+full tank in twenty real seconds. 90 s of unbroken sprinting to empty, 150 s of walking to refill.
+
+**One entry point, not two.** `tickStamina(state, athlete, effort)` covers draining *and* recovering,
+with the jogging threshold deciding which. A model with separate `drain` and `recover` calls is a
+model that eventually gets called with the wrong one on some code path nobody tested.
+
+**Stamina never touches a rating.** A tired athlete's `dribbling` is unchanged; what changes is the
+profile derived from it. This is INV-6's discipline applied to fatigue rather than difficulty, and
+it keeps the athlete card honest — a rating is what someone *can* do, not what they can do at the
+eighty-ninth minute. There is a test asserting the ratings object is not mutated.
+
+**Shielding is geometry first, ratings second.** `shieldPosition` is a pure `-1…1` term: `1` is the
+defender directly behind you, `-1` is them goalside with a clear run at the ball. It is weighted
+above agility in the contest, so where you put your body matters more than how good you are — which
+is what makes shielding something a player *does* rather than a stat they have. The contest itself
+is the engine's `contest()`, fed derived ratings; nothing here awards a foul, because leaning on
+someone is legal and whether *this* one was a foul is T-6.8's question.
+
+**Feel note:** the numbers say a clumsy sprinter should be robbable on sight, which is the right
+shape. The risk is the opposite one — that `sprintTurnPenalty` at 1.9 makes sprinting feel like
+driving a bus, and a player just never uses it. That is a thumb question, not a test question.

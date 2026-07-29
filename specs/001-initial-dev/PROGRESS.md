@@ -12,8 +12,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.7 — Dribbling, sprint, shielding, stamina drain
-- **Status:** todo (T-6.1 – T-6.6 `done`; Phase 6 open)
+- **Task:** T-6.8 — Defending: pressure, standing and slide tackles, foul/card risk
+- **Status:** todo (T-6.1 – T-6.7 `done`; Phase 6 open)
 - **Session budget note (2026-07-29):** the user's weekly usage is near its cap, so this session is
   running **one task at a time, no concurrent work, commit and push after every task**. Keep it
   that way until told otherwise — every task must leave the tree pushed and this block accurate.
@@ -38,14 +38,18 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
         the offside snapshot taken inside `throwPass` so the contract cannot be honoured late.
   - [x] T-6.6 — `src/sports/soccer/shooting.ts`, 23 unit tests. Power meter, placement error in the
         plane of the goal mouth, curve earned from the approach angle, one deflection per shot.
-  - [ ] T-6.7 — dribbling, sprint, shielding, stamina
-  - [ ] T-6.8 … T-6.18
-- **Next step:** T-6.7 (dribbling, sprint, shielding, stamina). Deps (T-1.5) `done` — build on
-  `engine/physics/movement.ts` (`movementProfile`, `integrate`) and `collision.ts`'s `contest` for
-  shielding, rather than a second movement model. Ratings: `dribbling` and `pace` from
-  `SOCCER_WEIGHTS`. Stamina is the new state: it has to live somewhere that survives a snapshot, and
-  it is per-athlete, so the shape to copy is `RulesState.yellowCards` (a `Record`, not a `Map`,
-  because it must survive `JSON.stringify` into a replay).
+  - [x] T-6.7 — `src/sports/soccer/dribbling.ts`, 21 unit tests. Carrier movement profiles, a
+        sprint with three costs, `touchDistance` close control, per-athlete stamina, and a
+        geometry-first shielding contest.
+  - [ ] T-6.8 — defending: pressure, tackles, foul/card risk
+  - [ ] T-6.9 … T-6.18
+- **Next step:** T-6.8 (defending). Deps (T-6.4) `done`, and it is the task those pieces were built
+  for: `FoulContext`'s `severity` (`careless`/`reckless`/`excessive`) is exactly the tackle model's
+  output, and `commitFoul` turns it into a card. So T-6.8 decides *how badly the challenge went*
+  with a seeded draw and hands that to `fouls.ts` — it must not decide cards itself. Reuse
+  `shieldPosition`/`contest` from `dribbling.ts` for the standing tackle rather than a third contest
+  model. Ratings: `tackling` and `marking`. A slide tackle is the one that should be genuinely
+  dangerous: high reward, and the only challenge that can reach `excessive`.
 - **Contract T-6.5 established (honour it in T-6.9 and T-6.15):** `throwPass` is the only place an
   offside snapshot is taken. Anything else that releases the ball towards a teammate goes through
   it, or documents why offside cannot apply.
@@ -111,7 +115,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 18 | 6 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 18 | 7 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -253,7 +257,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.4 | Fouls, advantage, cards, free kicks, penalties | L | `done` | | `tests/unit/sports/soccer/fouls.test.ts` | `auto` — the 3 s advantage window **needs playing**, not testing | An advantage carries a fully-built `Restart` so a foul pulled back is taken from where it happened, not from wherever the ball ended up; double jeopardy is handled on purpose rather than by accident. [notes](./notes/phase-6.md#t-64) |
 | T-6.5 | Passing suite: short, through-ball, lofted, cross, with weight and rating-driven error | L | `done` | | `tests/unit/sports/soccer/passing.test.ts` | `auto` — **needs a phone** for whether the through ball reads as skill or as noise | Error has two halves, and *weight* is the soccer-shaped one: the four passes differ mostly in `weightError`, and the engine's rolling friction turns out linear in distance, so weighting a ground pass is a sum. [notes](./notes/phase-6.md#t-65) |
 | T-6.6 | Shooting: power meter, placement, curve, deflections | M | `done` | | `tests/unit/sports/soccer/shooting.test.ts` | `auto` — **needs a phone** for whether 0.8 s is the right meter fill | Error is placement in the plane of the goal mouth, not an angle, so it composes with `goalOpenness` for free; power buys speed *and* costs accuracy, which is the only reason a meter exists. [notes](./notes/phase-6.md#t-66) |
-| T-6.7 | Dribbling, sprint, shielding, stamina drain | M | `todo` | | | | |
+| T-6.7 | Dribbling, sprint, shielding, stamina drain | M | `done` | | `tests/unit/sports/soccer/dribbling.test.ts` | `auto` — **needs a phone** for whether the sprint turn penalty makes sprinting unusable | No second movement model: this produces the engine's `MovementProfile`. `touchDistance` makes a poor dribbler dispossessable with no dice, and stamina changes the profile without ever touching a rating. [notes](./notes/phase-6.md#t-67) |
 | T-6.8 | Defending: pressure, standing and slide tackles, foul/card risk | M | `todo` | | | | |
 | T-6.9 | Goalkeeper AI: positioning, shot-stopping, claims, distribution; manual on penalties | L | `todo` | | | | |
 | T-6.10 | Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase | L | `todo` | | | | |
