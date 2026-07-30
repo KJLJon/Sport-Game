@@ -22,7 +22,12 @@ import {
   physicalDescription,
   type CardSport,
 } from '../../../src/ui/components/athlete-card.ts';
-import { RATEABLE_SPORTS, rateableSport, sportsForAthlete } from '../../../src/sports/catalogue.ts';
+import {
+  RATEABLE_SPORTS,
+  rateableSport,
+  sportsForAthlete,
+  type RateableSport,
+} from '../../../src/sports/catalogue.ts';
 import { BASKETBALL_WEIGHTS } from '../../../src/sports/basketball/weights.ts';
 import { athlete, attributes } from '../../helpers/athletes.ts';
 
@@ -36,10 +41,14 @@ function text(node: HTMLElement): string {
 }
 
 describe('the catalogue', () => {
-  it('rates both sports but marks only basketball playable', () => {
+  it('rates both sports and marks both playable, as of T-6.10', () => {
     expect(RATEABLE_SPORTS.map((s) => s.id)).toEqual(['basketball', 'soccer']);
     expect(basketball.playable).toBe(true);
-    expect(soccer.playable).toBe(false);
+    // Soccer became playable when its `SportModule` landed. The flag is not pointless: Phase 11's
+    // hockey and American football arrive rateable-first exactly as soccer did, and the projection
+    // warning below is what has to keep working in between — so it is tested against a synthetic
+    // unplayable sport rather than against whichever real sport happens to be unfinished.
+    expect(soccer.playable).toBe(true);
   });
 
   it("puts an athlete's own sport first, whatever order the catalogue is in", () => {
@@ -185,10 +194,13 @@ describe('the full card', () => {
   });
 
   it('warns that an unplayable sport is a projection rather than pretending otherwise', () => {
+    // A stand-in for Phase 11's hockey: rateable, not yet playable. Every real sport is playable as
+    // of T-6.10, and this behaviour still has to work when the next one arrives.
+    const unplayable = { ...(sports[1] as RateableSport), id: 'hockey', playable: false };
     const card = athleteCardFull(doc, {
       athlete: athlete({ primarySport: 'basketball' }),
-      sports,
-      sportId: 'soccer',
+      sports: [...sports, unplayable],
+      sportId: 'hockey',
     });
     expect(text(card)).toContain('not playable yet');
   });

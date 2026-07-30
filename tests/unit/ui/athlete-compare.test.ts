@@ -21,7 +21,11 @@ import {
   standoutRatings,
   type SportComparison,
 } from '../../../src/ui/screens/athlete-compare.ts';
-import { RATEABLE_SPORTS, rateableSport } from '../../../src/sports/catalogue.ts';
+import {
+  RATEABLE_SPORTS,
+  rateableSport,
+  type RateableSport,
+} from '../../../src/sports/catalogue.ts';
 import { projectRatings } from '../../../src/athletes/derivation.ts';
 import { cardOverall, type CardSport } from '../../../src/ui/components/athlete-card.ts';
 import { appDatabase, closeAppDatabase } from '../../../src/storage/app-db.ts';
@@ -181,7 +185,12 @@ describe('comparisonRow', () => {
   });
 
   it('says a sport this build cannot play is a projection', () => {
-    const row = comparisonRow(doc, subject, compareSports(subject, sports)[1] as SportComparison);
+    // Every real sport is playable as of T-6.10, so this uses a stand-in for Phase 11's hockey:
+    // rateable, not yet playable. The behaviour has to keep working for the next sport to arrive.
+    const unplayable = { ...(sports[1] as RateableSport), id: 'hockey', playable: false };
+    const rows = compareSports(subject, [...sports, unplayable]);
+    const projected = rows.find((r) => r.sport.id === 'hockey') as SportComparison;
+    const row = comparisonRow(doc, subject, projected);
     expect(text(row)).toContain('not playable yet');
   });
 });

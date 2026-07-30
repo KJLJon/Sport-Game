@@ -9,7 +9,7 @@
  * the dev gallery never lands in the initial bundle (`04` §9).
  */
 import type { RouteDefinition } from './router.ts';
-import type { ScreenDefinition } from './screen.ts';
+import type { Screen, ScreenDefinition } from './screen.ts';
 import type { TabDefinition } from './shell.ts';
 import { placeholderScreen } from '../ui/screens/placeholder.ts';
 
@@ -25,6 +25,44 @@ function stub(
     title,
     load: () => placeholderScreen({ heading: title, body, arrivesIn }),
     ...extra,
+  };
+}
+
+/**
+ * The Live route, for `#/play/live` and `#/play/live/:sport` alike.
+ *
+ * Both patterns share one definition because they are one screen: the sport is a parameter, and an
+ * absent or unknown one falls back to the default rather than 404ing, which is what `loadSport`
+ * documents. Before soccer this route imported `basketball` directly; that was a hardcoded sport id
+ * in the app layer, and `sports/playable.ts` is where it belongs.
+ */
+function liveRoute(): ScreenDefinition {
+  return {
+    id: 'play-live',
+    title: 'Live',
+    chrome: 'bare',
+    orientation: 'landscape',
+    // `load()` gets no arguments — only `mount` sees the route params — so the sport is resolved at
+    // mount and the real screen is built then. A thin adapter rather than a change to `liveScreen`,
+    // which has no business knowing that a sport can arrive from a URL.
+    load: async () => {
+      const [{ liveScreen }, { loadSport }] = await Promise.all([
+        import('../modes/live/screen.ts'),
+        import('../sports/playable.ts'),
+      ]);
+      let inner: Screen | null = null;
+      return {
+        async mount(context) {
+          const sport = await loadSport(context.params['sport']);
+          inner = liveScreen({ sport, seed: newMatchSeed(), playerSide: 0 });
+          await inner.mount(context);
+        },
+        unmount() {
+          inner?.unmount?.();
+          inner = null;
+        },
+      };
+    },
   };
 }
 
@@ -51,19 +89,13 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
   },
   {
     pattern: '/play/live',
-    value: {
-      id: 'play-live',
-      title: 'Live',
-      chrome: 'bare',
-      orientation: 'landscape',
-      load: async () => {
-        const [{ liveScreen }, { basketball }] = await Promise.all([
-          import('../modes/live/screen.ts'),
-          import('../sports/basketball/index.ts'),
-        ]);
-        return liveScreen({ sport: basketball, seed: newMatchSeed(), playerSide: 0 });
-      },
-    },
+    value: liveRoute(),
+  },
+  {
+    // `#/play/live/soccer` is how a second sport is reached until the modes hub lands (T-8.1).
+    // Sport ids come from `sports/playable.ts`, so this route names no sport of its own.
+    pattern: '/play/live/:sport',
+    value: liveRoute(),
   },
   {
     pattern: '/play/playbook',

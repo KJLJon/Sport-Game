@@ -12,8 +12,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.10 — Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase
-- **Status:** todo (T-6.1 – T-6.9 `done`; Phase 6 open — **halfway**)
+- **Task:** T-6.11 — 22-entity performance work: LOD, culling, spatial-hash tuning
+- **Status:** todo (T-6.1 – T-6.10 `done`; soccer is **playable**)
 - **Session budget note (2026-07-29):** the user's weekly usage is near its cap, so this session is
   running **one task at a time, no concurrent work, commit and push after every task**. Keep it
   that way until told otherwise — every task must leave the tree pushed and this block accurate.
@@ -47,23 +47,34 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-6.9 — `src/sports/soccer/keeper.ts`, 31 unit tests. Positioning on the bisector,
         `interceptPoint` so advancing is worth something, a three-valued save, claims, and
         distribution that returns a `PassKind`.
-  - [ ] T-6.10 — formations and shape by phase
-  - [ ] T-6.11 … T-6.18
-- **Next step:** T-6.10 (formations). Deps (T-6.2) `done`. This is the task that turns nine modules
-  into something that can be assembled: it owns `RoleTable` for the seam, the three formations, and
-  where all 22 athletes stand as the phase of play changes. `pitch.ts` already exposes thirds
-  (`third0`/`middleThird`/`third1`, `thirdFor`) for exactly this, and `mirrorX` means shapes are
-  authored once for the side attacking high x. The keeper's `aggression` term is a formation
-  input — wire it here rather than inventing a second control for it.
+  - [x] T-6.10 — `formations.ts`, `pitch-render.ts`, `roster.ts`, **`index.ts` (the `SportModule`)**,
+        and `sports/playable.ts`. 20 unit + 14 integration + 6 E2E tests. **Soccer is playable** at
+        `#/play/live/soccer`; verified with Playwright and a screenshot.
+  - [ ] T-6.11 — 22-entity performance work
+  - [ ] T-6.12 … T-6.18
+- **Next step:** T-6.11 (22-entity performance). Deps (T-1.13) `done`, and the assembly now gives it
+  22 entities actually moving. Start from `pnpm bench` on a soccer match rather than a basketball
+  one — the sim step is doing 22 profile builds, 22 steering solves, and a `pressureOn` over 11
+  defenders per carrier decision, none of which was sized for eleven-a-side.
+- **How the user tests this** (they are on mobile and can only test a deployed build — `pnpm serve`
+  on a LAN is no use to them, so the Gate 2 blocker note stands as written): deep links, because
+  `/play` is still a Phase-2 placeholder and Home → Play is a dead end until T-8.1's modes hub.
+  `#/play/live/soccer` · `#/play/live/basketball` · `#/play/playbook` · `#/play/arcade`.
 - **Known gaps to clear before the Gate 6 record:**
   1. **The chip is not modelled** (T-6.9). `interceptPoint` uses the chord, not the parabola, so a
      lofted ball over an advanced keeper reads *lower* rather than higher. Fix = thread the launch
      velocity through and evaluate the true arc. Likely first real caller: T-6.15's arcade set.
   2. **Heading has no task of its own.** It belongs to whichever of T-6.10/T-6.15 needs it first;
      `PASS_PROFILES.cross.arrivalHeight` (1.9 m) is already the hook.
-  3. **No `SportModule` yet.** Nothing is playable until the assembly task wires these into the
-     seam. That is not an explicit Phase 6 row — fold it into T-6.10 or raise it as a scope
-     question before T-6.11's performance work, which needs 22 entities actually moving.
+  3. ~~No `SportModule` yet.~~ **Cleared in T-6.10** — the assembly landed there after being raised
+     with the user.
+  4. **The HUD is basketball-shaped.** A soccer match shows `0 PF` (personal fouls) and a clock
+     *counting down*. Soccer has team fouls and counts up. `elapsedGameSeconds` exists for this and
+     nothing calls it; `SportStatus.periodClock` is documented as *remaining*, so the sport module is
+     honouring the contract and the gap is the HUD's. Not in any Phase 6 row — T-6.16 or Phase 9.
+  5. **`/play` is a Phase-2 placeholder.** Every mode is deep-link-only. T-8.1's modes hub fixes it;
+     until then that is the only way to reach a match, which matters because the user tests on a
+     phone against a deployed build.
 - **Contract T-6.5 established (honour it in T-6.9 and T-6.15):** `throwPass` is the only place an
   offside snapshot is taken. Anything else that releases the ball towards a teammate goes through
   it, or documents why offside cannot apply.
@@ -129,7 +140,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 18 | 9 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 18 | 10 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -274,7 +285,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.7 | Dribbling, sprint, shielding, stamina drain | M | `done` | | `tests/unit/sports/soccer/dribbling.test.ts` | `auto` — **needs a phone** for whether the sprint turn penalty makes sprinting unusable | No second movement model: this produces the engine's `MovementProfile`. `touchDistance` makes a poor dribbler dispossessable with no dice, and stamina changes the profile without ever touching a rating. [notes](./notes/phase-6.md#t-67) |
 | T-6.8 | Defending: pressure, standing and slide tackles, foul/card risk | M | `done` | | `tests/unit/sports/soccer/defending.test.ts` | `auto` — **needs a phone** for whether committing to a slide feels worth pressing | Timing beats ratings: below `hopelessTiming` no rating saves a challenge, so a well-timed poor defender beats a wild good one. Severity is handed to `fouls.ts`; this module never decides a card. [notes](./notes/phase-6.md#t-68) |
 | T-6.9 | Goalkeeper AI: positioning, shot-stopping, claims, distribution; manual on penalties | L | `done` | | `tests/unit/sports/soccer/keeper.test.ts` | `auto` — **needs a phone** for whether `softness` 0.45 reads as reflexes or as flapping | A save is a race, not a dice roll; the first dive-speed tuning had an average keeper saving 58% of top corners and a failing test fixed it. **Known gap:** the chip is not modelled — intercept height is the chord, not the arc. [notes](./notes/phase-6.md#t-69) |
-| T-6.10 | Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase | L | `todo` | | | | |
+| T-6.10 | Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase | L | `done` | | `tests/unit/sports/soccer/formations.test.ts`, `tests/integration/sports/soccer-match.test.ts`, `tests/e2e/soccer-match.spec.ts` | `auto` + Playwright screenshot | Formations are data with `push`/`drop`/`tuck`, and **the `SportModule` assembly was folded in here** (raised with the user first) — soccer is now playable at `#/play/live/soccer`. [notes](./notes/phase-6.md#t-610) |
 | T-6.11 | 22-entity performance work: LOD, culling, spatial-hash tuning, zero-allocation hot path | L | `todo` | | | | |
 | T-6.12 | Camera and minimap tuning for the larger pitch | M | `todo` | | | | |
 | T-6.13 | Soccer derivation weights, sub-skills, familiarity tuning | M | `todo` | | | | |

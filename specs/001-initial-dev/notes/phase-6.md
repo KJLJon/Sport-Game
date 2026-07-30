@@ -491,3 +491,71 @@ the same `saveOutcome` runs either way and `isKeeperManual` only says who suppli
 **Feel note:** unplayed. The number to watch is `softness` (0.45) — too low and every save is
 predetermined by geometry, too high and a keeper flaps at shots they should hold, and there is no
 way to tell which from a test.
+
+### T-6.10
+
+*Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase — **plus the `SportModule`
+assembly***
+
+**The assembly was folded in here, and it was raised with the user first.** Phase 6's eighteen rows
+have no "register the sport" task: they cover geometry, rules, five skill models, formations,
+performance, camera, weights, Playbook, arcade, art, refactor, and balance, and none of them wires
+the module into the seam. T-6.11's 22-entity performance work needs 22 entities actually moving, so
+it had to exist by then. It went here because T-6.10 already owns `RoleTable` and where everybody
+stands.
+
+**Formations are data.** A `FormationRole` carries a base position plus `push`, `drop`, and `tuck`,
+and no code branches on a formation name — adding 4-2-3-1 is adding a row. Shape by phase falls out
+of two numbers per role rather than four authored shapes: 4-4-2 defends as two banks and attacks as
+something wider without anyone drawing both. The wing-backs in 3-5-2 carry the biggest `push` *and*
+`drop` in the file, which is the formation's whole idea expressed as numbers.
+
+**`phaseFor` reuses T-6.1's halfway-line rule rather than restating it.** The first version wrote
+`ballX < CENTRE_X` inline and disagreed with `isInAttackingHalf` about a ball exactly on the line —
+a one-test bug, and exactly the sort of duplicated rule that ends up making offside and shape
+disagree about which half the ball is in. It now calls `isInAttackingHalf`.
+
+**`building` is deliberately the widest band.** A team with the ball in its own half is neither
+attacking nor defending. Treating that as attacking is what makes AI teams suicidally open.
+
+### The `SportModule` assembly
+
+**The seam held.** `src/sports/soccer/index.ts` fills in `SportModule`'s own members and nothing
+else. One engine change in the entire phase (`extendPeriod`, T-6.2), and nothing in `engine/` knows
+this file exists. Soccer is also the first sport to exercise `SportStatus.actionClock === null` and
+`SportHudSpec.showShotClock === false` — those members were written in Phase 1 on the assumption a
+sport might not have an action clock, and soccer is the proof they were right.
+
+**One bug worth recording: stamina was being drained twice a step.** `integrateAll` asks for a
+profile and a desired velocity through separate callbacks, and the first version ticked stamina
+inside `profileOf`. Building every profile once, up front, into a `Map` fixed it and also gave
+`desiredOf` the profile it needs — the engine's signature does not hand it over.
+
+**`playable.ts` is new, and it exists because `routes.ts` had a hardcoded sport.** The Live route
+imported `basketball` directly, which was harmless with one playable sport and a second registry the
+moment there were two. Loaders are lazy: a sport module pulls in its rules, five skill models,
+renderer, and roster tables, and eagerly importing every sport would put all of them in the initial
+bundle. `catalogue.ts` answers the neighbouring question (which sports an athlete can be *rated* in)
+and rateable stays a superset of playable — that is what stops a rating table dragging a renderer
+into the launch path.
+
+The `as unknown as SportModule<never>` in that list is load-bearing, not laziness: `SportModule<S>`
+is invariant in `S` because it both accepts and returns state, so a heterogenous list of modules has
+no supertype to inhabit. Every consumer treats the state as opaque and hands it back to the same
+module, which is exactly what `SportState` documents, and the erasure is confined to the one list.
+
+**Two things the screenshot showed that the tests could not.** Both are real and both are already
+someone's task:
+
+1. **Athletes are ~3 px on a 105 × 68 pitch.** The camera fits the whole field, which works for a
+   28 × 15 court and does not work here. That is T-6.12 (camera and minimap tuning for the larger
+   pitch) — the screenshot is the evidence that task is real work rather than polish.
+2. **The HUD is basketball-shaped.** It shows `0 PF` (personal fouls) and a *counting-down* clock.
+   Soccer has team fouls and counts up; `elapsedGameSeconds` exists for exactly this and nothing
+   calls it yet. `SportStatus.periodClock` is documented as *remaining*, so the module is honouring
+   the contract and the gap is on the HUD side. Not in any Phase 6 row — logged in `PROGRESS.md` as
+   a known gap for T-6.16 or Phase 9.
+
+**Feel note:** it moves, and the shape holds and shifts — 22 dots keeping a recognisable 4-4-2 and
+sliding forward as a unit is the first moment in the phase that looked like soccer. It is also
+obviously not *playable* yet at that zoom, which is the honest read.

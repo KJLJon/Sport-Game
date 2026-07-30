@@ -12,9 +12,16 @@
  *
  * That distinction is the whole reason this file exists. `10` §6's sport switcher and the compare
  * view exist to show a soccer star's numbers reshaping into a basketball card — a feature that
- * needs at least two rating tables and does not need two playable sports. Soccer's weights are real
- * and quoted from `05` §3.2; its `SportModule` arrives in Phase 6. Until then it is rateable and
- * not playable, and `playable` is how a caller tells the difference.
+ * needs at least two rating tables and does not need two playable sports.
+ *
+ * **Both rows are `playable: true` as of T-6.10**, when soccer's `SportModule` landed. That does not
+ * make the flag pointless: hockey and American football arrive in Phase 11 the same way soccer did,
+ * rateable first and playable later, and `05` §3's compare view has to keep working in between. The
+ * flag records which half of that transition a sport is in.
+ *
+ * `playable.ts` is the neighbouring list and answers the *other* question — how to load a playable
+ * sport's module. Rateable is a superset of playable; keeping the two lists apart is what stops a
+ * rating table dragging a renderer into the initial bundle.
  *
  * A sport is added here by adding a row. There is no branching on sport id anywhere downstream.
  */
@@ -50,7 +57,7 @@ export const RATEABLE_SPORTS: readonly RateableSport[] = [
   {
     id: 'soccer',
     displayName: 'Soccer',
-    playable: false,
+    playable: true,
     tables: { weights: SOCCER_WEIGHTS, physicalModifiers: SOCCER_PHYSICAL },
   },
 ];
