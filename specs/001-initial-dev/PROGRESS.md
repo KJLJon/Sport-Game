@@ -52,6 +52,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
         `#/play/live/soccer`; verified with Playwright and a screenshot.
   - [ ] T-6.11 — 22-entity performance work
   - [ ] T-6.12 … T-6.18
+- **Two bonus phases added 2026-07-30 at the user's request**, after they saw a soccer match on a
+  phone. **Phase 12 — Camera, framing, and readability** (9 tasks): the camera should follow the
+  active player rather than fit the field, which is a change of principle Phase 1's camera was not
+  built for. **Phase 13 — Visual overhaul** (12 tasks): sprites or pseudo-3D instead of coloured
+  discs; T-13.1 makes that call before any art is drawn. Both are `bonus` and both sit at the top of
+  `03`'s cut order — the disc renderer is a complete game. **T-6.12 is unchanged in scope**: it does
+  the minimum to make a 105 × 68 pitch legible, and Phase 12 does the depth. Doing Phase 12's work
+  inside T-6.12 would drag an unreviewed change of principle into a gate that is about the sport seam.
 - **Next step:** T-6.11 (22-entity performance). Deps (T-1.13) `done`, and the assembly now gives it
   22 entities actually moving. Start from `pnpm bench` on a soccer match rather than a basketball
   one — the sim step is doing 22 profile builds, 22 steering solves, and a `pressureOn` over 11
@@ -146,7 +154,9 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| | **Total** | **170** | **85** | | |
+| 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
+| 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
+| | **Total** | **191** | **95** | | |
 
 ---
 
@@ -388,6 +398,47 @@ there; this file is read at every session start and the notes file only when you
 | T-11.14 | Extensibility audit: confirm no engine-core, storage, or economy change was required (INV-9) | S | `todo` | | | | |
 
 ---
+
+### Phase 12 — Camera, framing, and readability (bonus)
+
+**Added 2026-07-30 at the user's request**, after seeing a soccer match on a phone: the whole field
+does not need to be visible at once — the camera should zoom in and follow the active player. Phase 1
+built the camera to *fit* the field, which is right for a 28 × 15 court and wrong for a 105 × 68
+pitch. T-6.12 does the minimum to make soccer legible; this is the version worth having.
+
+| Task | Description | Size | Status | Commits | Tests | Verified | Notes |
+|---|---|---|---|---|---|---|---|
+| T-12.1 | Follow camera: track the active athlete with lookahead, deadzone, and speed-scaled framing | L | `todo` | | | | |
+| T-12.2 | Dynamic zoom by phase of play — tight in a duel, wide on a counter, widest at a set piece | L | `todo` | | | | |
+| T-12.3 | Off-screen awareness: edge indicators for teammates, opponents, and the ball, with distance | L | `todo` | | | | |
+| T-12.4 | Minimap rework: always-on, tap-to-look, readable at 44 px | M | `todo` | | | | |
+| T-12.5 | Camera handoff on possession change, restarts, and goals — never a cut mid-action | M | `todo` | | | | |
+| T-12.6 | Per-sport camera profiles through the seam, so a rink and a pitch frame differently | M | `todo` | | | | |
+| T-12.7 | Reduced-motion and accessibility pass: no camera motion a player cannot turn off | M | `todo` | | | | |
+| T-12.8 | Culling and LOD against a moving viewport — draw what is on screen, not what exists | M | `todo` | | | | |
+| T-12.9 | Device pass: framing on a 360 px phone in both orientations, one-handed | M | `todo` | | | | |
+
+### Phase 13 — Visual overhaul: sprites and pseudo-3D (bonus)
+
+**Added 2026-07-30 at the user's request.** Athletes are coloured discs today. T-13.1 is the decision
+the rest waits on — sprites or pseudo-3D — and it is not delegable. Two hard constraints: INV-4 (no
+runtime network requests, so every asset ships in-bundle against `12`'s budget) and `10` §11 (colour
+is never the only signal, so kit pattern and silhouette keep carrying team identity).
+
+| Task | Description | Size | Status | Commits | Tests | Verified | Notes |
+|---|---|---|---|---|---|---|---|
+| T-13.1 | Decide sprites vs pseudo-3D; record in `07-decisions.md` with the budget arithmetic | M | `todo` | | | | |
+| T-13.2 | Asset pipeline: authored source → packed atlas → typed accessors, all offline and in-bundle | L | `todo` | | | | |
+| T-13.3 | Athlete rendering: facings, run cycle, kit tint, and pattern that survives colour blindness | XL | `todo` | | | | |
+| T-13.4 | Ball rendering with height, spin, and a shadow that reads as altitude | M | `todo` | | | | |
+| T-13.5 | Field rendering: pitch, court, rink, and gridiron in the chosen style | L | `todo` | | | | |
+| T-13.6 | Depth sorting and occlusion, or the 2D equivalent if T-13.1 chose sprites | L | `todo` | | | | |
+| T-13.7 | Action animation: shooting, passing, tackling, saving, celebrating | XL | `todo` | | | | |
+| T-13.8 | Crowd, net ripple, weather, and stadium dressing — atmosphere at zero sim cost | L | `todo` | | | | |
+| T-13.9 | Performance: hold the `12` §6 budgets at 22 entities with the new renderer | L | `todo` | | | | |
+| T-13.10 | Bundle budget: keep every asset inside `12`'s size limits, offline, with no CDN (INV-4) | M | `todo` | | | | |
+| T-13.11 | Graphics quality setting, defaulting from a device probe, with the disc renderer as the floor | M | `todo` | | | | |
+| T-13.12 | Visual regression snapshots for every new renderer path | M | `todo` | | | | |
 
 ## Gate records
 
