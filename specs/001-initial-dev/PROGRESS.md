@@ -14,8 +14,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 - **Task:** T-6.19 — Soccer Playbook: intent controls (tempo, width, risk, press, focus)
 - **Status:** todo. **14 of 27 Phase 6 tasks `done`** (T-6.1 – T-6.14). Tree clean and pushed.
-- **Branch:** `claude/phase-6-soccer-dev-mo0yec` — PR #8 was **merged**, so this branch restarted
-  from `main` and needs a new draft PR.
+- **Branch:** `claude/phase-6-soccer-dev-mo0yec` — PR **#9**, draft. PR #8 was merged, so this
+  branch restarted from `main`; do not reopen or push to #8.
 - **Soccer is playable and legible.** `#/play/live/soccer` mounts a real 11v11 match with a camera
   that follows the play. 2 566 unit/integration tests green (144 files); `pnpm bench` 0.036 ms mean
   against a 4 ms budget. E2E untouched since T-6.12 — nothing since then has changed a screen.
