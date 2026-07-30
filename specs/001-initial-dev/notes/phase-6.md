@@ -668,3 +668,89 @@ deliberately ungated for the same reason basketball's five are. The seam held he
 **Feel note:** nothing to play, but the position table is the first thing that will make an athlete
 card *about soccer* rather than about ratings — a 34-rated overall for a striker at centre back is
 the sort of number that starts an argument, which is what a position table is for.
+
+### T-6.14
+
+**The first `PlaybookAdapter` that is not basketball's, which is the whole point of the row.** T-5.1
+built the seam against one sport and a spec paragraph. This is the test of it, and the honest answer
+is that **the turn engine needed no change at all**. Soccer's turns are phases rather than
+possessions, its clock counts one half at a time, a goal is worth one point rather than two or three,
+and its calls persist between turns — and every one of those was already expressible. The two members
+that carried it are `turnKind` (already `'possession' | 'phase'`) and `CallOption.persists`, which
+T-5.1 added on the strength of `09` §2.3 alone, before there was a soccer to need it. Zero engine
+changes; this task adds nothing to the Gate 6 list.
+
+**One phase enum, two points of view.** `09` §2.3 lists "build-up, progression, final third, chance,
+set piece, and the defensive equivalents". The defensive equivalents are deliberately *not* a second
+enum. A phase is a fact about where the ball is and what is being attempted, and both sides are in it
+at once — one playing out, one pressing. `PlaybookState.possession` already says which is which, so a
+second enum would be the same five states written twice and one more thing to keep in step;
+`phaseName(phase, attacking)` supplies each side's wording instead.
+
+**The turn budget was derived, not picked, and the derivation is in the module doc.** `09` §2.3 wants
+18–24 turns and regulation is 5400 game seconds, so a turn has to average 225–300 of them. Solving
+the transition graph's visit frequencies gives `f = b` exactly and `p = b·α/β`, and
+`PHASE_TURN_SECONDS` was then solved *backwards* from a target of 22 turns — which is why the figures
+are 340/300/220/90/100 and not round numbers. Measured over 40 CPU-vs-CPU matches: **20.6 turns** in
+normal time. The arithmetic cannot rot unnoticed because `adapter.test.ts` fails when the mean leaves
+the band.
+
+**The transition graph is the part worth keeping when T-6.20 replaces the odds.** `LOST_TO` is where
+the model stops being a queue of identical build-ups: lose it playing out from the back and the
+opponent starts in *your* final third, lose it in their box and they restart from theirs. That single
+table is what makes a high press a bet rather than a stat tweak, and it is the hook T-6.19's press
+line will pull on.
+
+**A real defect found, capped inside the sport module, and not fixed at its root.**
+`MatchStateMachine` offers another overtime period for as long as the score is level and
+`MatchRules.overtimeSteps` is set. That is right for basketball — a tied basketball game plays OT
+after OT — and wrong for soccer, which plays exactly two extra halves and then takes penalties.
+Nothing capped it, so a level soccer match ran until the turn engine's `MAX_TURNS` guard caught it:
+**the worst seed in the first batch reached period 15.** The adapter's `isFinished` now caps it at two
+extra halves. **Live has the same bug**, and it is not fixed here: T-6.14 owns a Playbook adapter, not
+soccer's Live clock. The proper fix is an engine-side `maxOvertimePeriods` on `MatchRules`, which
+would serve every sport instead of one mode of one — logged for **T-6.17**, whose whole job is
+engine-core work of exactly this shape. A match still level after extra time is a draw for now; the
+shootout that should decide it is T-6.15's arcade game, wired in by T-6.22.
+
+**What is deliberately baseline, and who takes it.** `resolve()` walks the graph off a table of base
+probabilities (`PHASE_ODDS`) rather than off Live's own models, because **T-6.20** owns that swap —
+and a phase graph nothing walks is untestable, so the alternative was not "no resolution" but "no
+proof". The graph, the actor selection, the events, and the expectation are final; only the middle
+moves. Likewise `calls.ts` ships **two of `09` §2.3's five intent dimensions** — tempo and press line,
+the two that move how long a turn is and where the ball is won, which is the whole of what a phase
+turn is. **T-6.19** adds width, risk, and focus, none of which change the graph. Narration is one line
+per outcome with a tone, which **T-6.21** deepens into variety plus the animated pitch diagram. Key
+moments return `null`, because **T-6.22** owns them and `09` §2.4's soccer row needs the arcade games
+T-6.15 and T-6.23–T-6.26 have not built yet — proposing a moment whose mini-game is missing would
+make the screen fall back to the sim's outcome on every single turn, which is worse than not asking.
+
+**The open design question T-6.19 has to settle, recorded rather than pre-empted.**
+`PlaybookCall.call` is a single `CallId`, and five independent intent dimensions do not fit in one.
+Either the id becomes composite (`tempo:direct|width:wide|…`), which keeps the seam untouched and
+makes the CPU's search space explicit, or `PlaybookCall` grows a field, which reads better on the
+screen. One dimension per side needs neither, so it is not decided here.
+
+**Goals per match sit at 1.8 against a real ~2.7, and chasing it now would be the wrong fix.** The
+shortfall is in how often a possession reaches the box, not in how often a chance is taken — so
+raising `chanceGoal` would buy the scoreline by making every chance a coin flip. **T-6.18** owns it,
+with T-6.20's swap to Live's models landing in between and moving the shape again. Recorded here so
+the next session does not rediscover it as a surprise.
+
+**Not done, and named so it is not mistaken for done: the Playbook screen is still basketball-only.**
+`src/ui/screens/playbook-match.ts` imports `basketball` and `basketballSquads` directly, so
+`#/play/playbook` cannot reach soccer and this task is headless. That is on purpose — the screen work
+belongs with **T-6.21**, which is when there is a pitch diagram to draw rather than a court one, and
+doing it now would mean two passes over the same file and an E2E run for each.
+
+**INV-11's cross-mode parity harness is basketball-only** (`tests/invariants/inv-11-cross-mode-parity.test.ts`
+imports `basketball` and `basketballSquads` by name). Soccer now has both modes, so a soccer parity
+run is possible for the first time — it belongs with **T-6.18**, since parity is a balance
+measurement and the resolution model changes under it in T-6.20 first.
+
+**Feel note:** unplayable by hand so far, but reading a simulated match back turn by turn, the phase
+ladder does the thing it was supposed to: a possession that survives two turns *feels* like it is
+building towards something, and losing it in your own third genuinely stings because you can see the
+opponent start their next turn in your box. The one-line narration is doing more work than expected —
+"Home 7 wins it back off Away 4" reads as a match report already. What is obviously missing is
+variety; by turn ten the same eight sentences are recognisable, which is exactly T-6.21's job.
