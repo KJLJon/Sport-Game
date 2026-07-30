@@ -215,11 +215,27 @@ something to work around in the sport module.
 | T-6.11 | 22-entity performance work: LOD, culling, spatial-hash tuning, zero-allocation hot path | L | T-1.13 | US-2.5 | |
 | T-6.12 | Camera and minimap tuning for the larger pitch | M | T-1.8 | US-2.3 | sonnet |
 | T-6.13 | Soccer derivation weights, sub-skills, familiarity tuning | M | T-3.3 | US-5.2 | |
-| T-6.14 | Soccer Playbook: phase turns, intent controls (tempo/width/risk/press/focus), resolution | XL | T-5.2 | US-15.2 | |
-| T-6.15 | Soccer arcade set: Penalty Shootout, Free Kick, One-on-One, Header, Last Line | XL | T-4.2 | US-16.1 | sonnet |
+| T-6.14 | Soccer Playbook: `PlaybookAdapter` + phase turns | L | T-5.2 | US-15.2 | |
+| T-6.15 | Soccer arcade: Penalty Shootout | M | T-4.2 | US-16.1 | sonnet |
 | T-6.16 | Soccer art & audio pass | L | T-2.12 | — | sonnet |
 | T-6.17 | Engine-core refactor: extract anything basketball-shaped that leaked into core | M | T-6.2 | US-14.4 | |
-| T-6.18 | Balance pass #2: goals, possession, conversion across Live and Playbook | M | T-6.14 | US-4.1 | |
+| T-6.18 | Balance pass #2: goals, possession, conversion across Live and Playbook | M | T-6.22 | US-4.1 | |
+| T-6.19 | Soccer Playbook: intent controls — tempo, width, risk, press, focus | M | T-6.14 | US-15.2 | |
+| T-6.20 | Soccer Playbook: resolution model, reusing Live's shooting and passing | L | T-6.19 | US-15.2 | |
+| T-6.21 | Soccer Playbook: narration and animated pitch diagram for turn outcomes | M | T-6.20 | US-15.2 | sonnet |
+| T-6.22 | Soccer Playbook: key moments → arcade, and the Playbook CPU's call selection | M | T-6.20 | US-15.2 | |
+| T-6.23 | Soccer arcade: Free Kick | M | T-6.15 | US-16.1 | sonnet |
+| T-6.24 | Soccer arcade: One-on-One | M | T-6.15 | US-16.1 | sonnet |
+| T-6.25 | Soccer arcade: Header | M | T-6.15 | US-16.1 | sonnet |
+| T-6.26 | Soccer arcade: Last Line | M | T-6.15 | US-16.1 | sonnet |
+| T-6.27 | Soccer arcade: set registration, unlock wiring, and `calibrate()` tests | S | T-6.26 | US-16.2 | |
+
+**Two XL tasks were split on 2026-07-30**, at the user's request and for a good reason: an XL task is
+one that cannot be finished inside a single working session, so it is the one most likely to be
+interrupted with a dirty tree and nothing pushed. T-6.14 became T-6.14 + T-6.19–T-6.22 and T-6.15
+became T-6.15 + T-6.23–T-6.26 + T-6.27. Each chunk is independently committable, and each of the five
+arcade games is now its own row — which is what `CLAUDE.md` §7.3's "one agent per file" needed anyway
+to make them safely delegable.
 
 **Gate 6 (v0.5):** Both sports playable in all three modes, ≥55 fps at 11v11 on target hardware, and
 the Phase 6 diff touches `engine/` only for genuine core improvements.
