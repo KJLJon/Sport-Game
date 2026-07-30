@@ -822,3 +822,81 @@ than picking. Pinning a side to `wide` and watching corners climb over thirty ma
 tactical lever, and defending `deep` genuinely does turn a match into a siege. The one that does not
 land yet is focus — steering the ball to a flank is invisible without the pitch diagram to see it on,
 which is T-6.21's job and the point at which this whole set becomes legible rather than statistical.
+
+### T-6.20
+
+**Basketball needed no equivalent of `model.ts`, and that is the whole shape of this task.**
+Basketball's Playbook calls `shotProbability()` directly, because basketball's Live shot model *is* a
+probability — one function, one number, borrow it. Soccer's is not. `takeShot()` puts a ball in the
+air with a placement error on it, and whether that is a goal is then decided by geometry and by a
+goalkeeper who dives at it. There is no number to borrow. So `09` §7's "read the same model, not
+merely the same numbers" had to be satisfied by **composition**: set up the shot the Live sim would
+set up, put it through the same `placementError`, `shotSpeed`, `keeperSpot`, and `saveOutcome`, and
+read off what happened. Five Live functions, no second curve.
+
+That is a *stronger* guarantee than basketball's, not a weaker one. Tuning `SHOOTING.baseError` or
+`KEEPER.diveSpeed` now moves Playbook too — which is exactly what `09` §7 exists for and what a
+hand-fitted table could never promise. The tests are written to fail if somebody reintroduces one:
+raising `shortPass` must not help a lofted ball, because `PASS_PROFILES.lofted.rating` is `longPass`.
+
+**The passing conversion is the piece worth understanding.** `passError()` returns an *angular*
+error, so the lateral miss at the receiver is `angle × distance`. Treating that as the standard
+deviation of a normal draw and asking for the chance the ball lands inside a receiver's control
+radius is the whole conversion — and it is why a longer ball is harder without anyone writing down
+that a longer ball is harder. It needed the normal CDF, so there is now a local `erf()` (A&S 7.1.26);
+kept in `model.ts` rather than promoted to `engine/`, because one caller is not a seam.
+
+**Tempo and width stopped being modifiers.** A phase is carried by a *pass plan* — patient is three
+short balls, balanced is two, direct is one lofted one, and in the final third `wide` buys a cross
+rather than a through ball. The risk difference then falls out of `PASS_PROFILES`' own figures
+instead of being asserted by a tuning constant, and the compounding across three passes is the honest
+reason a patient possession still breaks down in midfield.
+
+**The headline result: `MODEL_CALIBRATION` is zero on all three phases.** The hook was built expecting
+to need it — a physical model does not land on a target distribution by itself — and the measurement
+said otherwise. With the Live passing model driving the climb and the create, the baseline batch came
+back at **21.98 turns** in normal time. T-6.14 derived 18–24 from a hand-fitted table solved backwards
+from `09` §2.3; T-6.20 reached the middle of the same band from soccer's own passing physics with
+nothing tuned to make it. **Two independent routes to the same number** is the strongest evidence
+available that the phase durations in `PHASE_TURN_SECONDS` are actually right. The zeros are kept
+rather than deleted because T-6.18 wants one named number per phase to hold, and a non-zero value
+there would mean the model and the budget drifted apart and somebody chose the budget — a decision
+worth being able to see.
+
+**A tension that had to be resolved rather than tuned away: 18–24 turns and ~25 shots do not fit.**
+One attempt per `chance` turn measured out at 5.8 shots and **1.45 goals** a match. Raising the
+create odds did nothing — `sequenceSuccess` was already hitting the 0.9 ceiling — because the
+bottleneck was never conversion, it was that a 22-turn match cannot contain 25 shots. The resolution
+is that a `chance` phase *is* minutes of pressure in and around the box, so it gets **several
+attempts**: the ball comes back, someone else has a go, and the phase ends at the first one that goes
+in. That is one turn either way, so the budget is untouched. After it: **22.0 turns, 2.4 goals, 10.6
+attempts**, and matches going to extra time fell from 18/40 to 16/40. Still short of a real ~2.7 and
+~25, and the remaining distance is more attempts per spell rather than better shots — **T-6.18**.
+
+**The expectation is now real xG.** `expectedGoalChance()` walks the same three stages the draw walks
+— past a body, into the frame, past the keeper — analytically, using the normal CDF of the placement
+error against the distance from the aim point to each post and to the bar. It is the same geometry
+the draw uses rather than a second model of it, and a test asserts the sampled goal rate and the mean
+analytic xG agree over 1 500 shots. That matters because `09` §2.4's "the sim also computes what
+*would* have happened" is only honest if the number is the model's own opinion.
+
+**Two things were deleted rather than left lying around.** `PHASE_ODDS` lost every entry that was a
+model of play (`buildUpAdvance`, `progressionAdvance`, `finalThirdChance`, `chanceGoal`,
+`setPieceGoal`, `savedShare`, `blockedShare`); the three that survive were never models of anything,
+just how a phase that produced no chance still ends up with a corner. `SOCCER_RESOLUTION` lost its
+three `…FromEdge` levers, because after the swap the rating edge reaches the odds through
+`interceptChance` *and* through the Live models' own rating terms, and a third lever on top would have
+been the same rating counted twice.
+
+**One simplification, consistent with an existing logged gap.** `saveChance` measures the dive from
+the keeper's y to the *aim* point, which `keeper.ts` documents as correct only for a keeper on their
+line — an advanced keeper should be judged against the intercept point, and computing that needs the
+launch velocity threaded through, which is the same gap T-6.9 logged for the chip. So the Playbook
+keeper stands near their line (`SHOT_MODEL.keeperAggression` 0.35), which makes the two agree instead
+of quietly flattering the shooter. Fixing the chip fixes this too.
+
+**Feel note:** this is the first version where a match *reads* like soccer rather than like a Markov
+chain. Watching a spell go save → corner → header wide, with the xG on each attempt, is genuinely
+tense in a way the flat table never was — and a 25-yard effort from a poor finisher now misses the
+frame entirely rather than being a slightly worse coin flip, which is exactly the difference between
+a probability and a physical model. Still no way to see it but a test log; T-6.21.
