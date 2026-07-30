@@ -66,6 +66,12 @@ export interface CallOption {
   readonly targeted?: boolean;
   /** Soccer's intents persist until changed (`09` §2.3); basketball's calls are per-turn. */
   readonly persists?: boolean;
+  /**
+   * The axis this option sets, for a sport whose turn asks several independent questions at once —
+   * `09` §2.3's tempo, width, risk, press line, and focus. Absent for a sport like basketball whose
+   * turn is one question, and the field the call sheet groups its rows by when it is present.
+   */
+  readonly dimension?: string;
 }
 
 /** A side's decision for one turn. */
@@ -74,6 +80,22 @@ export interface PlaybookCall {
   readonly call: CallId;
   /** The athlete the call is aimed at, when `CallOption.targeted`. */
   readonly target?: EntityId;
+  /**
+   * Every dimension this side has set, keyed by `CallOption.dimension`, for a sport whose turn is a
+   * set of intents rather than one play (`09` §2.3).
+   *
+   * **Why a map and not a composite `call` id.** The alternative was encoding the set into the id
+   * — `tempo:direct|width:wide|…` — which keeps this interface untouched at the cost of making
+   * `PlaybookCall.call` mean something different from the `CallOption.id`s `calls()` returned, and
+   * of putting a parser between the CPU and its own decision. An optional map costs one field, is
+   * ignored by every sport that does not set it, and leaves `call` meaning exactly what it has
+   * always meant: the headline of what this side chose.
+   *
+   * `call` stays populated when this is set, carrying the dimension that most defines the turn —
+   * soccer's tempo when attacking, its press line when defending — so narration, match history, and
+   * the CPU's read window all keep working without learning what a dimension is.
+   */
+  readonly intents?: Readonly<Record<string, CallId>>;
 }
 
 /** Both decisions, in the order resolution reads them. */

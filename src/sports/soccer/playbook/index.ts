@@ -2,6 +2,7 @@
  * @spec    001-initial-dev
  * @phase   6 — Soccer · all three modes
  * @task    T-6.14 — Soccer Playbook: `PlaybookAdapter` + phase turns
+ * @task    T-6.19 — Soccer Playbook: intent controls — tempo, width, risk, press, focus
  * @story   US-15.2 — Call plays and see them resolve
  * @design  09-modes-and-arcade.md §2.3 (soccer: phase turns), §5 (mode architecture)
  * @invariant INV-5 (no sport branching outside the sport module), INV-8 (determinism),
@@ -19,8 +20,13 @@
  * possession: a phase that climbs the ladder retains, one that is lost does not, and the engine
  * flips sides without knowing what a ladder is.
  *
- * **The one thing the seam does not carry**, recorded here rather than worked around: five intent
- * dimensions do not fit in one `CallId`. `calls.ts` explains the two options; T-6.19 picks one.
+ * **The one thing the seam did not carry, and how T-6.19 settled it.** Five intent dimensions do not
+ * fit in one `CallId`. The choice was between encoding them into the id — `tempo:direct|width:wide`
+ * — and giving `PlaybookCall` an optional `intents` map. The map won: it costs one optional field
+ * that every sport not setting it ignores, and it keeps `call` meaning what it has always meant, so
+ * narration, match history, and T-6.22's read window never learn what a dimension is. The composite
+ * id would have put a parser between the CPU and its own decision, and made `PlaybookCall.call` mean
+ * something no `CallOption.id` from `calls()` ever equals.
  *
  * Everything here is assembly. A rule that lives in this file rather than in `phases.ts`,
  * `calls.ts`, `resolution.ts`, or `narration.ts` is a mistake worth fixing.
@@ -44,19 +50,20 @@ import type {
 } from '../../../modes/playbook/types.ts';
 import { SOCCER_RULES, TIMING, stepsToGameSeconds } from '../rules.ts';
 import {
-  DEFAULT_PRESS,
-  DEFAULT_TEMPO,
-  PRESS_PROFILES,
-  SOCCER_CALLS,
-  TEMPO_PROFILES,
-  pressProfile,
-  tempoProfile,
-} from './calls.ts';
+  DEFAULT_INTENTS,
+  callFrom,
+  callOptionsFor,
+  composeEffect,
+  dimensionsFor,
+  optionsFor,
+  type SoccerIntents,
+} from './intents.ts';
 import { narrateTurn } from './narration.ts';
 import { OPENING_PHASE, nextPhase, type SoccerPhase } from './phases.ts';
 import {
   createSoccerPlaybookState,
   drainStamina,
+  intentsOf,
   keyRating,
   phaseOutcomeOf,
   resolvePhaseTurn,
@@ -81,41 +88,69 @@ function currentPhase(state: PlaybookState<SoccerPlaybookState>): SoccerPhase {
   return state.period === state.detail.period ? state.detail.phase : OPENING_PHASE;
 }
 
-/** What this side may call: the three tempos if they have the ball, the three press lines if not. */
+/** The role a side is in this turn — which decides which four intents it is asked about. */
+function roleOf(state: PlaybookState<SoccerPlaybookState>, side: Side): 'offence' | 'defence' {
+  return side === state.possession ? 'offence' : 'defence';
+}
+
+/**
+ * The call sheet: every option on every dimension this side is asked about, tagged with its
+ * `dimension` so the screen can lay it out as four rows of chips rather than one long list.
+ */
 function callsFor(state: PlaybookState<SoccerPlaybookState>, side: Side): readonly CallOption[] {
-  const wanted = side === state.possession ? 'offence' : 'defence';
-  return SOCCER_CALLS.filter((call) => call.side === wanted);
+  return callOptionsFor(roleOf(state, side));
 }
 
 /**
  * A baseline opponent, so a match can be played and simulated. **T-6.22 owns the Playbook CPU** and
  * replaces this with one that reads the human's tendencies and answers per difficulty.
  *
- * What it does now is pick the intent its own squad is built for — a side of passers keeps it, a
- * side of runners goes direct, a side of tacklers presses — with a seeded wobble so it is not a
- * constant. That is a defensible coach and a deliberately unobservant opponent.
+ * What it does now is set each dimension to the option its own squad is built for, scoring every
+ * option by the ratings it names (`IntentOption.keys`) with a seeded wobble, and taking the best.
+ * That is one honest coach and a deliberately unobservant opponent: it never looks at what the other
+ * side is doing, which is exactly the line `modes/playbook/types.ts` draws between `coach` and
+ * `autoCall` and the gap T-6.22 fills.
  */
 function baselineCall(
   state: PlaybookState<SoccerPlaybookState>,
   side: Side,
   rng: Rng,
 ): PlaybookCall {
-  const attacking = side === state.possession;
+  const role = roleOf(state, side);
   const players = state.squads[side === 1 ? 1 : 0].players;
   const mean = (keys: readonly string[]): number =>
     players.reduce((total, player) => total + keyRating(player, keys), 0) / players.length;
 
-  if (attacking) {
-    const patient = mean(['shortPass', 'offBall']) + rng.fork('patient').gaussian(0, 5);
-    const direct = mean(['longPass', 'pace']) + rng.fork('direct').gaussian(0, 5);
-    if (Math.abs(patient - direct) < 4) return { side, call: DEFAULT_TEMPO };
-    return { side, call: patient > direct ? TEMPO_PROFILES.patient.id : TEMPO_PROFILES.direct.id };
+  const chosen: Record<string, string> = { ...DEFAULT_INTENTS };
+  for (const dimension of dimensionsFor(role)) {
+    let best = DEFAULT_INTENTS[dimension];
+    let bestScore = -Infinity;
+    for (const option of optionsFor(dimension)) {
+      // Forked by dimension *and* option so adding an option later cannot shift the ones beside it.
+      const score = mean(option.keys) + rng.fork(`${dimension}:${option.id}`).gaussian(0, 5);
+      if (score > bestScore) {
+        bestScore = score;
+        best = option.id;
+      }
+    }
+    chosen[dimension] = best;
   }
 
-  const press = mean(['tackling', 'pace']) + rng.fork('press').gaussian(0, 5);
-  const block = mean(['marking', 'heading']) + rng.fork('block').gaussian(0, 5);
-  if (Math.abs(press - block) < 4) return { side, call: DEFAULT_PRESS };
-  return { side, call: press > block ? PRESS_PROFILES.high.id : PRESS_PROFILES.deep.id };
+  const intents = chosen as unknown as SoccerIntents;
+  if (intents.focus !== 'focus-player') return callFrom(side === 1 ? 1 : 0, role, intents);
+
+  // Naming an athlete needs an athlete. Attacking, it is whoever the CPU rates highest on the ball;
+  // defending, it is the opponent it rates highest — the closest this baseline comes to a read.
+  const marks = role === 'offence' ? players : state.squads[side === 1 ? 0 : 1].players;
+  const pick = marks
+    .slice(1)
+    .reduce((bestSoFar, player) =>
+      keyRating(player, ['finishing', 'dribbling', 'offBall']) >
+      keyRating(bestSoFar, ['finishing', 'dribbling', 'offBall'])
+        ? player
+        : bestSoFar,
+    );
+  return callFrom(side === 1 ? 1 : 0, role, intents, pick.id);
 }
 
 export const soccerPlaybook: SoccerPlaybook = {
@@ -191,22 +226,21 @@ export const soccerPlaybook: SoccerPlaybook = {
     const defending = attacking === 1 ? 0 : 1;
     const phase = currentPhase(state);
 
+    // The same merge `resolve()` did, on the same untouched inputs — so what is remembered is
+    // exactly what was played, and a player who changed one chip keeps the other four (`09` §2.3).
+    const offIntents = intentsOf(state, attacking, resolution.calls.offence);
+    const defIntents = intentsOf(state, defending, resolution.calls.defence);
+
     state.detail.phase = nextPhase(phase, phaseOutcomeOf(resolution.outcome)).phase;
     state.detail.period = state.period;
-    state.detail.intent[attacking] = resolution.calls.offence.call;
-    state.detail.intent[defending] = resolution.calls.defence.call;
+    state.detail.intent[attacking] = offIntents;
+    state.detail.intent[defending] = defIntents;
     if (resolution.events.some((turnEvent) => turnEvent.kind === 'shot')) {
       state.detail.shots[attacking] += 1;
     }
 
-    drainStamina(
-      state.squads[attacking].players,
-      tempoProfile(resolution.calls.offence.call).effort,
-    );
-    drainStamina(
-      state.squads[defending].players,
-      pressProfile(resolution.calls.defence.call).effort,
-    );
+    drainStamina(state.squads[attacking].players, composeEffect(offIntents, 'offence').effort);
+    drainStamina(state.squads[defending].players, composeEffect(defIntents, 'defence').effort);
   },
 
   autoCall: baselineCall,
@@ -236,7 +270,19 @@ export function createSoccerPlaybook(options: {
   });
 }
 
-export { SOCCER_CALLS, pressProfile, tempoProfile } from './calls.ts';
+export {
+  DEFAULT_INTENTS,
+  INTENT_DIMENSIONS,
+  INTENT_OPTIONS,
+  callFrom,
+  callOptionsFor,
+  composeEffect,
+  dimensionsFor,
+  headlineDimension,
+  intentsFrom,
+  optionsFor,
+} from './intents.ts';
+export type { IntentDimension, IntentOption, SoccerIntents } from './intents.ts';
 export { narrateTurn } from './narration.ts';
 export {
   PHASE_TURN_SECONDS,

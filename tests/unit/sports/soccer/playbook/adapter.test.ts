@@ -15,7 +15,11 @@ import {
   soccerPlaybook,
 } from '../../../../../src/sports/soccer/playbook/index.ts';
 import { soccerSquads } from '../../../../../src/sports/soccer/playbook/squad.ts';
-import { SOCCER_CALLS } from '../../../../../src/sports/soccer/playbook/calls.ts';
+import {
+  INTENT_OPTIONS,
+  callOptionsFor,
+  dimensionsFor,
+} from '../../../../../src/sports/soccer/playbook/intents.ts';
 import type { SoccerPlaybookState } from '../../../../../src/sports/soccer/playbook/resolution.ts';
 import { athlete, attributes } from '../../../../helpers/athletes.ts';
 import { newSportSkill } from '../../../../../src/athletes/types.ts';
@@ -64,20 +68,24 @@ describe('soccer PlaybookAdapter', () => {
 
   it('offers tempo to whoever has the ball and a press line to whoever does not', () => {
     const match = createSoccerPlaybook({ seed: 'calls', squads: squads() });
-    const attacking = match.state.possession;
+    const attacking = match.state.possession === 1 ? 1 : 0;
     const defending = attacking === 1 ? 0 : 1;
 
-    expect(match.calls(attacking).map((call) => call.id)).toEqual([
-      'patient',
-      'balanced',
-      'direct',
-    ]);
-    expect(match.calls(defending).map((call) => call.id)).toEqual(['deep', 'mid', 'high']);
+    const attackingDimensions = new Set(match.calls(attacking).map((call) => call.dimension));
+    const defendingDimensions = new Set(match.calls(defending).map((call) => call.dimension));
+
+    expect([...attackingDimensions].sort()).toEqual(['focus', 'risk', 'tempo', 'width']);
+    expect([...defendingDimensions].sort()).toEqual(['focus', 'press', 'risk', 'width']);
   });
 
   it('marks every intent as persisting, which is what makes soccer ask fewer questions', () => {
     // `09` §2.3: "Intent choices persist until you change them."
-    expect(SOCCER_CALLS.every((call) => call.persists === true)).toBe(true);
+    for (const role of ['offence', 'defence'] as const) {
+      expect(callOptionsFor(role).every((call) => call.persists === true)).toBe(true);
+      expect(callOptionsFor(role).length).toBe(
+        INTENT_OPTIONS.filter((option) => dimensionsFor(role).includes(option.dimension)).length,
+      );
+    }
   });
 
   it('plays a match in the 18–24 turns `09` §2.3 asks for', () => {

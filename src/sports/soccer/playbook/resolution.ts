@@ -2,6 +2,7 @@
  * @spec    001-initial-dev
  * @phase   6 — Soccer · all three modes
  * @task    T-6.14 — Soccer Playbook: `PlaybookAdapter` + phase turns
+ * @task    T-6.19 — Soccer Playbook: intent controls — tempo, width, risk, press, focus
  * @story   US-15.2 — Call plays and see them resolve
  * @design  09-modes-and-arcade.md §2.3 (phase turns), §7 (balance across modes)
  * @invariant INV-2 (seeded PRNG only), INV-8 (determinism), INV-9 (one event stream)
@@ -24,16 +25,18 @@
  */
 import { EventKind, event, type Side, type SportEvent } from '../../../engine/match/events.ts';
 import type { Rng } from '../../../engine/rng.ts';
+import type { EntityId } from '../../../engine/world.ts';
 import type {
   CallPair,
   PlaybookAthlete,
+  PlaybookCall,
   PlaybookSquad,
   PlaybookState,
   TurnExpectation,
   TurnResolution,
 } from '../../../modes/playbook/types.ts';
 import { SoccerEvent } from '../rules.ts';
-import { pressProfile, tempoProfile } from './calls.ts';
+import { DEFAULT_INTENTS, composeEffect, intentsFrom, type SoccerIntents } from './intents.ts';
 import {
   OPENING_PHASE,
   PHASE_TURN_SECONDS,
@@ -41,7 +44,7 @@ import {
   type PhaseOutcome,
   type SoccerPhase,
 } from './phases.ts';
-import { keeperOf, outfieldOf } from './squad.ts';
+import { channelOf, keeperOf, outfieldOf, type Channel } from './squad.ts';
 
 /** What soccer tracks between turns. The engine owns the clock, the score, and possession. */
 export interface SoccerPlaybookState {
@@ -50,10 +53,11 @@ export interface SoccerPlaybookState {
   /** The period `phase` belongs to. A new half kicks off from the opening phase. */
   period: number;
   /**
-   * The intent each side last set, indexed by side. `09` §2.3's intents persist until changed, so
-   * something has to remember them across a turn the player did not touch; this is that something.
+   * The full set of intents each side last set, indexed by side. `09` §2.3's intents persist until
+   * changed, so something has to remember them across a turn the player did not touch, and across a
+   * turn where they changed one chip and left the other four alone; this is that something.
    */
-  intent: [string, string];
+  intent: [SoccerIntents, SoccerIntents];
   /** Shots taken per side, for the box score's sanity and T-6.21's narration. */
   shots: [number, number];
 }
@@ -193,27 +197,86 @@ export function keyRating(athlete: PlaybookAthlete, keys: readonly string[]): nu
 }
 
 /**
+ * Where the focus intent points, once the id has been read (T-6.19).
+ *
+ * `channel` is a flank or the middle; `athlete` is a named player. Both null when nobody is being
+ * steered, which is what an unrecognised or absent focus reads as.
+ */
+export interface FocusBias {
+  readonly channel: Channel | null;
+  readonly athlete: EntityId | null;
+}
+
+export const NO_FOCUS: FocusBias = { channel: null, athlete: null };
+
+/**
+ * How hard the focus intent pulls, in rating points on the selection score.
+ *
+ * Deliberately about the size of a real rating gap and no bigger: focusing on the left should mean
+ * your left-sided players see more of the ball, not that your best striker stops existing. The
+ * marking figure is larger than the channel one because marking somebody is a much more specific
+ * instruction than pointing at a flank.
+ */
+export const FOCUS_PULL = {
+  channel: 10,
+  /** Added to the named athlete's own side's selection score — play through them. */
+  favour: 12,
+  /** Subtracted from a marked athlete's selection score — they are being followed around. */
+  marked: 14,
+  /** What being marked costs the marked athlete once they *do* get on the ball. */
+  createPenalty: 0.06,
+  finishPenalty: 0.05,
+} as const;
+
+/**
  * Who the turn is about: the outfielder best suited to the phase, with a small seeded wobble so a
  * match is not eleven turns of the same name. The wobble is smaller than a real rating gap, so the
  * best player still gets the ball most of the time — `09` §2.2's "ratings beat mind-games", applied
  * to selection rather than to outcome.
+ *
+ * `focus` is where T-6.19's fifth intent lands, and the only one of the five that moves *who* rather
+ * than *how likely*: pointing at a flank adds to everyone in that channel, naming an athlete adds to
+ * them, and being named by the *other* side subtracts.
  */
 export function primaryFor(
   squad: PlaybookSquad,
   keys: readonly string[],
   rng: Rng,
+  own: FocusBias = NO_FOCUS,
+  opposing: FocusBias = NO_FOCUS,
 ): PlaybookAthlete {
   const candidates = outfieldOf(squad);
   let best = candidates[0] as PlaybookAthlete;
   let bestScore = -Infinity;
   for (const candidate of candidates) {
-    const score = keyRating(candidate, keys) + rng.gaussian(0, 6);
+    let score = keyRating(candidate, keys) + rng.gaussian(0, 6);
+    if (own.channel !== null && channelOf(candidate.role) === own.channel) {
+      score += FOCUS_PULL.channel;
+    }
+    if (own.athlete === candidate.id) score += FOCUS_PULL.favour;
+    if (opposing.athlete === candidate.id) score -= FOCUS_PULL.marked;
     if (score > bestScore) {
       bestScore = score;
       best = candidate;
     }
   }
   return best;
+}
+
+/** What the focus dimension of a set of intents points at. */
+export function focusBias(intents: SoccerIntents, target?: EntityId): FocusBias {
+  switch (intents.focus) {
+    case 'focus-left':
+      return { channel: 'left', athlete: null };
+    case 'focus-right':
+      return { channel: 'right', athlete: null };
+    case 'focus-centre':
+      return { channel: 'centre', athlete: null };
+    case 'focus-player':
+      return { channel: null, athlete: target ?? null };
+    default:
+      return NO_FOCUS;
+  }
 }
 
 /** How far one side is ahead in this phase, in logistic-ish units, clamped. */
@@ -245,14 +308,26 @@ export function resolvePhaseTurn(input: ResolveInput): TurnResolution {
   const attackers = state.squads[attacking];
   const defenders = state.squads[defendingSide];
 
-  const tempo = tempoProfile(calls.offence.call);
-  const press = pressProfile(calls.defence.call);
   const keys = PHASE_KEYS[phase];
 
-  const actor = primaryFor(attackers, keys.attack, rng.fork('actor'));
+  // The five intents each side is playing, remembered from before and overlaid with this turn's
+  // call — so a player who changed one chip has still said all five things (`09` §2.3).
+  const offIntents = intentsOf(state, attacking, calls.offence);
+  const defIntents = intentsOf(state, defendingSide, calls.defence);
+  const attack = composeEffect(offIntents, 'offence');
+  const defend = composeEffect(defIntents, 'defence');
+
+  const offFocus = focusBias(offIntents, calls.offence.target);
+  const defFocus = focusBias(defIntents, calls.defence.target);
+
+  const actor = primaryFor(attackers, keys.attack, rng.fork('actor'), offFocus, defFocus);
   const defender = keeperDecides(phase)
     ? keeperOf(defenders)
-    : primaryFor(defenders, keys.defend, rng.fork('defender'));
+    : primaryFor(defenders, keys.defend, rng.fork('defender'), defFocus, offFocus);
+
+  // Being marked is the one way focus reaches the odds as well as the selection: naming an athlete
+  // follows them, and it still costs them something on the occasions they get on the ball anyway.
+  const marked = defFocus.athlete === actor.id;
 
   const edge = matchupEdge(
     keyRating(actor, keys.attack),
@@ -260,11 +335,19 @@ export function resolvePhaseTurn(input: ResolveInput): TurnResolution {
     actor.stamina,
   );
 
-  const seconds = Math.round(PHASE_TURN_SECONDS[phase] * tempo.duration);
+  const seconds = Math.round(PHASE_TURN_SECONDS[phase] * attack.duration);
   const events: SportEvent[] = [
     event(EventKind.POSSESSION, 0, attacking, {
       actor: actor.id,
-      detail: { phase, tempo: tempo.id, press: press.id },
+      detail: {
+        phase,
+        tempo: offIntents.tempo,
+        press: defIntents.press,
+        width: offIntents.width,
+        risk: offIntents.risk,
+        focus: offIntents.focus,
+        marked,
+      },
     }),
   ];
 
@@ -289,7 +372,7 @@ export function resolvePhaseTurn(input: ResolveInput): TurnResolution {
   if (phase === 'buildUp' || phase === 'progression') {
     const base = phase === 'buildUp' ? PHASE_ODDS.buildUpAdvance : PHASE_ODDS.progressionAdvance;
     const chance = bounded(
-      base + edge * SOCCER_RESOLUTION.climbFromEdge + tempo.climb - press.denyClimb,
+      base + edge * SOCCER_RESOLUTION.climbFromEdge + attack.climb - defend.climb,
     );
     const advanced = rng.fork('advance').bool(chance);
     events.push(
@@ -308,8 +391,9 @@ export function resolvePhaseTurn(input: ResolveInput): TurnResolution {
     const chanceOdds = bounded(
       PHASE_ODDS.finalThirdChance +
         edge * SOCCER_RESOLUTION.createFromEdge +
-        tempo.create +
-        press.concede,
+        attack.create -
+        defend.create -
+        (marked ? FOCUS_PULL.createPenalty : 0),
     );
     const worked = rng.fork('create').bool(chanceOdds);
     if (worked) {
@@ -321,9 +405,13 @@ export function resolvePhaseTurn(input: ResolveInput): TurnResolution {
       });
     }
     // The consolation is a set piece, drawn from its own fork so the branch above cannot move it.
+    const setPieceOdds = Math.max(
+      0.02,
+      PHASE_ODDS.finalThirdSetPiece + attack.setPiece - defend.setPiece,
+    );
     const wonSetPiece = rng
       .fork('set-piece')
-      .bool(PHASE_ODDS.finalThirdSetPiece / Math.max(0.05, 1 - chanceOdds));
+      .bool(Math.min(1, setPieceOdds / Math.max(0.05, 1 - chanceOdds)));
     if (wonSetPiece) {
       events.push(
         event(EventKind.SPORT, 0, attacking, {
@@ -348,7 +436,13 @@ export function resolvePhaseTurn(input: ResolveInput): TurnResolution {
 
   // ── A shot: `chance` or `setPiece`. ──
   const base = phase === 'chance' ? PHASE_ODDS.chanceGoal : PHASE_ODDS.setPieceGoal;
-  const goalOdds = bounded(base + edge * SOCCER_RESOLUTION.finishFromEdge);
+  const goalOdds = bounded(
+    base +
+      edge * SOCCER_RESOLUTION.finishFromEdge +
+      attack.finish -
+      defend.finish -
+      (marked ? FOCUS_PULL.finishPenalty : 0),
+  );
   const scored = rng.fork('finish').bool(goalOdds);
 
   events.push(
@@ -387,6 +481,22 @@ export function resolvePhaseTurn(input: ResolveInput): TurnResolution {
   }
 
   return finish(rebound.bool(PHASE_ODDS.blockedShare) ? 'blocked' : 'off-target', 0, expectation);
+}
+
+/**
+ * The intents a side is playing this turn: what they had set, overlaid with what this call says.
+ *
+ * Lives here rather than on the adapter because `apply()` has to arrive at exactly the same answer
+ * when it writes the set back — and a pure function called twice with the same inputs is a cheaper
+ * guarantee of that than passing the result between two members of the seam.
+ */
+export function intentsOf(
+  state: PlaybookState<SoccerPlaybookState>,
+  side: Side,
+  call: PlaybookCall,
+): SoccerIntents {
+  const previous = state.detail.intent[side === 1 ? 1 : 0] ?? DEFAULT_INTENTS;
+  return intentsFrom(previous, call);
 }
 
 /** Whether the attacking side still has the ball after this outcome. */
@@ -436,5 +546,10 @@ export const SOCCER_STAMINA = {
 
 /** The state a match starts from. Exported so the tests do not have to build one by hand. */
 export function createSoccerPlaybookState(): SoccerPlaybookState {
-  return { phase: OPENING_PHASE, period: 1, intent: ['balanced', 'mid'], shots: [0, 0] };
+  return {
+    phase: OPENING_PHASE,
+    period: 1,
+    intent: [DEFAULT_INTENTS, DEFAULT_INTENTS],
+    shots: [0, 0],
+  };
 }

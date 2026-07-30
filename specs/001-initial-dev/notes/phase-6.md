@@ -754,3 +754,71 @@ building towards something, and losing it in your own third genuinely stings bec
 opponent start their next turn in your box. The one-line narration is doing more work than expected —
 "Home 7 wins it back off Away 4" reads as a match report already. What is obviously missing is
 variety; by turn ten the same eight sentences are recognisable, which is exactly T-6.21's job.
+
+### T-6.19
+
+**The question T-6.14 left open, and how it was answered.** `PlaybookCall.call` is a single
+`CallId`, and `09` §2.3's five intent dimensions do not fit in one. The two candidates were a
+composite id (`tempo:direct|width:wide|…`) and an optional `intents` map on `PlaybookCall`. **The map
+won**, for three reasons: it costs one optional field that every sport not setting it ignores; it
+keeps `call` meaning exactly what it has always meant, so narration, match history, and T-6.22's read
+window never have to learn what a dimension is; and it keeps the CPU's own decision out of a string
+parser. The composite id would also have made `PlaybookCall.call` a value that no `CallOption.id`
+returned by `calls()` ever equals, which is a quiet lie about the seam. `CallOption` also gained an
+optional `dimension`, which is what lets the call sheet lay out four rows of chips instead of one
+list of twelve. Both additions are additive and optional; basketball is untouched.
+
+**Each side holds all five intents, always — that is the model, and it took a false start to see
+it.** The obvious reading is two catalogues that swap over with possession, offence and defence. That
+is wrong: a manager sets a shape and it is their shape whether the ball is theirs or not. What
+changes with possession is which of the five *say* anything. Tempo speaks only with the ball, the
+press line only without it, and **width, risk, and focus speak in both roles and mean different
+things in each** — playing wide stretches a defence, defending wide covers the flanks and opens the
+middle; ambitious with the ball is a through ball, ambitious without it is diving in. That is why
+every option carries an `attack` effect *and* a `defend` effect rather than living in one catalogue.
+
+**The composition rule, which replaced T-6.14's hand-written polarity.** Applied odds are
+`base + attackerSum − defenderSum`. Subtracting the defender is what makes a defensive intent *deny*
+rather than help: a high press raises `climb` in its defend column, and raising the number that gets
+subtracted is what makes the ball harder to move. T-6.14 wrote that by hand for two intents
+(`tempo.climb − press.denyClimb`); this is the same arithmetic generalised to five with no special
+cases. A sum rather than a product, deliberately — five small independent decisions should add up to
+a noticeable one and never multiply into a runaway.
+
+**Every dimension's middle option is exactly neutral, and a test asserts it.** This is not tidiness:
+it is what keeps T-6.14's turn-budget derivation true. A match of balanced intents *is* the match
+that derivation describes, and everything else is a departure the player chose. Measured after the
+change: **20.9 turns** in normal time and **1.9 goals** — both effectively unmoved, and drawn matches
+fell from 15/40 to 10/40, which is the five intents making matches more decisive rather than longer.
+
+**Focus is the odd one out and moves *who*, not *how likely*.** `09` §2.3 makes it "a flank, a
+channel, or a specific athlete", which is a statement about people. So it steers `primaryFor()`'s
+selection — pointing at a flank adds to everyone in that channel, naming an athlete adds to them, and
+being named by the *other* side subtracts. A focus that also moved probabilities would just be a
+second risk dial wearing a different label. **The one exception** is marking: naming an opponent both
+follows them around and costs them something on the occasions they get on the ball anyway, which is
+`09` §2.2's "Double the Star" in soccer's terms.
+
+**Channels come from the formation's own `y`, averaged across every formation that names the role,**
+because a role's position differs slightly between shapes (`lcb` is 0.38 in 4-4-2 and 0.30 in 3-5-2)
+and a squad's formation is chosen when the squad is built rather than carried on every athlete. The
+boundaries are at 0.30 and 0.70 rather than at the thirds, so **a *left*-sided centre back is a centre
+back** — the widest central role averages 0.41 and the narrowest wide one 0.16, so the averaging
+cannot flip an answer.
+
+**The baseline CPU grew with the catalogue and is still deliberately blind.** It now scores every
+option on every dimension it is asked about by the ratings that option names (`IntentOption.keys`),
+with a seeded wobble, and takes the best per dimension — forked by `dimension:option` so adding an
+option later cannot shift the ones beside it. It never looks at what the other side is doing, which
+is exactly the line `modes/playbook/types.ts` draws between `coach` and `autoCall`, and the gap
+**T-6.22** fills.
+
+**`calls.ts` is gone.** T-6.14 put the two intents it shipped there; with all five and their effect
+tables the file was a thin re-export in front of `intents.ts`, so it was deleted rather than kept as
+a hop. One owner for the catalogue.
+
+**Feel note:** the intents are the first thing in the Playbook run that feels like *managing* rather
+than picking. Pinning a side to `wide` and watching corners climb over thirty matches is a real
+tactical lever, and defending `deep` genuinely does turn a match into a siege. The one that does not
+land yet is focus — steering the ball to a flank is invisible without the pitch diagram to see it on,
+which is T-6.21's job and the point at which this whole set becomes legible rather than statistical.

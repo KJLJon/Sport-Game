@@ -24,7 +24,7 @@ import type { Side } from '../../../engine/match/events.ts';
 import type { Athlete } from '../../../athletes/types.ts';
 import type { DerivedRatings } from '../../../athletes/derivation.ts';
 import type { PlaybookAthlete, PlaybookSquad } from '../../../modes/playbook/types.ts';
-import { DEFAULT_FORMATION, formation } from '../formations.ts';
+import { DEFAULT_FORMATION, FORMATIONS, formation } from '../formations.ts';
 import { soccerRatings } from '../roster.ts';
 
 /** Playbook reads ratings by name off a flat record; `SoccerRatings` already is one. */
@@ -75,4 +75,38 @@ export function keeperOf(squad: PlaybookSquad): PlaybookAthlete {
 /** Everybody but the keeper — who a phase turn can actually be about. */
 export function outfieldOf(squad: PlaybookSquad): readonly PlaybookAthlete[] {
   return squad.players.slice(1);
+}
+
+/**
+ * Which side of the pitch a role lives on — what T-6.19's focus intent steers play towards.
+ *
+ * @spec-ref 09-modes-and-arcade.md §2.3 — "Focus — a flank, a channel, or a specific athlete"
+ */
+export type Channel = 'left' | 'centre' | 'right';
+
+/**
+ * The channel a formation role belongs to, from the role's own `y` across every formation that
+ * names it.
+ *
+ * Averaging rather than picking one formation is deliberate: `lcb` sits at 0.38 in 4-4-2 and 0.30 in
+ * 3-5-2, and a squad's formation is chosen when the squad is built rather than carried on every
+ * athlete. The thresholds are wide enough that the averaging cannot flip an answer — the widest
+ * central role averages 0.41 and the narrowest wide one 0.16, with the boundary at 0.30. A
+ * *left*-sided centre back is a centre back, which is why the boundary is not at the halfway point.
+ */
+export function channelOf(roleId: string): Channel {
+  let total = 0;
+  let count = 0;
+  for (const shape of FORMATIONS) {
+    for (const role of shape.roles) {
+      if (role.id !== roleId) continue;
+      total += role.y;
+      count += 1;
+    }
+  }
+  if (count === 0) return 'centre';
+
+  const y = total / count;
+  if (y < 0.3) return 'left';
+  return y > 0.7 ? 'right' : 'centre';
 }
