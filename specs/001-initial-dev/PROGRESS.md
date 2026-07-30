@@ -12,8 +12,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.13 — Soccer derivation weights, sub-skills, familiarity tuning
-- **Status:** todo (T-6.1 – T-6.12 `done`; soccer is **playable and legible**)
+- **Task:** T-6.14 — Soccer Playbook: phase turns, intent controls, resolution
+- **Status:** todo (T-6.1 – T-6.13 `done`; soccer is **playable and legible**)
 - **Session budget note (2026-07-29):** the user's weekly usage is near its cap, so this session is
   running **one task at a time, no concurrent work, commit and push after every task**. Keep it
   that way until told otherwise — every task must leave the tree pushed and this block accurate.
@@ -148,7 +148,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 18 | 12 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 18 | 13 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -298,7 +298,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.10 | Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase | L | `done` | | `tests/unit/sports/soccer/formations.test.ts`, `tests/integration/sports/soccer-match.test.ts`, `tests/e2e/soccer-match.spec.ts` | `auto` + Playwright screenshot | Formations are data with `push`/`drop`/`tuck`, and **the `SportModule` assembly was folded in here** (raised with the user first) — soccer is now playable at `#/play/live/soccer`. [notes](./notes/phase-6.md#t-610) |
 | T-6.11 | 22-entity performance work: LOD, culling, spatial-hash tuning, zero-allocation hot path | L | `done` | | `tests/unit/sports/soccer/formations.test.ts`, `pnpm bench` | `auto` + bench | The bench was measuring the *test* sport; it now measures soccer too. Speed was never the problem — jank was: worst step 0.98 ms → 0.35 ms by caching shapes and pooling scratch arrays. LOD/culling deferred to T-12.8 with a reason. [notes](./notes/phase-6.md#t-611) |
 | T-6.12 | Camera and minimap tuning for the larger pitch | M | `todo` | | | | |
-| T-6.13 | Soccer derivation weights, sub-skills, familiarity tuning | M | `todo` | | | | |
+| T-6.13 | Soccer derivation weights, sub-skills, familiarity tuning | M | `done` | | `tests/unit/sports/soccer/weights-and-xp.test.ts` | `auto` | The weights shipped in Phase 3; this adds the position table (`goalkeeping: 0.6` for the keeper and zero elsewhere) and the XP table. Familiarity needed **no** soccer-specific tuning — a positive seam result. [notes](./notes/phase-6.md#t-613) |
 | T-6.14 | Soccer Playbook: phase turns, intent controls (tempo/width/risk/press/focus), resolution | XL | `todo` | | | | |
 | T-6.15 | Soccer arcade set: Penalty Shootout, Free Kick, One-on-One, Header, Last Line | XL | `todo` | | | | |
 | T-6.16 | Soccer art & audio pass | L | `todo` | | | | |

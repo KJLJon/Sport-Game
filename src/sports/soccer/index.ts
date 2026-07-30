@@ -3,6 +3,7 @@
  * @phase   6 — Soccer · all three modes
  * @task    T-6.10 — Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase
  * @task    T-6.11 — 22-entity performance work: zero-allocation hot path
+ * @task    T-6.13 — Soccer derivation weights, sub-skills, familiarity tuning
  * @story   US-4.1 — Play an 11v11 soccer match
  * @story   US-14.4 — Add a sport without touching the engine
  * @design  04-architecture.md §5 (the sport module seam), 06-game-design.md §3.2
@@ -108,7 +109,8 @@ import {
   type RulesState,
 } from './rules.ts';
 import { rollRatings, rosterEntry, type SoccerRatings } from './roster.ts';
-import { SOCCER_PHYSICAL, SOCCER_WEIGHTS } from './weights.ts';
+import { SOCCER_PHYSICAL, SOCCER_POSITION_WEIGHTS, SOCCER_WEIGHTS } from './weights.ts';
+import { SOCCER_XP_AWARDS } from './xp.ts';
 import { SHOOTING, takeShot, type ShotInFlight } from './shooting.ts';
 import {
   createStamina,
@@ -237,6 +239,8 @@ export const soccer: SoccerModule = {
   field: soccerPitch,
   ratingWeights: SOCCER_WEIGHTS,
   physicalModifiers: SOCCER_PHYSICAL,
+  positionWeights: SOCCER_POSITION_WEIGHTS,
+  xpAwards: SOCCER_XP_AWARDS,
   roles,
   ai,
   render,

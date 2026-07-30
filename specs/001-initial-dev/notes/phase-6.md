@@ -629,3 +629,42 @@ sport id in `screen.ts` would be the first thing T-12.6 had to remove, so there 
 **Feel note:** this is the first change in the phase that made it look like a game. Athletes are
 readable, the off-screen triangles are doing real work, and the minimap earns its space now that it
 shows something the main view does not. Still unplayed on an actual phone.
+
+### T-6.13
+
+*Soccer derivation weights, sub-skills, familiarity tuning*
+
+**The weights themselves already existed** — `SOCCER_WEIGHTS` and `SOCCER_PHYSICAL` shipped in
+Phase 3 (T-3.3) precisely so the compare view had two rating tables to compare. What was missing was
+the other two thirds of `05` §3: the *position* table (§3.4) and the *XP* table (§3.3).
+
+**The keeper row is the whole point of the position table.** `goalkeeping: 0.6` for `gk`, and
+literally zero for every other role — there is a test asserting that. It means an outfielder's
+overall *as a goalkeeper* is correctly dreadful, so playing someone out of position reads as a
+decision rather than a rounding error. It is also the clearest thing in the project so far that the
+cross-sport system works at the level of positions and not just sports.
+
+**Roles that share a job share a row.** Both centre backs, both strikers, all three central
+midfielders. A position table is about the job, not the shirt number, and an unlisted role falls back
+to a generic outfield row — so adding 4-2-3-1 to `formations.ts` does not require touching this file.
+
+**Defending had to be paid differently from basketball, and it is the honest weak spot.** A
+basketball steal is a discrete event. Soccer's defending is mostly *not* events — it is standing in
+the right place for ninety minutes — and an XP table can only pay for things that emit. A won tackle
+pays `tackling` properly; `marking` is paid from the events that *imply* good positioning happened,
+which is a turnover and catching someone offside. That is an approximation, not a good model, and it
+is written down here as the first place to look if defenders turn out to learn too slowly.
+
+**Two silent failure modes, both tested.** A weight row that does not sum to 1.0 puts the derived
+rating off the 1–99 scale with nothing failing, and a rating *name* that does not exist trains a
+sub-skill derivation never reads. Both are typos that produce a plausible-looking game, so the tests
+walk every row of both tables and check the names against `SOCCER_WEIGHTS`.
+
+**Familiarity needed no soccer-specific tuning at all**, which is worth recording as a positive
+result: `couplingFor()` and `fatigueMultiplier()` are sport-agnostic, `roster.ts` calls them exactly
+as basketball's does, and the two attributes soccer reads raw (`coordination`, `strength`) are
+deliberately ungated for the same reason basketball's five are. The seam held here too.
+
+**Feel note:** nothing to play, but the position table is the first thing that will make an athlete
+card *about soccer* rather than about ratings — a 34-rated overall for a striker at centre back is
+the sort of number that starts an argument, which is what a position table is for.

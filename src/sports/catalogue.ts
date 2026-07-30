@@ -31,7 +31,7 @@ import {
   BASKETBALL_POSITION_WEIGHTS,
   BASKETBALL_WEIGHTS,
 } from './basketball/weights.ts';
-import { SOCCER_PHYSICAL, SOCCER_WEIGHTS } from './soccer/weights.ts';
+import { SOCCER_PHYSICAL, SOCCER_POSITION_WEIGHTS, SOCCER_WEIGHTS } from './soccer/weights.ts';
 import type { SportId } from './types.ts';
 
 export interface RateableSport {
@@ -58,7 +58,11 @@ export const RATEABLE_SPORTS: readonly RateableSport[] = [
     id: 'soccer',
     displayName: 'Soccer',
     playable: true,
-    tables: { weights: SOCCER_WEIGHTS, physicalModifiers: SOCCER_PHYSICAL },
+    tables: {
+      weights: SOCCER_WEIGHTS,
+      physicalModifiers: SOCCER_PHYSICAL,
+      positionWeights: SOCCER_POSITION_WEIGHTS,
+    },
   },
 ];
 

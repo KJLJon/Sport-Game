@@ -72,7 +72,12 @@ describe('cardOverall', () => {
   });
 
   it('falls back to the mean where a sport declares no positions', () => {
-    const { overall, position } = cardOverall(athlete(), soccer);
+    // Soccer used to be the example here; it has a position table as of T-6.13. The behaviour still
+    // matters — Phase 11's sports arrive weights-first — so this uses a sport with real ratings and
+    // no positions rather than whichever real sport happens to be unfinished.
+    const { positionWeights: _dropped, ...tables } = soccer.tables;
+    const positionless = { ...soccer, tables };
+    const { overall, position } = cardOverall(athlete(), positionless);
     expect(position).toBeNull();
     expect(overall).toBeGreaterThan(0);
   });
