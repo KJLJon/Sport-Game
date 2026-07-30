@@ -11,6 +11,16 @@
  * @invariant INV-5 (no sport-specific branching outside the sport), INV-11 (44 px targets, no
  *            information by colour alone)
  *
+ * **The camera does not fit the whole field** (T-6.12). It follows the ball at a zoom that keeps
+ * `VISIBLE_SPAN` metres of the field's long axis on screen, so an athlete is legible on a phone. A
+ * 28 × 15 basketball court is smaller than that span and so still fits entirely — the rule changes
+ * nothing for it. A 105 × 68 pitch does not, and that is the point: at fit-to-field an athlete is
+ * about three pixels. Requested by the user after seeing exactly that.
+ *
+ * Deliberately one span for every sport rather than a per-sport number. Per-sport camera profiles
+ * are T-12.6 in the bonus camera phase; a sport id in this file would be the thing that phase then
+ * has to remove.
+ *
  * Purpose: the screen a match is played on. It owns the canvas, the loop, the camera, and the
  * input, and it is the only place those four meet.
  *
@@ -56,6 +66,28 @@ import {
   type SafeArea,
 } from './hud.ts';
 import { teamLine } from './box-score.ts';
+
+/**
+ * Metres of the field's long axis to keep on screen.
+ *
+ * 45 m is a little over a soccer pitch's width, which frames a phase of play — the ball, the players
+ * around it, and enough space to see a run being made — rather than a whole match at once. It is
+ * also wider than a basketball court is long, so basketball still shows its entire court and its
+ * framing is untouched by this rule.
+ */
+const VISIBLE_SPAN = 45;
+
+/**
+ * The zoom the camera must not go below: enough to keep `VISIBLE_SPAN` metres on screen, or the
+ * whole field if that is smaller.
+ *
+ * Returning the fit-the-field scale for a small field is what makes this safe to apply to every
+ * sport without naming one.
+ */
+export function zoomFloor(viewWidth: number, fieldWidth: number): number {
+  const span = Math.min(VISIBLE_SPAN, fieldWidth);
+  return viewWidth / span;
+}
 
 export interface LiveScreenOptions {
   readonly sport: SportModule;
@@ -110,6 +142,7 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         worldWidth: options.sport.field.width,
         worldHeight: options.sport.field.height,
         maxScale: 34,
+        minScale: zoomFloor(canvasHost.size.width, options.sport.field.width),
       });
 
       const renderer = new Renderer((w, h) => offscreen(doc, w, h));

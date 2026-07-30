@@ -61,6 +61,7 @@ export class MatchStateMachine {
   private totalSteps = 0;
   private readonly score: [number, number] = [0, 0];
   private overtimePeriods = 0;
+  private periodExtension = 0;
 
   constructor(
     readonly rules: MatchRules,
@@ -108,9 +109,36 @@ export class MatchStateMachine {
   }
 
   private periodLength(): number {
-    return this.overtimePeriods > 0
-      ? (this.rules.overtimeSteps ?? this.rules.periodSteps)
-      : this.rules.periodSteps;
+    const base =
+      this.overtimePeriods > 0
+        ? (this.rules.overtimeSteps ?? this.rules.periodSteps)
+        : this.rules.periodSteps;
+    return base + this.periodExtension;
+  }
+
+  /** Steps added to the current period beyond its nominal length. */
+  get extension(): number {
+    return this.periodExtension;
+  }
+
+  /**
+   * Lengthens the current period. Cleared automatically when the next period starts.
+   *
+   * The clock is the engine's, but *how long a period turns out to be* is not always the engine's
+   * to know: soccer's added time is the referee's arithmetic over the stoppages that happened, and
+   * there is no way to express "this half runs longer than the whistle said" from outside. A
+   * fixed-length period is the common case and stays the default; this is the escape hatch, and it
+   * is deliberately generic — nothing here knows what a stoppage was for.
+   *
+   * Call it *before* the nominal end: a period that has already ended cannot be reopened, and
+   * asking to is a bug rather than a no-op worth swallowing.
+   */
+  extendPeriod(steps: number): void {
+    if (steps <= 0) return;
+    if (this.phase !== MatchPhase.LIVE && this.phase !== MatchPhase.STOPPAGE) {
+      throw new Error(`extendPeriod() requires a period in progress, not ${this.phase}`);
+    }
+    this.periodExtension += Math.round(steps);
   }
 
   /** Kicks off. Emits `match.start` and the first `period.start`. */
@@ -183,6 +211,7 @@ export class MatchStateMachine {
     if (this.period >= this.rules.periods) this.overtimePeriods++;
     this.period++;
     this.periodStep = 0;
+    this.periodExtension = 0;
     this.bus.emit(event(EventKind.PERIOD_START, this.totalSteps, -1, { value: this.period }));
   }
 
@@ -259,6 +288,7 @@ export class MatchStateMachine {
       homeScore: this.score[0],
       awayScore: this.score[1],
       overtimePeriods: this.overtimePeriods,
+      periodExtension: this.periodExtension,
     };
   }
 
@@ -270,6 +300,7 @@ export class MatchStateMachine {
     this.score[0] = snapshot.homeScore;
     this.score[1] = snapshot.awayScore;
     this.overtimePeriods = snapshot.overtimePeriods;
+    this.periodExtension = snapshot.periodExtension ?? 0;
   }
 }
 
@@ -281,4 +312,10 @@ export interface MatchSnapshot {
   readonly homeScore: number;
   readonly awayScore: number;
   readonly overtimePeriods: number;
+  /**
+   * Steps added to the current period. Optional so a snapshot taken before extensions existed —
+   * a stored replay, a P2P peer on an older build — restores as an unextended period rather than
+   * failing to restore at all.
+   */
+  readonly periodExtension?: number;
 }

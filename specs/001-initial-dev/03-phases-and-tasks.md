@@ -28,6 +28,8 @@
 | 9 | UI/UX, accessibility, performance, data safety | Ship quality — the family-friendly gate | **v1.0** |
 | 10 | P2P (bonus) | Async codes → Playbook P2P → Live lockstep, trading | **v1.0.x** |
 | 11 | Hockey & American Football | The remaining named sports, all three modes | **v1.1** |
+| 12 | Camera, framing, and readability (bonus) | A camera that follows the play instead of fitting the field | **v1.2** |
+| 13 | Visual overhaul: sprites and pseudo-3D (bonus) | Athletes and fields that look made rather than plotted | **v1.3** |
 
 **Why this order.** Arcade (Phase 4) comes before the second sport because it's cheap, it's the
 family on-ramp, and Playbook depends on it. Playbook (Phase 5) comes before soccer so that soccer is
@@ -213,11 +215,27 @@ something to work around in the sport module.
 | T-6.11 | 22-entity performance work: LOD, culling, spatial-hash tuning, zero-allocation hot path | L | T-1.13 | US-2.5 | |
 | T-6.12 | Camera and minimap tuning for the larger pitch | M | T-1.8 | US-2.3 | sonnet |
 | T-6.13 | Soccer derivation weights, sub-skills, familiarity tuning | M | T-3.3 | US-5.2 | |
-| T-6.14 | Soccer Playbook: phase turns, intent controls (tempo/width/risk/press/focus), resolution | XL | T-5.2 | US-15.2 | |
-| T-6.15 | Soccer arcade set: Penalty Shootout, Free Kick, One-on-One, Header, Last Line | XL | T-4.2 | US-16.1 | sonnet |
+| T-6.14 | Soccer Playbook: `PlaybookAdapter` + phase turns | L | T-5.2 | US-15.2 | |
+| T-6.15 | Soccer arcade: Penalty Shootout | M | T-4.2 | US-16.1 | sonnet |
 | T-6.16 | Soccer art & audio pass | L | T-2.12 | — | sonnet |
 | T-6.17 | Engine-core refactor: extract anything basketball-shaped that leaked into core | M | T-6.2 | US-14.4 | |
-| T-6.18 | Balance pass #2: goals, possession, conversion across Live and Playbook | M | T-6.14 | US-4.1 | |
+| T-6.18 | Balance pass #2: goals, possession, conversion across Live and Playbook | M | T-6.22 | US-4.1 | |
+| T-6.19 | Soccer Playbook: intent controls — tempo, width, risk, press, focus | M | T-6.14 | US-15.2 | |
+| T-6.20 | Soccer Playbook: resolution model, reusing Live's shooting and passing | L | T-6.19 | US-15.2 | |
+| T-6.21 | Soccer Playbook: narration and animated pitch diagram for turn outcomes | M | T-6.20 | US-15.2 | sonnet |
+| T-6.22 | Soccer Playbook: key moments → arcade, and the Playbook CPU's call selection | M | T-6.20 | US-15.2 | |
+| T-6.23 | Soccer arcade: Free Kick | M | T-6.15 | US-16.1 | sonnet |
+| T-6.24 | Soccer arcade: One-on-One | M | T-6.15 | US-16.1 | sonnet |
+| T-6.25 | Soccer arcade: Header | M | T-6.15 | US-16.1 | sonnet |
+| T-6.26 | Soccer arcade: Last Line | M | T-6.15 | US-16.1 | sonnet |
+| T-6.27 | Soccer arcade: set registration, unlock wiring, and `calibrate()` tests | S | T-6.26 | US-16.2 | |
+
+**Two XL tasks were split on 2026-07-30**, at the user's request and for a good reason: an XL task is
+one that cannot be finished inside a single working session, so it is the one most likely to be
+interrupted with a dirty tree and nothing pushed. T-6.14 became T-6.14 + T-6.19–T-6.22 and T-6.15
+became T-6.15 + T-6.23–T-6.26 + T-6.27. Each chunk is independently committable, and each of the five
+arcade games is now its own row — which is what `CLAUDE.md` §7.3's "one agent per file" needed anyway
+to make them safely delegable.
 
 **Gate 6 (v0.5):** Both sports playable in all three modes, ≥55 fps at 11v11 on target hardware, and
 the Phase 6 diff touches `engine/` only for genuine core improvements.
@@ -347,15 +365,91 @@ module seam held.
 
 ---
 
+## Phase 12 — Camera, framing, and readability (bonus) → **v1.2**
+
+Requested by the user after seeing a soccer match on a phone (2026-07-30): *"the whole field/court
+doesn't need to be visible all at once — it could zoom in and follow the active player."*
+
+That is a real change of principle, not a tuning pass. Phase 1's camera was built to fit the field,
+which is correct for a 28 × 15 court and wrong for a 105 × 68 pitch — at fit-to-field an athlete is
+about three pixels on a phone. T-6.12 does the minimum to make soccer legible; this phase is the
+version worth having, and it applies to every sport.
+
+The hard part is not the zoom. It is that a camera which does not show the whole field has to answer
+"where is everyone I can't see" convincingly, every frame, or the player is worse off than they were
+when it was all tiny.
+
+| ID | Task | Size | Deps | Stories | Agent |
+|---|---|---|---|---|---|
+| T-12.1 | Follow camera: track the active athlete with lookahead, deadzone, and speed-scaled framing | L | T-1.8 | US-2.3 | |
+| T-12.2 | Dynamic zoom by phase of play — tight in a duel, wide on a counter, widest at a set piece | L | T-12.1 | US-2.3 | |
+| T-12.3 | Off-screen awareness: edge indicators for teammates, opponents, and the ball, with distance | L | T-12.1 | US-2.3, US-4.3 | |
+| T-12.4 | Minimap rework: always-on, tap-to-look, readable at 44 px | M | T-12.3 | US-2.3 | |
+| T-12.5 | Camera handoff on possession change, restarts, and goals — never a cut mid-action | M | T-12.2 | US-2.3 | |
+| T-12.6 | Per-sport camera profiles through the seam, so a rink and a pitch frame differently | M | T-12.2 | US-14.4 | |
+| T-12.7 | Reduced-motion and accessibility pass: no camera motion a player cannot turn off | M | T-12.2 | US-13.4 | |
+| T-12.8 | Culling and LOD against a moving viewport — draw what is on screen, not what exists | M | T-12.1 | US-2.5 | |
+| T-12.9 | Device pass: framing on a 360 px phone in both orientations, one-handed | M | T-12.4 | US-2.3 | |
+
+**Gate 12 (v1.2):** An athlete is legible on a 360 px-wide phone without pinch-zoom; the player can
+always tell where the ball and the nearest opponent are, on screen or off; ≥55 fps holds at 11v11
+with the camera moving; and every camera motion has an off switch.
+
+---
+
+## Phase 13 — Visual overhaul: sprites and pseudo-3D (bonus) → **v1.3**
+
+Also requested by the user (2026-07-30): *"it would be nice to enhance the graphics (either 3dish or
+nice 2d sprites)."*
+
+Everything through v1.0 draws athletes as coloured discs with a facing tick. That was the right call
+— it is legible, it costs nothing, and it never blocked the sim — and it is also the single biggest
+gap between what this is and what it looks like.
+
+**The decision this phase has to make first (T-13.1), before any art is drawn:** sprites or
+pseudo-3D. They are not combinable and they have different costs. Sprites mean an offline sprite
+atlas, eight or sixteen facings, and per-athlete kit tinting; pseudo-3D means an isometric or
+raised-perspective projection, which changes the camera, the field renderer, depth sorting, and every
+existing hit test. `07-decisions.md` gets the answer with the reasoning.
+
+Two constraints are not negotiable and shape everything here: **no runtime network requests** (INV-4
+— no CDN, no external art, so every asset ships in the bundle and counts against `12`'s budget), and
+**colour is never the only signal** (`10` §11 — kit *pattern* and silhouette have to keep carrying
+team identity).
+
+| ID | Task | Size | Deps | Stories | Agent |
+|---|---|---|---|---|---|
+| T-13.1 | Decide sprites vs pseudo-3D; record in `07-decisions.md` with the budget arithmetic | M | — | — | |
+| T-13.2 | Asset pipeline: authored source → packed atlas → typed accessors, all offline and in-bundle | L | T-13.1 | US-1.3 | |
+| T-13.3 | Athlete rendering: facings, run cycle, kit tint, and pattern that survives colour blindness | XL | T-13.2 | US-2.3, US-13.4 | sonnet |
+| T-13.4 | Ball rendering with height, spin, and a shadow that reads as altitude | M | T-13.2 | US-2.3 | sonnet |
+| T-13.5 | Field rendering: pitch, court, rink, and gridiron in the chosen style | L | T-13.2 | US-2.3 | sonnet |
+| T-13.6 | Depth sorting and occlusion, or the 2D equivalent if T-13.1 chose sprites | L | T-13.1 | US-2.5 | |
+| T-13.7 | Action animation: shooting, passing, tackling, saving, celebrating | XL | T-13.3 | US-2.4 | sonnet |
+| T-13.8 | Crowd, net ripple, weather, and stadium dressing — atmosphere at zero sim cost | L | T-13.5 | — | sonnet |
+| T-13.9 | Performance: hold the `12` §6 budgets at 22 entities with the new renderer | L | T-13.6 | US-2.5 | |
+| T-13.10 | Bundle budget: keep every asset inside `12`'s size limits, offline, with no CDN (INV-4) | M | T-13.2 | US-1.3 | |
+| T-13.11 | Graphics quality setting, defaulting from a device probe, with the disc renderer as the floor | M | T-13.9 | US-2.5, US-13.4 | |
+| T-13.12 | Visual regression snapshots for every new renderer path | M | T-13.7 | — | sonnet |
+
+**Gate 13 (v1.3):** The new renderer is the default on a mid-range phone at ≥55 fps with 22
+entities; the disc renderer still exists and is still selectable as the performance floor; bundle and
+memory budgets hold; no runtime network request was added; and team identity survives a
+colour-blindness simulation.
+
+---
+
 ## Cut order if effort runs short
 
 Decided in advance so the decision isn't made under pressure. Cut from the top:
 
-1. **Phase 11** — hockey and football (v1.1 was always a later release)
-2. **T-10.7 / T-10.8** — Live lockstep P2P (Playbook P2P and async codes already deliver the bonus)
-3. **T-8.14** — the transfer market (packs + sell-back are a complete economy without it)
-4. **T-8.3** — tournament mode
-5. **Phase 6 Playbook/arcade depth** — soccer ships Live-only, its Playbook and arcade sets follow
+1. **Phase 13** — the visual overhaul (bonus; the disc renderer is a complete game)
+2. **Phase 12** — camera and framing beyond what T-6.12 delivers (bonus)
+3. **Phase 11** — hockey and football (v1.1 was always a later release)
+4. **T-10.7 / T-10.8** — Live lockstep P2P (Playbook P2P and async codes already deliver the bonus)
+5. **T-8.14** — the transfer market (packs + sell-back are a complete economy without it)
+6. **T-8.3** — tournament mode
+7. **Phase 6 Playbook/arcade depth** — soccer ships Live-only, its Playbook and arcade sets follow
 
 Never cut: engine quality, the cross-sport athlete system, Phase 9 UI/UX, the PWA lifecycle work, or
 the test suite. Those are what make this the game you described rather than a tech demo.
@@ -367,6 +461,9 @@ the test suite. Those are what make this the game you described rather than a te
 - Arcade games T-4.5–T-4.9 and T-6.15 are independent of each other — ideal parallel subagent work.
 - Achievement content (T-8.7) can be authored during Phase 7.
 - The async challenge codes (T-10.1) depend on nothing in WebRTC and can ship any time after Phase 4.
+- Phase 13's art tasks (T-13.3–T-13.5, T-13.7, T-13.8) are independent of gameplay once T-13.1 has
+  chosen a style and T-13.2 has settled the atlas format — the largest genuinely parallel block in
+  the project. T-13.1 itself must not be delegated: it is the judgement call the rest depends on.
 - Test-suite tasks generally parallelise with the feature they cover, provided the interface is
   settled first.
 
