@@ -559,3 +559,73 @@ someone's task:
 **Feel note:** it moves, and the shape holds and shifts — 22 dots keeping a recognisable 4-4-2 and
 sliding forward as a unit is the first moment in the phase that looked like soccer. It is also
 obviously not *playable* yet at that zoom, which is the honest read.
+
+### T-6.11
+
+*22-entity performance work: LOD, culling, spatial-hash tuning, zero-allocation hot path*
+
+**The bench was measuring the wrong sport, and fixing that was the first half of the task.**
+T-1.13's harness ran the *test* sport at eleven a side because that was the only thing that could.
+Now a real one exists, and `pnpm bench` reports both: the test sport as a floor, and soccer as the
+workload the `12` §6 budget is actually about. The test sport moves 22 entities; soccer moves 22
+entities and then decides what they should do.
+
+**Speed was never the problem; jank was.** Soccer's mean sim step measured 0.041 ms against a 4 ms
+budget — 100× headroom. But the *worst* step was 0.98 ms, 24× the mean, which is not a slow
+algorithm, it is the collector. Per step the module was allocating two shape arrays of eleven fresh
+objects, a profile map with 22 more, and an eleven-object array on every carrier decision and twice
+on every pass. Roughly sixty objects a step, 3 600 a second, all of it garbage.
+
+Two fixes, both boring, both measurable:
+
+- **`cachedShape`** — a shape is a pure function of `(formation, phase, side)` and there are eighteen
+  combinations in the entire game. Computed once, frozen, cached forever. Frozen matters: the cache
+  hands the same array to every caller, so a single mutation would corrupt every later step and look
+  like a physics bug.
+- **Scratch buffers** for `pressureFor` and `positionsOf`. Both are consumed synchronously and never
+  retained, which is what makes reuse safe — `pressureOn` returns a number, and `captureOffside`
+  copies what it keeps into its own snapshot.
+
+Worst step **0.98 ms → 0.35 ms**, a 65% cut; mean 0.041 → 0.036; p95 0.073 → 0.057.
+
+**What this task did *not* do, deliberately.** `03` lists LOD, culling, and spatial-hash tuning.
+None of those is needed: the sim is 100× inside budget, and the hash is already sized for the pitch
+via `cellSize: 6`. Culling and LOD are *render* concerns — they matter when the camera moves and
+draws a subset of the world — and that is now T-12.8 in the bonus camera phase, where it belongs.
+Doing it here would have been optimising a measurement that reads 0.036 ms.
+
+**Feel note:** nothing to feel, which is the correct outcome for a performance task. The number that
+matters is the worst frame, because that is the one a player perceives.
+
+### T-6.12
+
+*Camera and minimap tuning for the larger pitch*
+
+**The camera now follows the play instead of fitting the field**, which the user asked for directly
+after seeing a match on a phone. One rule: keep `VISIBLE_SPAN` (45 m) of the field's long axis on
+screen, or the whole field if it is smaller than that. 45 m is a little over a pitch's width — it
+frames a phase of play rather than a match — and it is wider than a basketball court is long, so
+**basketball's framing is unchanged by this**. That is what makes the rule safe to apply to every
+sport without naming one.
+
+**One engine change, and it was a real bug.** `Camera.resize()` did
+`this.minScale = Math.min(this.minScale, this.fitScale())`, which silently clamped an explicitly
+requested zoom floor back down to fit-the-field. Since a rotation or a browser-chrome change counts
+as a resize, on a phone it would have undone the zoom almost immediately — the kind of bug that
+looks like the feature was never implemented. The camera now remembers what the caller *asked for*
+and only recomputes the floor for a camera that asked for the default. There is a test for the
+resize path specifically.
+
+Setting `minScale` above the fit scale is now the documented way to say "do not show the whole
+field". `clampCentre` already handled a viewport smaller than the world, so nothing else needed to
+change — the off-screen indicators and the minimap were both already built and simply had nothing to
+do until now.
+
+**Where the line is with Phase 12.** T-6.12 does the minimum that makes a 105 × 68 pitch legible.
+Dynamic zoom by phase of play, off-screen awareness beyond what exists, the minimap rework, camera
+handoff, and per-sport profiles are all Phase 12, added at the user's request as a bonus phase. A
+sport id in `screen.ts` would be the first thing T-12.6 had to remove, so there isn't one.
+
+**Feel note:** this is the first change in the phase that made it look like a game. Athletes are
+readable, the off-screen triangles are doing real work, and the minimap earns its space now that it
+shows something the main view does not. Still unplayed on an actual phone.

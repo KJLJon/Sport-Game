@@ -1,6 +1,7 @@
 /**
  * @spec    001-initial-dev
  * @phase   1 — Engine core
+ * @task    T-6.12 — Camera and minimap tuning for the larger pitch
  * @task    T-1.8 — Camera: ball follow, smoothing, dynamic zoom, bounds clamp, shake
  * @story   US-2.3 — See the whole field on a small screen
  * @design  04-architecture.md §6 (rendering), 10-ui-ux.md §6 (reduced motion), 01-plan.md R2
@@ -29,7 +30,15 @@ export interface CameraOptions {
   readonly worldHeight: number;
   /** Closest zoom, in screen pixels per world unit. */
   readonly maxScale?: number;
-  /** Furthest zoom. Defaults to whatever fits the whole field. */
+  /**
+   * Furthest zoom — the floor the camera never zooms out past. Defaults to whatever fits the whole
+   * field.
+   *
+   * Setting it **above** the fit-the-field scale is the supported way to say "do not show the whole
+   * field": a 105 × 68 pitch fitted to a phone puts an athlete at about three pixels, which is
+   * legible only in the sense that it is on screen. The camera then follows and clamps to the field
+   * edges instead, and `clampCentre` already handles a viewport smaller than the world.
+   */
   readonly minScale?: number;
   /** Fraction of the gap closed per second when following. Higher is snappier. */
   readonly followRate?: number;
@@ -55,6 +64,8 @@ export class Camera {
   private readonly worldHeight: number;
 
   private readonly maxScale: number;
+  /** What the caller asked for, or `undefined` for "fit the field". Survives a resize. */
+  private readonly requestedMinScale: number | undefined;
   private minScale: number;
   private readonly followRate: number;
   private readonly zoomRate: number;
@@ -78,6 +89,7 @@ export class Camera {
     this.worldHeight = options.worldHeight;
 
     this.maxScale = options.maxScale ?? 60;
+    this.requestedMinScale = options.minScale;
     this.minScale = options.minScale ?? this.fitScale();
     this.followRate = options.followRate ?? 6;
     this.zoomRate = options.zoomRate ?? 2.5;
@@ -100,7 +112,12 @@ export class Camera {
   resize(width: number, height: number): void {
     this.viewWidth = width;
     this.viewHeight = height;
-    this.minScale = Math.min(this.minScale, this.fitScale());
+
+    // A caller's explicit floor survives a resize. It used to be clamped down to `fitScale()` here,
+    // which quietly undid any request to stay zoomed in the first time the viewport changed — and a
+    // rotation or a browser-chrome change counts, so on a phone it undid it almost immediately.
+    // Only a camera that asked for the default gets its floor recomputed from the new viewport.
+    this.minScale = this.requestedMinScale ?? this.fitScale();
     this.currentScale = clamp(this.currentScale, this.minScale, this.maxScale);
     this.targetScale = clamp(this.targetScale, this.minScale, this.maxScale);
     this.clampCentre();

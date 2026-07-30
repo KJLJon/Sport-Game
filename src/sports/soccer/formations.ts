@@ -2,6 +2,8 @@
  * @spec    001-initial-dev
  * @phase   6 — Soccer · all three modes
  * @task    T-6.10 — Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase
+ * @task    T-6.11 — 22-entity performance work: LOD, culling, spatial-hash tuning, zero-allocation
+ *                   hot path
  * @story   US-4.1 — Play an 11v11 soccer match
  * @design  06-game-design.md §3.2 (soccer), 04-architecture.md §5 (the sport module seam),
  *          05-data-model.md §3.4 (position weights)
@@ -185,13 +187,45 @@ export function roleSpot(role: FormationRole, phase: PlayPhase, side: PitchSide)
   return { id: role.id, x: side === 0 ? x : mirrorX(x), y };
 }
 
-/** The whole shape, in metres, for one side in one phase. */
+/**
+ * The whole shape, in metres, for one side in one phase. Allocates; see `cachedShape`.
+ */
 export function shapeFor(
   formationId: string,
   phase: PlayPhase,
   side: PitchSide,
 ): readonly RoleSpot[] {
   return formation(formationId).roles.map((role) => roleSpot(role, phase, side));
+}
+
+const shapeCache = new Map<string, readonly RoleSpot[]>();
+
+/**
+ * `shapeFor`, memoised and frozen — the version the simulation calls sixty times a second.
+ *
+ * A shape is a pure function of `(formation, phase, side)`, and there are eighteen combinations in
+ * the whole game: three formations × three phases × two ends. Rebuilding one allocated 11 objects
+ * and an array *per side per step*, which is 22 objects sixty times a second doing nothing but
+ * feeding the collector — and it showed up as a worst-case sim step 24× the mean while the mean
+ * itself sat comfortably inside budget. Jank, not slowness, which is the harder thing to see.
+ *
+ * Frozen because the cache hands out the same array to every caller: one mutation would corrupt
+ * every subsequent step, and that is a bug that would look like a physics problem.
+ */
+export function cachedShape(
+  formationId: string,
+  phase: PlayPhase,
+  side: PitchSide,
+): readonly RoleSpot[] {
+  const key = `${formationId}|${phase}|${side}`;
+  const hit = shapeCache.get(key);
+  if (hit !== undefined) return hit;
+
+  const built = Object.freeze(
+    shapeFor(formationId, phase, side).map((spot) => Object.freeze(spot)),
+  );
+  shapeCache.set(key, built);
+  return built;
 }
 
 /**
@@ -201,7 +235,7 @@ export function shapeFor(
  * high line while authoring a deep back four — the shape is the single source of truth about itself.
  */
 export function defensiveLineX(formationId: string, phase: PlayPhase, side: PitchSide): number {
-  const shape = shapeFor(formationId, phase, side).slice(1);
+  const shape = cachedShape(formationId, phase, side).slice(1);
   const depths = shape.map((spot) => (side === 0 ? spot.x : PITCH.length - spot.x));
   return side === 0 ? Math.min(...depths) : PITCH.length - Math.min(...depths);
 }

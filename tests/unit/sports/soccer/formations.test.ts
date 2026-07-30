@@ -2,6 +2,7 @@
  * @spec    001-initial-dev
  * @phase   6 — Soccer · all three modes
  * @task    T-6.10 — Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase
+ * @task    T-6.11 — 22-entity performance work: zero-allocation hot path
  * @story   US-4.1 — Play an 11v11 soccer match
  * @design  06-game-design.md §3.2
  *
@@ -14,6 +15,7 @@ import { CENTRE_X, PITCH } from '@/sports/soccer/pitch.ts';
 import {
   DEFAULT_FORMATION,
   FORMATIONS,
+  cachedShape,
   defensiveLineX,
   formation,
   phaseFor,
@@ -192,5 +194,38 @@ describe('reading the phase', () => {
 
   it('treats the halfway line as not yet attacking', () => {
     expect(phaseFor(0, 0, CENTRE_X)).toBe('building');
+  });
+});
+
+describe('the cached shape (T-6.11)', () => {
+  it('hands back the identical array every time, which is the point of it', () => {
+    const first = cachedShape('4-4-2', 'attacking', 0);
+    expect(cachedShape('4-4-2', 'attacking', 0)).toBe(first);
+    // A different key is a different shape, not the same one.
+    expect(cachedShape('4-4-2', 'defending', 0)).not.toBe(first);
+    expect(cachedShape('4-4-2', 'attacking', 1)).not.toBe(first);
+    expect(cachedShape('4-3-3', 'attacking', 0)).not.toBe(first);
+  });
+
+  it('agrees exactly with the uncached builder', () => {
+    for (const shape of FORMATIONS) {
+      for (const phase of PHASES) {
+        for (const side of [0, 1] as const) {
+          expect(cachedShape(shape.id, phase, side)).toEqual(shapeFor(shape.id, phase, side));
+        }
+      }
+    }
+  });
+
+  it('is frozen, because one mutation would corrupt every later step', () => {
+    const shape = cachedShape('4-4-2', 'building', 0);
+    expect(Object.isFrozen(shape)).toBe(true);
+    expect(Object.isFrozen(shape[0])).toBe(true);
+    // Frozen in a way that actually holds: a stray write changes nothing.
+    const before = (shape[0] as { x: number }).x;
+    expect(() => {
+      (shape as unknown as { 0: { x: number } })[0].x = 999;
+    }).toThrow();
+    expect((shape[0] as { x: number }).x).toBe(before);
   });
 });

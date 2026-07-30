@@ -2,6 +2,7 @@
  * @spec    001-initial-dev
  * @phase   6 — Soccer · all three modes
  * @task    T-6.10 — Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase
+ * @task    T-6.11 — 22-entity performance work: zero-allocation hot path
  * @story   US-4.1 — Play an 11v11 soccer match
  * @story   US-14.4 — Add a sport without touching the engine
  * @design  04-architecture.md §5 (the sport module seam), 06-game-design.md §3.2
@@ -59,9 +60,9 @@ import { pressureOn, resolveTackle, tackleReach, tackleTiming } from './defendin
 import { commitFoul, isPlayingAdvantage, tickAdvantage } from './fouls.ts';
 import {
   DEFAULT_FORMATION,
+  cachedShape,
   formation,
   phaseFor,
-  shapeFor,
   soccerRoles,
   type PlayPhase,
 } from './formations.ts';
@@ -254,7 +255,7 @@ export const soccer: SoccerModule = {
     const shapes: [string, string] = [DEFAULT_FORMATION, DEFAULT_FORMATION];
 
     for (const side of [0, 1] as const) {
-      const shape = shapeFor(shapes[side], 'building', side);
+      const shape = cachedShape(shapes[side], 'building', side);
       for (let index = 0; index < squadSize; index++) {
         const spot = shape[index] as { x: number; y: number };
         const id = world.spawn({
@@ -479,8 +480,8 @@ function moveEveryone(
     1: phaseFor(1, possession, ballX),
   };
   const shapes: Record<0 | 1, readonly { x: number; y: number }[]> = {
-    0: shapeFor(state.formations[0], phases[0], 0),
-    1: shapeFor(state.formations[1], phases[1], 1),
+    0: cachedShape(state.formations[0], phases[0], 0),
+    1: cachedShape(state.formations[1], phases[1], 1),
   };
 
   // Profiles are built once, up front, rather than inside `profileOf`. Two reasons, and the first
@@ -819,15 +820,36 @@ function decide(state: SoccerState, world: World, step: number, rng: Rng): reado
   return [];
 }
 
+/**
+ * Scratch buffers for the hot path (T-6.11).
+ *
+ * `pressureFor` runs on every carrier decision and `positionsOf` twice on every pass, and both used
+ * to `filter().map()` eleven fresh objects each time. Reusing one array of eleven records removes
+ * that garbage entirely. Safe because both are consumed synchronously and never retained —
+ * `pressureOn` reads them and returns a number, and `captureOffside` copies what it keeps into its
+ * own snapshot.
+ *
+ * Module-level rather than per-state: a step is single-threaded and never re-entrant, and one match
+ * at a time is the only thing that runs. Two concurrent matches would need these on the state, and
+ * the day that happens this comment is the warning.
+ */
+const pressureScratch: { x: number; y: number; marking: number }[] = [];
+const positionScratch: [PlayerPosition[], PlayerPosition[]] = [[], []];
+
 function pressureFor(state: SoccerState, world: World, carrier: EntityId, side: PitchSide): number {
-  const defenders = state.squads[opponent(side)]
-    .filter((id) => !isSentOff(state.rules, id))
-    .map((id) => ({
+  pressureScratch.length = 0;
+  for (const id of state.squads[opponent(side)]) {
+    if (isSentOff(state.rules, id)) continue;
+    pressureScratch.push({
       x: world.x[id] as number,
       y: world.y[id] as number,
       marking: state.ratings.get(id)?.marking ?? 50,
-    }));
-  return pressureOn({ x: world.x[carrier] as number, y: world.y[carrier] as number }, defenders);
+    });
+  }
+  return pressureOn(
+    { x: world.x[carrier] as number, y: world.y[carrier] as number },
+    pressureScratch,
+  );
 }
 
 function shoot(
@@ -944,9 +966,13 @@ function choosePassKind(from: { x: number; y: number }, world: World, target: En
 }
 
 function positionsOf(state: SoccerState, world: World, side: PitchSide): PlayerPosition[] {
-  return state.squads[side]
-    .filter((id) => !isSentOff(state.rules, id))
-    .map((id) => ({ id, x: world.x[id] as number, y: world.y[id] as number }));
+  const out = positionScratch[side];
+  out.length = 0;
+  for (const id of state.squads[side]) {
+    if (isSentOff(state.rules, id)) continue;
+    out.push({ id, x: world.x[id] as number, y: world.y[id] as number });
+  }
+  return out;
 }
 
 function resetShape(state: SoccerState, side: PitchSide): void {

@@ -1,6 +1,7 @@
 /**
  * @spec    001-initial-dev
  * @phase   1 — Engine core
+ * @task    T-6.12 — Camera and minimap tuning for the larger pitch
  * @task    T-1.8 — Camera
  * @story   US-2.3 — See the whole field on a small screen
  * @design  04-architecture.md §6, 10-ui-ux.md §6
@@ -309,5 +310,67 @@ describe('coordinate conversion', () => {
     const screen = cam.worldToScreen(14, 7.5, { x: 0, y: 0 });
     expect(screen.x).toBeCloseTo(400, 6);
     expect(screen.y).toBeCloseTo(200, 6);
+  });
+});
+
+describe('a camera told not to fit the whole field (T-6.12)', () => {
+  const PITCH_W = 105;
+  const PITCH_H = 68;
+
+  function zoomed(width = 900, height = 460) {
+    return new Camera({
+      width,
+      height,
+      worldWidth: PITCH_W,
+      worldHeight: PITCH_H,
+      minScale: width / 45,
+      maxScale: 34,
+    });
+  }
+
+  it('starts zoomed in rather than fitted', () => {
+    const camera = zoomed();
+    const fit = Math.min(900 / PITCH_W, 460 / PITCH_H);
+    expect(camera.scale).toBeGreaterThan(fit);
+    // 45 m of the long axis on screen.
+    expect(900 / camera.scale).toBeCloseTo(45, 6);
+  });
+
+  it('keeps that floor across a resize — the bug this fixed', () => {
+    const camera = zoomed();
+    const before = camera.scale;
+    // A rotation. Previously this clamped the floor down to fit-the-field and undid the zoom.
+    camera.resize(460, 900);
+    expect(camera.scale).toBe(before);
+    camera.update(1 / 60, null);
+    expect(camera.scale).toBeGreaterThan(Math.min(460 / PITCH_W, 900 / PITCH_H));
+  });
+
+  it('still recomputes the floor for a camera that asked for the default', () => {
+    const camera = new Camera({
+      width: 900,
+      height: 460,
+      worldWidth: PITCH_W,
+      worldHeight: PITCH_H,
+    });
+    const fitted = Math.min(900 / PITCH_W, 460 / PITCH_H);
+    expect(camera.scale).toBeCloseTo(fitted, 6);
+
+    camera.resize(1800, 920);
+    expect(camera.scale).toBeCloseTo(Math.min(1800 / PITCH_W, 920 / PITCH_H), 6);
+  });
+
+  it('follows the ball and stays inside the field', () => {
+    const camera = zoomed();
+    for (let i = 0; i < 240; i++) {
+      camera.update(1 / 60, { x: 5, y: 3, vx: 0, vy: 0 });
+    }
+    const halfW = 900 / camera.scale / 2;
+    const halfH = 460 / camera.scale / 2;
+    expect(camera.x).toBeGreaterThanOrEqual(halfW - 1e-6);
+    expect(camera.y).toBeGreaterThanOrEqual(halfH - 1e-6);
+    // And it actually moved towards the corner rather than staying centred.
+    expect(camera.x).toBeLessThan(PITCH_W / 2);
+    expect(camera.y).toBeLessThan(PITCH_H / 2);
   });
 });
