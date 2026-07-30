@@ -4,7 +4,9 @@
  * @task    T-6.10 — Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase
  * @task    T-6.11 — 22-entity performance work: zero-allocation hot path
  * @task    T-6.13 — Soccer derivation weights, sub-skills, familiarity tuning
+ * @task    T-6.14 — Soccer Playbook: `PlaybookAdapter` + phase turns
  * @story   US-4.1 — Play an 11v11 soccer match
+ * @story   US-15.2 — Call plays and see them resolve
  * @story   US-14.4 — Add a sport without touching the engine
  * @design  04-architecture.md §5 (the sport module seam), 06-game-design.md §3.2
  * @invariant INV-2 (seeded PRNG only), INV-5 (no sport logic in the engine), INV-8 (determinism),
@@ -111,6 +113,7 @@ import {
 import { rollRatings, rosterEntry, type SoccerRatings } from './roster.ts';
 import { SOCCER_PHYSICAL, SOCCER_POSITION_WEIGHTS, SOCCER_WEIGHTS } from './weights.ts';
 import { SOCCER_XP_AWARDS } from './xp.ts';
+import { soccerPlaybook } from './playbook/index.ts';
 import { SHOOTING, takeShot, type ShotInFlight } from './shooting.ts';
 import {
   createStamina,
@@ -245,6 +248,7 @@ export const soccer: SoccerModule = {
   ai,
   render,
   hud,
+  playbook: soccerPlaybook,
 
   createState(setup: MatchSetup, world: World, rng: Rng): SoccerState {
     const squadSize = Math.min(setup.squadSize ?? SQUAD, roles.roles.length);

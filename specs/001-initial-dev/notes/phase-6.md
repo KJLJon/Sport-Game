@@ -668,3 +668,235 @@ deliberately ungated for the same reason basketball's five are. The seam held he
 **Feel note:** nothing to play, but the position table is the first thing that will make an athlete
 card *about soccer* rather than about ratings — a 34-rated overall for a striker at centre back is
 the sort of number that starts an argument, which is what a position table is for.
+
+### T-6.14
+
+**The first `PlaybookAdapter` that is not basketball's, which is the whole point of the row.** T-5.1
+built the seam against one sport and a spec paragraph. This is the test of it, and the honest answer
+is that **the turn engine needed no change at all**. Soccer's turns are phases rather than
+possessions, its clock counts one half at a time, a goal is worth one point rather than two or three,
+and its calls persist between turns — and every one of those was already expressible. The two members
+that carried it are `turnKind` (already `'possession' | 'phase'`) and `CallOption.persists`, which
+T-5.1 added on the strength of `09` §2.3 alone, before there was a soccer to need it. Zero engine
+changes; this task adds nothing to the Gate 6 list.
+
+**One phase enum, two points of view.** `09` §2.3 lists "build-up, progression, final third, chance,
+set piece, and the defensive equivalents". The defensive equivalents are deliberately *not* a second
+enum. A phase is a fact about where the ball is and what is being attempted, and both sides are in it
+at once — one playing out, one pressing. `PlaybookState.possession` already says which is which, so a
+second enum would be the same five states written twice and one more thing to keep in step;
+`phaseName(phase, attacking)` supplies each side's wording instead.
+
+**The turn budget was derived, not picked, and the derivation is in the module doc.** `09` §2.3 wants
+18–24 turns and regulation is 5400 game seconds, so a turn has to average 225–300 of them. Solving
+the transition graph's visit frequencies gives `f = b` exactly and `p = b·α/β`, and
+`PHASE_TURN_SECONDS` was then solved *backwards* from a target of 22 turns — which is why the figures
+are 340/300/220/90/100 and not round numbers. Measured over 40 CPU-vs-CPU matches: **20.6 turns** in
+normal time. The arithmetic cannot rot unnoticed because `adapter.test.ts` fails when the mean leaves
+the band.
+
+**The transition graph is the part worth keeping when T-6.20 replaces the odds.** `LOST_TO` is where
+the model stops being a queue of identical build-ups: lose it playing out from the back and the
+opponent starts in *your* final third, lose it in their box and they restart from theirs. That single
+table is what makes a high press a bet rather than a stat tweak, and it is the hook T-6.19's press
+line will pull on.
+
+**A real defect found, capped inside the sport module, and not fixed at its root.**
+`MatchStateMachine` offers another overtime period for as long as the score is level and
+`MatchRules.overtimeSteps` is set. That is right for basketball — a tied basketball game plays OT
+after OT — and wrong for soccer, which plays exactly two extra halves and then takes penalties.
+Nothing capped it, so a level soccer match ran until the turn engine's `MAX_TURNS` guard caught it:
+**the worst seed in the first batch reached period 15.** The adapter's `isFinished` now caps it at two
+extra halves. **Live has the same bug**, and it is not fixed here: T-6.14 owns a Playbook adapter, not
+soccer's Live clock. The proper fix is an engine-side `maxOvertimePeriods` on `MatchRules`, which
+would serve every sport instead of one mode of one — logged for **T-6.17**, whose whole job is
+engine-core work of exactly this shape. A match still level after extra time is a draw for now; the
+shootout that should decide it is T-6.15's arcade game, wired in by T-6.22.
+
+**What is deliberately baseline, and who takes it.** `resolve()` walks the graph off a table of base
+probabilities (`PHASE_ODDS`) rather than off Live's own models, because **T-6.20** owns that swap —
+and a phase graph nothing walks is untestable, so the alternative was not "no resolution" but "no
+proof". The graph, the actor selection, the events, and the expectation are final; only the middle
+moves. Likewise `calls.ts` ships **two of `09` §2.3's five intent dimensions** — tempo and press line,
+the two that move how long a turn is and where the ball is won, which is the whole of what a phase
+turn is. **T-6.19** adds width, risk, and focus, none of which change the graph. Narration is one line
+per outcome with a tone, which **T-6.21** deepens into variety plus the animated pitch diagram. Key
+moments return `null`, because **T-6.22** owns them and `09` §2.4's soccer row needs the arcade games
+T-6.15 and T-6.23–T-6.26 have not built yet — proposing a moment whose mini-game is missing would
+make the screen fall back to the sim's outcome on every single turn, which is worse than not asking.
+
+**The open design question T-6.19 has to settle, recorded rather than pre-empted.**
+`PlaybookCall.call` is a single `CallId`, and five independent intent dimensions do not fit in one.
+Either the id becomes composite (`tempo:direct|width:wide|…`), which keeps the seam untouched and
+makes the CPU's search space explicit, or `PlaybookCall` grows a field, which reads better on the
+screen. One dimension per side needs neither, so it is not decided here.
+
+**Goals per match sit at 1.8 against a real ~2.7, and chasing it now would be the wrong fix.** The
+shortfall is in how often a possession reaches the box, not in how often a chance is taken — so
+raising `chanceGoal` would buy the scoreline by making every chance a coin flip. **T-6.18** owns it,
+with T-6.20's swap to Live's models landing in between and moving the shape again. Recorded here so
+the next session does not rediscover it as a surprise.
+
+**Not done, and named so it is not mistaken for done: the Playbook screen is still basketball-only.**
+`src/ui/screens/playbook-match.ts` imports `basketball` and `basketballSquads` directly, so
+`#/play/playbook` cannot reach soccer and this task is headless. That is on purpose — the screen work
+belongs with **T-6.21**, which is when there is a pitch diagram to draw rather than a court one, and
+doing it now would mean two passes over the same file and an E2E run for each.
+
+**INV-11's cross-mode parity harness is basketball-only** (`tests/invariants/inv-11-cross-mode-parity.test.ts`
+imports `basketball` and `basketballSquads` by name). Soccer now has both modes, so a soccer parity
+run is possible for the first time — it belongs with **T-6.18**, since parity is a balance
+measurement and the resolution model changes under it in T-6.20 first.
+
+**Feel note:** unplayable by hand so far, but reading a simulated match back turn by turn, the phase
+ladder does the thing it was supposed to: a possession that survives two turns *feels* like it is
+building towards something, and losing it in your own third genuinely stings because you can see the
+opponent start their next turn in your box. The one-line narration is doing more work than expected —
+"Home 7 wins it back off Away 4" reads as a match report already. What is obviously missing is
+variety; by turn ten the same eight sentences are recognisable, which is exactly T-6.21's job.
+
+### T-6.19
+
+**The question T-6.14 left open, and how it was answered.** `PlaybookCall.call` is a single
+`CallId`, and `09` §2.3's five intent dimensions do not fit in one. The two candidates were a
+composite id (`tempo:direct|width:wide|…`) and an optional `intents` map on `PlaybookCall`. **The map
+won**, for three reasons: it costs one optional field that every sport not setting it ignores; it
+keeps `call` meaning exactly what it has always meant, so narration, match history, and T-6.22's read
+window never have to learn what a dimension is; and it keeps the CPU's own decision out of a string
+parser. The composite id would also have made `PlaybookCall.call` a value that no `CallOption.id`
+returned by `calls()` ever equals, which is a quiet lie about the seam. `CallOption` also gained an
+optional `dimension`, which is what lets the call sheet lay out four rows of chips instead of one
+list of twelve. Both additions are additive and optional; basketball is untouched.
+
+**Each side holds all five intents, always — that is the model, and it took a false start to see
+it.** The obvious reading is two catalogues that swap over with possession, offence and defence. That
+is wrong: a manager sets a shape and it is their shape whether the ball is theirs or not. What
+changes with possession is which of the five *say* anything. Tempo speaks only with the ball, the
+press line only without it, and **width, risk, and focus speak in both roles and mean different
+things in each** — playing wide stretches a defence, defending wide covers the flanks and opens the
+middle; ambitious with the ball is a through ball, ambitious without it is diving in. That is why
+every option carries an `attack` effect *and* a `defend` effect rather than living in one catalogue.
+
+**The composition rule, which replaced T-6.14's hand-written polarity.** Applied odds are
+`base + attackerSum − defenderSum`. Subtracting the defender is what makes a defensive intent *deny*
+rather than help: a high press raises `climb` in its defend column, and raising the number that gets
+subtracted is what makes the ball harder to move. T-6.14 wrote that by hand for two intents
+(`tempo.climb − press.denyClimb`); this is the same arithmetic generalised to five with no special
+cases. A sum rather than a product, deliberately — five small independent decisions should add up to
+a noticeable one and never multiply into a runaway.
+
+**Every dimension's middle option is exactly neutral, and a test asserts it.** This is not tidiness:
+it is what keeps T-6.14's turn-budget derivation true. A match of balanced intents *is* the match
+that derivation describes, and everything else is a departure the player chose. Measured after the
+change: **20.9 turns** in normal time and **1.9 goals** — both effectively unmoved, and drawn matches
+fell from 15/40 to 10/40, which is the five intents making matches more decisive rather than longer.
+
+**Focus is the odd one out and moves *who*, not *how likely*.** `09` §2.3 makes it "a flank, a
+channel, or a specific athlete", which is a statement about people. So it steers `primaryFor()`'s
+selection — pointing at a flank adds to everyone in that channel, naming an athlete adds to them, and
+being named by the *other* side subtracts. A focus that also moved probabilities would just be a
+second risk dial wearing a different label. **The one exception** is marking: naming an opponent both
+follows them around and costs them something on the occasions they get on the ball anyway, which is
+`09` §2.2's "Double the Star" in soccer's terms.
+
+**Channels come from the formation's own `y`, averaged across every formation that names the role,**
+because a role's position differs slightly between shapes (`lcb` is 0.38 in 4-4-2 and 0.30 in 3-5-2)
+and a squad's formation is chosen when the squad is built rather than carried on every athlete. The
+boundaries are at 0.30 and 0.70 rather than at the thirds, so **a *left*-sided centre back is a centre
+back** — the widest central role averages 0.41 and the narrowest wide one 0.16, so the averaging
+cannot flip an answer.
+
+**The baseline CPU grew with the catalogue and is still deliberately blind.** It now scores every
+option on every dimension it is asked about by the ratings that option names (`IntentOption.keys`),
+with a seeded wobble, and takes the best per dimension — forked by `dimension:option` so adding an
+option later cannot shift the ones beside it. It never looks at what the other side is doing, which
+is exactly the line `modes/playbook/types.ts` draws between `coach` and `autoCall`, and the gap
+**T-6.22** fills.
+
+**`calls.ts` is gone.** T-6.14 put the two intents it shipped there; with all five and their effect
+tables the file was a thin re-export in front of `intents.ts`, so it was deleted rather than kept as
+a hop. One owner for the catalogue.
+
+**Feel note:** the intents are the first thing in the Playbook run that feels like *managing* rather
+than picking. Pinning a side to `wide` and watching corners climb over thirty matches is a real
+tactical lever, and defending `deep` genuinely does turn a match into a siege. The one that does not
+land yet is focus — steering the ball to a flank is invisible without the pitch diagram to see it on,
+which is T-6.21's job and the point at which this whole set becomes legible rather than statistical.
+
+### T-6.20
+
+**Basketball needed no equivalent of `model.ts`, and that is the whole shape of this task.**
+Basketball's Playbook calls `shotProbability()` directly, because basketball's Live shot model *is* a
+probability — one function, one number, borrow it. Soccer's is not. `takeShot()` puts a ball in the
+air with a placement error on it, and whether that is a goal is then decided by geometry and by a
+goalkeeper who dives at it. There is no number to borrow. So `09` §7's "read the same model, not
+merely the same numbers" had to be satisfied by **composition**: set up the shot the Live sim would
+set up, put it through the same `placementError`, `shotSpeed`, `keeperSpot`, and `saveOutcome`, and
+read off what happened. Five Live functions, no second curve.
+
+That is a *stronger* guarantee than basketball's, not a weaker one. Tuning `SHOOTING.baseError` or
+`KEEPER.diveSpeed` now moves Playbook too — which is exactly what `09` §7 exists for and what a
+hand-fitted table could never promise. The tests are written to fail if somebody reintroduces one:
+raising `shortPass` must not help a lofted ball, because `PASS_PROFILES.lofted.rating` is `longPass`.
+
+**The passing conversion is the piece worth understanding.** `passError()` returns an *angular*
+error, so the lateral miss at the receiver is `angle × distance`. Treating that as the standard
+deviation of a normal draw and asking for the chance the ball lands inside a receiver's control
+radius is the whole conversion — and it is why a longer ball is harder without anyone writing down
+that a longer ball is harder. It needed the normal CDF, so there is now a local `erf()` (A&S 7.1.26);
+kept in `model.ts` rather than promoted to `engine/`, because one caller is not a seam.
+
+**Tempo and width stopped being modifiers.** A phase is carried by a *pass plan* — patient is three
+short balls, balanced is two, direct is one lofted one, and in the final third `wide` buys a cross
+rather than a through ball. The risk difference then falls out of `PASS_PROFILES`' own figures
+instead of being asserted by a tuning constant, and the compounding across three passes is the honest
+reason a patient possession still breaks down in midfield.
+
+**The headline result: `MODEL_CALIBRATION` is zero on all three phases.** The hook was built expecting
+to need it — a physical model does not land on a target distribution by itself — and the measurement
+said otherwise. With the Live passing model driving the climb and the create, the baseline batch came
+back at **21.98 turns** in normal time. T-6.14 derived 18–24 from a hand-fitted table solved backwards
+from `09` §2.3; T-6.20 reached the middle of the same band from soccer's own passing physics with
+nothing tuned to make it. **Two independent routes to the same number** is the strongest evidence
+available that the phase durations in `PHASE_TURN_SECONDS` are actually right. The zeros are kept
+rather than deleted because T-6.18 wants one named number per phase to hold, and a non-zero value
+there would mean the model and the budget drifted apart and somebody chose the budget — a decision
+worth being able to see.
+
+**A tension that had to be resolved rather than tuned away: 18–24 turns and ~25 shots do not fit.**
+One attempt per `chance` turn measured out at 5.8 shots and **1.45 goals** a match. Raising the
+create odds did nothing — `sequenceSuccess` was already hitting the 0.9 ceiling — because the
+bottleneck was never conversion, it was that a 22-turn match cannot contain 25 shots. The resolution
+is that a `chance` phase *is* minutes of pressure in and around the box, so it gets **several
+attempts**: the ball comes back, someone else has a go, and the phase ends at the first one that goes
+in. That is one turn either way, so the budget is untouched. After it: **22.0 turns, 2.4 goals, 10.6
+attempts**, and matches going to extra time fell from 18/40 to 16/40. Still short of a real ~2.7 and
+~25, and the remaining distance is more attempts per spell rather than better shots — **T-6.18**.
+
+**The expectation is now real xG.** `expectedGoalChance()` walks the same three stages the draw walks
+— past a body, into the frame, past the keeper — analytically, using the normal CDF of the placement
+error against the distance from the aim point to each post and to the bar. It is the same geometry
+the draw uses rather than a second model of it, and a test asserts the sampled goal rate and the mean
+analytic xG agree over 1 500 shots. That matters because `09` §2.4's "the sim also computes what
+*would* have happened" is only honest if the number is the model's own opinion.
+
+**Two things were deleted rather than left lying around.** `PHASE_ODDS` lost every entry that was a
+model of play (`buildUpAdvance`, `progressionAdvance`, `finalThirdChance`, `chanceGoal`,
+`setPieceGoal`, `savedShare`, `blockedShare`); the three that survive were never models of anything,
+just how a phase that produced no chance still ends up with a corner. `SOCCER_RESOLUTION` lost its
+three `…FromEdge` levers, because after the swap the rating edge reaches the odds through
+`interceptChance` *and* through the Live models' own rating terms, and a third lever on top would have
+been the same rating counted twice.
+
+**One simplification, consistent with an existing logged gap.** `saveChance` measures the dive from
+the keeper's y to the *aim* point, which `keeper.ts` documents as correct only for a keeper on their
+line — an advanced keeper should be judged against the intercept point, and computing that needs the
+launch velocity threaded through, which is the same gap T-6.9 logged for the chip. So the Playbook
+keeper stands near their line (`SHOT_MODEL.keeperAggression` 0.35), which makes the two agree instead
+of quietly flattering the shooter. Fixing the chip fixes this too.
+
+**Feel note:** this is the first version where a match *reads* like soccer rather than like a Markov
+chain. Watching a spell go save → corner → header wide, with the xG on each attempt, is genuinely
+tense in a way the flat table never was — and a 25-yard effort from a poor finisher now misses the
+frame entirely rather than being a slightly worse coin flip, which is exactly the difference between
+a probability and a physical model. Still no way to see it but a test log; T-6.21.

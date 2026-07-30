@@ -12,22 +12,34 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.14 — Soccer Playbook: `PlaybookAdapter` + phase turns
-- **Status:** todo. **13 of 27 Phase 6 tasks `done`** (T-6.1 – T-6.13). Tree clean and pushed.
-- **Branch:** `claude/phase-6-start-lb7kbt` — PR #8, draft, green.
+- **Task:** T-6.21 — Soccer Playbook: narration and animated pitch diagram for turn outcomes
+- **Status:** todo. **16 of 27 Phase 6 tasks `done`** (T-6.1 – T-6.14, T-6.19, T-6.20). Tree clean
+  and pushed.
+- **Branch:** `claude/phase-6-soccer-dev-mo0yec` — PR **#9**, draft. PR #8 was merged, so this
+  branch restarted from `main`; do not reopen or push to #8.
 - **Soccer is playable and legible.** `#/play/live/soccer` mounts a real 11v11 match with a camera
-  that follows the play. 2 538 unit/integration tests and 38 E2E specs green; `pnpm bench` 0.036 ms
-  mean against a 4 ms budget.
-- **Next step:** T-6.14. Read `09-modes-and-arcade.md` §2 and
-  `src/modes/playbook/types.ts` (`PlaybookAdapter`), then
-  `src/sports/basketball/playbook/` — soccer's is the **first adapter that is not basketball's**,
-  which is what makes it the real test of T-5.1's seam. A soccer Playbook turn is a *phase of play*,
-  not a possession: `formations.ts` already has `PlayPhase` and `thirdFor`, and `09` §2.2's turn
-  budget has to be re-derived for soccer because a basketball match is ~210 turns and a soccer match
-  should be far fewer.
-- **Then, in order:** T-6.19 → T-6.20 → T-6.21 → T-6.22 (Playbook), T-6.15 + T-6.23 – T-6.27
-  (arcade), T-6.16 (art & audio), T-6.17 (engine-core refactor audit), T-6.18 (balance pass), then
-  the Gate 6 record.
+  that follows the play. 2 612 unit/integration tests green (146 files); `pnpm bench` 0.036 ms mean
+  against a 4 ms budget. E2E untouched since T-6.12 — nothing since then has changed a screen.
+- **Soccer's Playbook is complete except for its screen.** `src/sports/soccer/playbook/` has the
+  adapter (`index.ts`), the phase turn model (`phases.ts`), all five intents (`intents.ts`), the
+  bridge to Live's own passing/shooting/keeper models (`model.ts`), the graph walker
+  (`resolution.ts`), one-line narration, and squad building. A simulated match runs **22.0 turns** in
+  normal time, **2.4 goals**, **10.6 attempts**.
+- **Next step:** T-6.21, and it is the one that needs a decision made first. Two pieces:
+  1. **Narration variety.** `narration.ts` has one line per outcome and the shape is settled — adding
+     variants is adding strings, picked from a seeded fork. The material is richer than T-6.14 left
+     it: a turn now carries the pass kind and count, the shot distance, per-attempt xG, and whether
+     the actor was being marked.
+  2. **The animated pitch diagram, and the screen.** `src/ui/screens/playbook-match.ts` imports
+     `basketball` and `basketballSquads` **by name**, so `#/play/playbook` cannot reach soccer at all.
+     Making it sport-aware is the screen change this phase has been deferring, and it is where the
+     E2E suite has to run again. `phaseBallX()`/`phaseThird()` give the diagram its geometry and
+     `SHOT` events now carry `x`/`y`, so the data is already there. Look at
+     `src/sports/basketball/playbook/diagram.ts` and `src/modes/playbook/diagram.ts` first.
+- **Then, in order:** T-6.22 (Playbook), T-6.15 + T-6.23 – T-6.27 (arcade), T-6.16 (art & audio),
+  T-6.17 (engine-core refactor audit), T-6.18 (balance pass), then the Gate 6 record.
+- **T-6.21 is the tag point.** It is the first task that puts soccer's Playbook on a screen the user
+  can reach from a phone (`#/play/playbook`). Nothing before it is worth deploying.
 
 ### Engine-core changes this phase — the Gate 6 list
 
@@ -53,7 +65,17 @@ Gate 6 asks that `engine/` be touched only for genuine core improvements. Two, b
 3. **`/play` is a Phase-2 placeholder**, so Home → Play is a dead end and every mode is deep-link
    only. T-8.1's modes hub fixes it. This matters because the user tests on a phone against a
    deployed build: `#/play/live/soccer`, `#/play/live/basketball`, `#/play/playbook`, `#/play/arcade`.
-4. **Heading has no task of its own.** It belongs to whichever of T-6.25 (the Header mini-game) or
+4. **Soccer overtime is unbounded in Live** (found by T-6.14). `MatchStateMachine` offers another
+   overtime period for as long as the score is level and `MatchRules.overtimeSteps` is set — right
+   for basketball, wrong for soccer, which plays two extra halves and then takes penalties. A level
+   Playbook match reached **period 15** before the adapter's `isFinished` capped it at two. The
+   Playbook side is fixed; **Live is not**. Root fix is an engine-side `maxOvertimePeriods` on
+   `MatchRules`, which serves every sport — logged for **T-6.17**, and the penalties that should
+   decide it are T-6.15's shootout wired in by T-6.22.
+5. **INV-11's cross-mode parity harness is basketball-only.** Soccer now has Live and Playbook, so a
+   soccer parity run is possible for the first time. It belongs with **T-6.18** — parity is a balance
+   measurement, and T-6.20 changes the resolution model under it first.
+6. **Heading has no task of its own.** It belongs to whichever of T-6.25 (the Header mini-game) or
    T-6.16 needs it first; `PASS_PROFILES.cross.arrivalHeight` (1.9 m) is the hook.
 
 ### Standing notes
@@ -101,7 +123,7 @@ Gate 6 asks that `engine/` be touched only for genuine core improvements. Two, b
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 27 | 13 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 27 | 16 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -252,13 +274,13 @@ there; this file is read at every session start and the notes file only when you
 | T-6.11 | 22-entity performance work: LOD, culling, spatial-hash tuning, zero-allocation hot path | L | `done` | | `tests/unit/sports/soccer/formations.test.ts`, `pnpm bench` | `auto` + bench | The bench was measuring the *test* sport; it now measures soccer too. Speed was never the problem — jank was: worst step 0.98 ms → 0.35 ms by caching shapes and pooling scratch arrays. LOD/culling deferred to T-12.8 with a reason. [notes](./notes/phase-6.md#t-611) |
 | T-6.12 | Camera and minimap tuning for the larger pitch | M | `todo` | | | | |
 | T-6.13 | Soccer derivation weights, sub-skills, familiarity tuning | M | `done` | | `tests/unit/sports/soccer/weights-and-xp.test.ts` | `auto` | The weights shipped in Phase 3; this adds the position table (`goalkeeping: 0.6` for the keeper and zero elsewhere) and the XP table. Familiarity needed **no** soccer-specific tuning — a positive seam result. [notes](./notes/phase-6.md#t-613) |
-| T-6.14 | Soccer Playbook: `PlaybookAdapter` + phase turns | L | `todo` | | | | |
+| T-6.14 | Soccer Playbook: `PlaybookAdapter` + phase turns | L | `done` | | `tests/unit/sports/soccer/playbook/phases.test.ts`, `tests/unit/sports/soccer/playbook/adapter.test.ts` | `auto` — headless, no screen reaches it yet | **The seam held: zero engine changes.** Turns are phases of play with a derived 18–24 turn budget (measured 20.6). Found and capped a real defect — soccer overtime ran to period 15 because nothing bounds it; **Live has it too**, root fix logged for T-6.17. [notes](./notes/phase-6.md#t-614) |
 | T-6.15 | Soccer arcade: Penalty Shootout | M | `todo` | | | | |
 | T-6.16 | Soccer art & audio pass | L | `todo` | | | | |
 | T-6.17 | Engine-core refactor: extract anything basketball-shaped that leaked into core | M | `todo` | | | | |
 | T-6.18 | Balance pass #2: goals, possession, conversion across Live and Playbook | M | `todo` | | | | |
-| T-6.19 | Soccer Playbook: intent controls — tempo, width, risk, press, focus | M | `todo` | | | | |
-| T-6.20 | Soccer Playbook: resolution model, reusing Live's shooting and passing | L | `todo` | | | | |
+| T-6.19 | Soccer Playbook: intent controls — tempo, width, risk, press, focus | M | `done` | | `tests/unit/sports/soccer/playbook/intents.test.ts` | `auto` — headless, no screen reaches it yet | Five dimensions, and **each side holds all five** — what changes with possession is which of them speak. Settled T-6.14's open question with an optional `intents` map on `PlaybookCall`, not a composite id. Every middle option is exactly neutral, which is what keeps the turn budget true. [notes](./notes/phase-6.md#t-619) |
+| T-6.20 | Soccer Playbook: resolution model, reusing Live's shooting and passing | L | `done` | | `tests/unit/sports/soccer/playbook/model.test.ts` | `auto` — headless, no screen reaches it yet | Soccer's Live models have no probability to borrow, so the reuse is **composition** — `placementError`, `shotSpeed`, `keeperSpot`, `saveOutcome`, `passError`. **`MODEL_CALIBRATION` came out zero**: the Live passing model lands the turn count in `09` §2.3's band on its own. [notes](./notes/phase-6.md#t-620) |
 | T-6.21 | Soccer Playbook: narration and animated pitch diagram for turn outcomes | M | `todo` | | | | |
 | T-6.22 | Soccer Playbook: key moments → arcade, and the Playbook CPU's call selection | M | `todo` | | | | |
 | T-6.23 | Soccer arcade: Free Kick | M | `todo` | | | | |
