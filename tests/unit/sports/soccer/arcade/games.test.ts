@@ -13,6 +13,7 @@ import {
   CONTACT_HEIGHT_M,
   CROSSES,
   HEADER_ROUNDS,
+  LAST_LINE_SECONDS,
   ONE_ON_ONE_ROUNDS,
   ROUNDS_PER_RUN,
   SOCCER_ARCADE,
@@ -52,13 +53,13 @@ function soccerAthlete(rating: number): ReturnType<typeof athlete> {
 
 describe('the set', () => {
   it('is what has actually been built, and says nothing about what has not', () => {
-    // T-6.26 adds Last Line. Until it exists, the array is the four that do — an absent thing is
-    // absent, not stubbed.
+    // All five of `09` §3.2's soccer games, in the order the hub shows them.
     expect(SOCCER_ARCADE.map((game) => game.id)).toEqual([
       'soccer.penalty-shootout',
       'soccer.free-kick',
       'soccer.one-on-one',
       'soccer.header',
+      'soccer.last-line',
     ]);
     expect(soccer.arcade).toBe(SOCCER_ARCADE);
   });
@@ -210,7 +211,30 @@ describe('every game plays', () => {
     }
   });
 
-  it('emits only zones soccer’s XP table knows, so a run actually trains something', () => {
+  it('emits events soccer’s XP table actually pays for, so a run trains something', () => {
+    // Rewritten at T-6.26. The claim that matters is "a run trains something"; asserting that every
+    // game emits a *shot* was an accident of the first four all being shooting games, and Last Line
+    // is a keeper's game that trains `goalkeeping` through saves and never takes a shot at all.
+    const pays = (event: { kind: string; detail?: Record<string, unknown> }): boolean =>
+      SOCCER_XP_AWARDS.some((award) => {
+        if (award.kind !== event.kind || award.rating === undefined || award.xp <= 0) return false;
+        return Object.entries(award.when ?? {}).every(
+          ([key, value]) => event.detail?.[key] === value,
+        );
+      });
+
+    for (const game of SOCCER_ARCADE) {
+      const run = startRun(
+        game,
+        arcadeConfig({ seed: `zones:${game.id}`, athlete: soccerAthlete(80) }),
+      );
+      drive(run, { press: pressInBand, steps: 6000 });
+
+      expect(run.events().some(pays), game.id).toBe(true);
+    }
+  });
+
+  it('names only shot zones soccer’s XP table knows, for every game that shoots', () => {
     const known = new Set(
       SOCCER_XP_AWARDS.filter((award) => award.kind === EventKind.SHOT).map(
         (award) => award.when?.['zone'],
@@ -224,9 +248,9 @@ describe('every game plays', () => {
       );
       drive(run, { press: pressInBand, steps: 6000 });
 
-      const shots = run.events().filter((event) => event.kind === EventKind.SHOT);
-      expect(shots.length, game.id).toBeGreaterThan(0);
-      for (const shot of shots) expect(known, game.id).toContain(shot.detail?.['zone']);
+      for (const shot of run.events().filter((event) => event.kind === EventKind.SHOT)) {
+        expect(known, game.id).toContain(shot.detail?.['zone']);
+      }
     }
   });
 
@@ -562,5 +586,91 @@ describe('Header in particular', () => {
     drive(run, { press: pressNever, steps: 3000 });
     expect(run.finished).toBe(true);
     expect(run.view().lastOutcome?.label).toBe('Let it go');
+  });
+});
+
+describe('Last Line in particular', () => {
+  const game = SOCCER_ARCADE[4]!;
+
+  it('is the set’s only clocked run, because a keeper’s game is a volley', () => {
+    expect(game.scored.seconds).toBe(LAST_LINE_SECONDS);
+    expect(game.scored.lives).toBeNull();
+    for (const other of SOCCER_ARCADE) {
+      if (other.id !== game.id) expect(other.scored.seconds, other.id).toBeNull();
+    }
+  });
+
+  it('runs the clock out rather than ending on lives', () => {
+    const run = startRun(game, arcadeConfig({ seed: 'll-clock', athlete: soccerAthlete(80) }));
+    drive(run, { press: pressInBand, steps: 6000 });
+    run.finish();
+    const result = run.result();
+    expect(result?.seconds).toBeGreaterThanOrEqual(LAST_LINE_SECONDS - 1);
+    // Plenty of shots faced, none of which could have been ended early by conceding.
+    expect(result?.attempts ?? 0).toBeGreaterThan(10);
+  });
+
+  it('spans the whole track while a shot is live, which is what makes it a reaction test', () => {
+    // Load-bearing rather than lazy: `humanPlayer` tells a countdown from a sweep by exactly this,
+    // and reacts with a latency instead of anticipating. A narrower band would silently turn the
+    // game into one the model can read the future of.
+    let sampled = 0;
+    const run = startRun(game, arcadeConfig({ seed: 'll-band', athlete: soccerAthlete(70) }));
+    drive(run, {
+      steps: 2000,
+      press: (current) => {
+        const { meter, target } = current.view().game;
+        if (meter !== null) {
+          sampled += 1;
+          expect(target).toEqual({ from: 0, to: 1 });
+        }
+        return false;
+      },
+    });
+    expect(sampled).toBeGreaterThan(50);
+  });
+
+  it('beats a keeper who commits before the strike, however they commit', () => {
+    // Two ways to try to cheat a reaction test, and neither may work. A masher lands an edge during
+    // every wait, so every shot is dived on before it is struck. A holder lands one edge ever, and
+    // then stands still through every shot after it. Both must score nothing on a rating-90 keeper,
+    // who would otherwise save about half of them.
+    const masher = startRun(game, arcadeConfig({ seed: 'll-early', athlete: soccerAthlete(90) }));
+    drive(masher, { press: pressEvery(2), steps: 4000 });
+    masher.finish();
+    expect(masher.result()?.made).toBe(0);
+    expect(masher.view().lastOutcome?.label).toBe('Dived early');
+
+    const holder = startRun(game, arcadeConfig({ seed: 'll-hold', athlete: soccerAthlete(90) }));
+    drive(holder, { press: () => true, steps: 4000 });
+    holder.finish();
+    expect(holder.result()?.made).toBe(0);
+  });
+
+  it('trains goalkeeping through saves, and never takes a shot', () => {
+    const run = startRun(game, arcadeConfig({ seed: 'll-events', athlete: soccerAthlete(85) }));
+    drive(run, { press: pressInBand, steps: 6000 });
+
+    const kinds = run.events().map((event) => event.kind);
+    expect(kinds).toContain(EventKind.SAVE);
+    expect(kinds).not.toContain(EventKind.SHOT);
+  });
+
+  it('pays a faster keeper more, because the window is their reaction time', () => {
+    const score = (rating: number): number => {
+      let total = 0;
+      for (let seed = 0; seed < 8; seed += 1) {
+        const run = startRun(
+          game,
+          arcadeConfig({ seed: `ll-${seed}`, athlete: soccerAthlete(rating) }),
+        );
+        drive(run, { press: humanPlayer({ seed: `h${seed}` }), steps: 6000 });
+        run.finish();
+        total += run.result()?.score ?? 0;
+      }
+      return total;
+    };
+    expect(score(90)).toBeGreaterThan(score(60));
+    expect(score(60)).toBeGreaterThan(score(30));
   });
 });

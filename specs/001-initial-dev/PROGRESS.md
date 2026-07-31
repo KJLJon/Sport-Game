@@ -14,8 +14,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 - **Task:** T-6.22 — Soccer Playbook: key moments → arcade, and the Playbook CPU's call selection
 - **Status:** `in_progress`. **CPU half done; key-moment half still blocked**, but the block is
-  smaller than it was: four of the five games it needs now exist. **21 of 27 Phase 6 tasks `done`**
-  (T-6.1 – T-6.15, T-6.19 – T-6.21, T-6.23 – T-6.25). Tree clean and pushed.
+  gone: **all five games it needs now exist.** **22 of 27 Phase 6 tasks `done`**
+  (T-6.1 – T-6.15, T-6.19 – T-6.21, T-6.23 – T-6.26). Tree clean and pushed.
 - **Two bookkeeping corrections made in T-6.23's commit**, both found by counting the table instead
   of trusting the summary: **T-6.12's row was `todo`** while its work, its notes section, and its
   entry in the Gate 6 engine-change list all said otherwise — flipped to `done`. And the **Summary
@@ -36,7 +36,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 a ten-turn window, and samples per difficulty; `baselineCall` moved to `adapter.coach`, which is
 what it always was. Its **key moments** still return `null`: `09` §2.4's soccer row wants penalty,
 free kick, one-on-one, header, and goal-line save, and the **penalty** (T-6.15) and the **free kick**
-(T-6.23), the **one-on-one** (T-6.24), and the **header** (T-6.25) now have mini-games. One to go.
+(T-6.23), the **one-on-one** (T-6.24), the **header** (T-6.25), and the **goal-line save** (T-6.26) all have mini-games now, so the block is gone.
 
 **A rule the arcade set now follows: a game joins `SOCCER_ARCADE` in the commit that builds it.**
 `index.ts` used to say T-6.27 would register all five at the end. That is the wrong order — a game
@@ -57,13 +57,10 @@ being unreachable for the second sport:
 **Before adding a sixth sport-facing screen, grep `src/ui` for a sport module import.** The seam is
 fine; the screens were the problem, every time.
 
-- **Next step:** **T-6.26 — Last Line**, then **T-6.27**
+- **Next step:** **T-6.27**
   (unlock wiring + the cross-set `calibrate()` sweep), then **close T-6.22** by wiring
   `keyMoment()`/`applyKeyMoment()` now that the games exist. Build each against `ArcadeGameDef`;
-  `src/sports/soccer/arcade/{shared,penalty-shootout,free-kick,one-on-one,header}.ts` is the pattern and
-  `tests/unit/sports/soccer/arcade/games.test.ts` is a set-wide contract that a new game joins by
-  being added to the array. The unlock ids already exist in `achievements/ids.ts`
-  (`cleanSheet`).
+  `tests/unit/sports/soccer/arcade/games.test.ts` is the set-wide contract, now 45 tests.
 - **Tune each new game against a measurement, not a guess.** T-6.23's first numbers were wrong three
   ways — the run was under `09` §3.1's twenty-second floor, three stars were *arithmetically*
   unreachable, and every miss cost a life. A throwaway probe (twenty seeded runs per rating through
@@ -182,7 +179,7 @@ Gate 6 asks that `engine/` be touched only for genuine core improvements. Two, b
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 27 | 21 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 27 | 22 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -190,7 +187,7 @@ Gate 6 asks that `engine/` be touched only for genuine core improvements. Two, b
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **200** | **107** | | |
+| | **Total** | **200** | **108** | | |
 
 ---
 
@@ -345,7 +342,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.23 | Soccer arcade: Free Kick | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | Wall = a height gate on the strike meter, keeper = a width gate on the aim meter, and the aim band is the gap *shifted back by the wind* so the HUD never lies about the only decision in the game. [notes](./notes/phase-6.md#t-623) |
 | T-6.24 | Soccer arcade: One-on-One | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | The two taps are cause and effect — the touch sets the finishing band's width, so a scuffed touch is a harder finish rather than a failed attempt; the approach is the project's first one-way meter. [notes](./notes/phase-6.md#t-624) |
 | T-6.25 | Soccer arcade: Header | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | The jump is contested rather than clocked, and a good leap buys meter *speed* where One-on-One's touch buys band *width*; two bugs found that punished elite athletes — see the sweep-denominated clock. [notes](./notes/phase-6.md#t-625) |
-| T-6.26 | Soccer arcade: Last Line | M | `todo` | | | | |
+| T-6.26 | Soccer arcade: Last Line | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | One tap, one 45 s clock, no aiming — the set's only clocked run, and the marker crosses the track in exactly the athlete's `reactionSeconds`, which is the rating on screen undisguised. [notes](./notes/phase-6.md#t-626) |
 | T-6.27 | Soccer arcade: set registration, unlock wiring, and `calibrate()` tests | S | `todo` | | | | |
 
 ### Phase 7 — CPU AI depth & difficulty ladder

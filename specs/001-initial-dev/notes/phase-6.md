@@ -1314,3 +1314,54 @@ finally separated. There is a regression test at 75-vs-90 stated against the hum
 Feel note: the best of the four. Beating a defender to a ball is a more interesting thing to be good
 at than beating a clock, and the floated cross — slow jump, frantic finish — has a rhythm none of the
 others have. The driven one is nearly the opposite and the alternation is what carries the run.
+
+---
+
+### T-6.26
+
+Last Line — play the keeper. The fifth and final game of `09` §3.2's soccer set.
+
+**One tap, one clock, no aiming — and it is the only game in the set shaped that way.** Everything
+else is two taps and a count of rounds. A keeper's job does not decompose into a placement and a
+strike, and a run that ended after ten shots would be over before the rhythm started. So Last Line is
+forty-five seconds and a single button, and it is soccer's only clocked run.
+
+**The window is the athlete's reaction time, undisguised.** The marker crosses the whole track in
+exactly `calibration.reactionSeconds`. A novice's shot is past them in a fifth of a second; a
+specialist's hangs for more than half of one. Nothing else in the project puts a derived rating on
+screen this directly, and it is the clearest demonstration of `09` §2.4 anywhere in the game — two
+players tapping identically get different results and the reason needs no explaining.
+
+**The band spans the whole track on purpose.** That is precisely how `humanPlayer` tells a countdown
+from a sweep: it reacts to what was on screen a latency ago rather than estimating where the marker
+is heading. Anticipation is the one thing a reaction test must not reward, so the band's shape is
+load-bearing and there is a test that says so.
+
+**Two ways to cheat, both closed.** The meter reads `null` through the wait before each strike, so a
+press then is a keeper committing early and concedes. A masher lands an edge in every wait and saves
+nothing; a holder lands one edge ever and is then beaten by every shot after it. Both are asserted
+against a rating-90 keeper who would otherwise save about half.
+
+**Rebounds.** A save spills back out 35% of the time, and the follow-up arrives with no wait and 70%
+of the allowance. Conceding to a rebound you had already saved is the most annoying thing in the
+game, which is exactly why it belongs — it is what makes a save the start of something rather than
+the end of it.
+
+**T-6.25's latent bug was checked for and is not present.** Last Line's band spans the track, so
+there is no "marker cannot reach the band in time" failure available to it; the clock is the run's,
+not the stage's.
+
+**A set-wide test had to be rewritten, and it was wrong before this game existed.** The contract said
+*every* game emits a `SHOT` whose zone the XP table knows. That was an accident of the first four all
+being shooting games: Last Line takes no shots at all and trains `goalkeeping` through saves. The
+assertion is now the claim that actually mattered — every game emits **at least one event the XP
+table pays a rating for** — plus a separate, weaker one that any game which *does* shoot names a
+known zone. Strictly stronger, and it no longer assumes what kind of game a game is.
+
+Human-model means over twenty seeds: **524 / 1,108 / 1,691 / 1,978** for ratings 30 / 55 / 75 / 90,
+at 4/28 saves for the novice and 13.5/29 for the specialist. Every run lasts exactly 45 s, so the
+declared duration is the truth rather than an estimate.
+
+Feel note: the one I kept replaying, and the only game in the set where the athlete *is* the
+experience rather than a modifier on it. Playing a novice keeper is legibly hopeless in a way that
+teaches more about the rating system than the athlete card does.
