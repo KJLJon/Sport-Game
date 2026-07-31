@@ -229,6 +229,13 @@ something to work around in the sport module.
 | T-6.25 | Soccer arcade: Header | M | T-6.15 | US-16.1 | sonnet |
 | T-6.26 | Soccer arcade: Last Line | M | T-6.15 | US-16.1 | sonnet |
 | T-6.27 | Soccer arcade: set registration, unlock wiring, and `calibrate()` tests | S | T-6.26 | US-16.2 | |
+| T-6.28 | HUD reads `SportHudSpec`: clock direction, foul label, action clock per sport | S | T-6.16 | US-2.4 | |
+
+**T-6.28 was added on 2026-07-31**, from Gate 6's known-gaps list rather than from the original plan.
+The gap was logged as Phase 9's, on the grounds that it is a HUD change; it is promoted here because
+a soccer match *visibly counted down and reported "0 PF"*, which reads as a broken game rather than
+as unfinished polish, and the user asked for something playable. The fix is a Phase 6 one in
+substance: `SportHudSpec` had been part of the sport seam since T-2.10 and nothing had ever read it.
 
 **Two XL tasks were split on 2026-07-30**, at the user's request and for a good reason: an XL task is
 one that cannot be finished inside a single working session, so it is the one most likely to be

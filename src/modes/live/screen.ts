@@ -352,7 +352,7 @@ function draw(
   );
 
   renderer.submit('hud', (c) => {
-    drawHud(c, view, layout);
+    drawHud(c, view, layout, sport.hud);
     drawMinimap(c, view, world, sport.field.width, sport.field.height, layout);
 
     const point = { x: 0, y: 0 };

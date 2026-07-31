@@ -108,6 +108,7 @@ import {
   opponent,
   readyRestart,
   registerTouch,
+  elapsedGameSeconds,
   remainingGameSeconds,
   restartFor,
   startHalf,
@@ -318,6 +319,13 @@ const hud: SportHudSpec = {
   // that. The first sport to prove that member is genuinely optional.
   showShotClock: false,
   showPossession: true,
+  // Soccer's clock counts up and runs on past 45:00 into added time (`06` §4). Until T-6.28 the
+  // HUD ignored this whole spec and drew basketball's countdown, so a soccer match visibly ran
+  // *out* of time — and `elapsedGameSeconds` had existed since T-6.2 with no caller.
+  clock: 'elapsed',
+  // Soccer accumulates team fouls (they award free kicks, `06` §3.2) and shows them under the
+  // scoreboard — but "PF" is basketball's personal foul, and that is what a soccer match displayed.
+  foulLabel: 'FOULS',
   // @spec-ref 06-game-design.md §2 — context-sensitive button labels
   buttonLabels: {
     onBall: ['Shoot', 'Pass'],
@@ -568,6 +576,11 @@ export const soccer: SoccerModule = {
       stoppage: state.rules.restart === null ? null : state.rules.restart.reason,
       meter: null,
       periodClock: remainingGameSeconds(state.rules, state.elapsed, period),
+      // What the scoreboard actually shows, now that `SportHudSpec.clock` is honoured. `period` is
+      // the 1 above rather than the real half — `status()` is handed no period — so the second half
+      // restarts at 0:00 instead of running on to 90:00. Wrong, but far less wrong than counting
+      // down; threading the period through the seam is its own change.
+      periodElapsed: elapsedGameSeconds(state.elapsed, period),
     };
   },
 

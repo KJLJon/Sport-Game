@@ -2,7 +2,9 @@
  * @spec    001-initial-dev
  * @phase   1 — Engine core
  * @task    T-1.11 — `SportModule` interface + a trivial test sport proving the seam
+ * @task    T-6.28 — HUD reads `SportHudSpec`: clock direction, foul label, action clock per sport
  * @story   US-14.4 — Add a sport without touching the engine
+ * @story   US-2.4 — See the state of the match at a glance
  * @design  04-architecture.md §5 (the sport module seam), 09-modes-and-arcade.md §5
  * @invariant INV-5 (no sport-specific branching in engine core), INV-9 (one event stream)
  *
@@ -224,11 +226,39 @@ export interface SportStatus {
   readonly meter: number | null;
   /** Game seconds remaining in the current period, as the sport counts them. */
   readonly periodClock: number;
+  /**
+   * Game seconds *elapsed*, for a sport whose clock counts up (`SportHudSpec.clock: 'elapsed'`).
+   *
+   * It is reported rather than derived from `periodClock` because the two are not complements in
+   * general: soccer's second half reads on to 90:00 rather than restarting at 0:00, and added time
+   * lengthens the period without moving the mark the display counts past. Only the sport knows
+   * either of those, so only the sport can say what the clock reads.
+   *
+   * Optional: a sport whose clock counts down never needs it.
+   */
+  readonly periodElapsed?: number;
 }
 
 export interface SportHudSpec {
   readonly showShotClock: boolean;
   readonly showPossession: boolean;
+  /**
+   * Which way the game clock reads. `'remaining'` counts down to 0:00 — basketball, and the
+   * default a sport gets by saying nothing. `'elapsed'` counts up and keeps going past the
+   * regulation mark into added time, which is what every soccer clock in the world does.
+   *
+   * @spec-ref 06-game-design.md §4 — the in-match HUD shows "the clock, as that sport keeps it"
+   */
+  readonly clock?: 'remaining' | 'elapsed';
+  /**
+   * What this sport calls its team-foul tally — `'PF'` for basketball's personal fouls, `'FOULS'`
+   * for soccer's. `null` hides the tally for a sport that does not put one on the scoreboard.
+   *
+   * Separate from `SportStatus.teamFouls`, which is the *count*: a sport can track fouls for its
+   * own rules (soccer awards free kicks from them) without showing them, and before this existed
+   * every sport's fouls were labelled with basketball's word for them.
+   */
+  readonly foulLabel?: string | null;
   /** Labels for the two context buttons in each state (`06` §2). */
   readonly buttonLabels: Readonly<Record<string, readonly [string, string]>>;
 }
