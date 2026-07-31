@@ -1218,3 +1218,49 @@ Shootout. The rounds where the wind draws near zero are noticeably flatter — i
 tuned, tune it *up*. The one thing not yet right is that the wall is invisible as an obstacle: it is
 drawn, but the failure "Into the wall" happens on the meter, so the picture and the reason live in
 two different places on the screen. T-6.16's art pass is where that gets joined up.
+
+---
+
+### T-6.24
+
+One-on-One — through on goal, keeper coming out.
+
+**The two taps are cause and effect, and that is what makes it a different game.** In the Shootout
+and the Free Kick the taps are independent — placing the shot well does not make striking it easier.
+Here the first tap *is* the second's difficulty: the touch decides how much goal is open, and the
+finish is played into whatever it left. A scuffed touch is a harder finish rather than a failed
+attempt, which is what a one-on-one actually feels like and why `09` §3.2 names both halves in one
+line. Mechanically it is one field: `meter.windowScale` is set from the touch quality when the touch
+lands, between `OPENING.scuffed` (0.55) and `OPENING.perfect` (1.75).
+
+**The approach is a countdown, not a sweep — the first one-way meter in the project.** Every other
+meter bounces, so a missed moment comes round again. A keeper closing you down does not. The marker
+runs once and there is one moment in it worth taking.
+
+This turned out to be free: `humanPlayer`'s "sweep" branch estimates marker velocity and aims at the
+band's centre, which is exactly right for a one-way marker too. Its *countdown* branch is for a band
+that spans the whole track, which this is not. No helper changes were needed, and that is worth
+recording because the next game that wants a one-way meter will wonder.
+
+**The window's position is asserted, not just its width.** `TOUCH_AT` is 0.67 — late, because the
+keeper has to commit before the touch beats them. That is the lesson the game teaches, so there is a
+test that samples the band during the approach and asserts its centre is past the midpoint. A
+constant nobody reads would have drifted.
+
+**Where the window comes from, and a thing that is genuinely not pressure.** The window's width in
+*seconds* is the athlete's (INV-10). `APPROACH_SECONDS` varies 1.15–2.05 s per round, which changes
+how big a *slice* of the marker's travel that window is — but in real seconds the difficulty is
+identical either way. So a fast keeper is not mechanically harder; it is harder because the moment
+arrives with less warning. Worth being honest about: the round-to-round variety here is pacing, not
+difficulty, and if the game ever needs a real difficulty ramp it has to come from somewhere else.
+
+**Tuned against the probe.** Human-model mean over twenty seeds: rating 30 → 275, 55 → 920,
+75 → 1,277, 90 → 2,168. The first star thresholds gave a rating-90 athlete three stars *on average*,
+which is not what three stars should mean; raised to 450/1,300/2,500, so the average good run is two
+stars and a strong one is three. `durationSeconds` 35, against a measured 24 s for a competent run.
+
+Feel note: the late window is the whole game, and going early feels safe and scores nothing — it took
+about six rounds to stop doing it. That is the right shape for a mini-game, but it does mean the
+first run is discouraging in a way the Free Kick's is not, and "Went too early" is doing a lot of
+work as the only thing telling you why. If one of these three games needs a coaching line on the
+run-over screen, it is this one.
