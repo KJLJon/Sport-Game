@@ -12,48 +12,48 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** none. **T-6.22 closed**, and with it every mini-game and key-moment row in the phase.
-- **Status:** **26 of 27 Phase 6 tasks `done`.** One left: **T-6.18** (balance pass) — then the
-  **Gate 6** record.
-- **Branch:** `claude/phase-7-continuation-xd93ve`, PR #12 (draft). PRs #9–#11 are merged. The branch
-  name says phase 7; **the work is Phase 6**, whose gate has not been evaluated (`CLAUDE.md` §2).
-- **Next step:** **T-6.18 — balance pass #2.** It is the biggest remaining row and it has four
-  distinct inputs already logged: gaps 5–8 below (soccer parity, the two missing harnesses, Penalty
-  Shootout's tuning, and the key-moment rates).
+- **Task:** none. **Phase 6 is complete — 27 of 27 tasks `done`, and Gate 6 has been evaluated.**
+- **Gate 6: NOT PASSED**, for the same two reasons as Gates 2–5 — the device matrix and the deploy,
+  both user actions. Every automatable check is green and all three of `03`'s own criteria are met.
+  Full record in [the notes](./notes/phase-6.md#gate-record).
+- **Branch:** `claude/phase-7-continuation-xd93ve`, PR #12 (draft). PRs #9–#11 are merged.
+- **Next step:** **Phase 7 — CPU AI depth & difficulty ladder**, starting at T-7.1. It is the phase
+  soccer's Live balance is waiting on (see the finding below), so the two fit together.
 
-### Where Phase 6 is
+### What Phase 6 delivered
 
-**Soccer is complete in all three modes, and its arcade set is finished.** Live, Playbook, and all
-five of `09` §3.2's soccer mini-games — Penalty Shootout (T-6.15), Free Kick (T-6.23), One-on-One
-(T-6.24), Header (T-6.25), Last Line (T-6.26) — registered, contract-tested, and wired into the
-Playbook as key moments (T-6.22). `catalogue.ts` has no `pending` rows for either sport.
+**Soccer is complete in all three modes.** Live, Playbook, and all five of `09` §3.2's soccer
+mini-games — Penalty Shootout, Free Kick, One-on-One, Header, Last Line — registered,
+contract-tested, and wired into Playbook as key moments. `catalogue.ts` has no `pending` rows for
+either sport.
 
-**Two rules this stretch established, both worth keeping.**
+### The one finding Phase 7 inherits
+
+**Live soccer scores 12.84 goals a match on 58.5 shots** (`pnpm balance:soccer`, 25 matches per
+mode), against Playbook's 2.44 on 9.5 and a plausible band of 1.2–5.5. Live's **conversion is inside
+band at 21.9%** — the shooting and keeper models are fine. It is shot *volume*, and volume is the
+placeholder CPU's: with no off-ball intelligence, every carrier reaching the final third with a metre
+of space shoots. **T-7.x is where this gets fixed**, and the harness now exists to fix it against.
+
+Do not reach for `SHOOTING.baseError`. T-6.18 tried; it took Live from 13.6 goals to 10.4 and
+Playbook from 2.58 to 0.92, because T-6.20 put Live's shooting model under both modes.
+
+### Rules this phase established, worth keeping
 
 1. **A game joins its sport's array in the commit that builds it**, never in a later registration
-   task. A game outside `SOCCER_ARCADE` is invisible to `games.test.ts`'s set-wide contract, which is
-   the one file whose job is stopping five games quietly disagreeing.
+   task — a game outside `SOCCER_ARCADE` is invisible to `games.test.ts`'s set-wide contract.
 2. **Tune every game against a probe, and probe with `humanPlayer`, not just `pressInBand`.** Three
    of the four new games shipped with numbers that were wrong in ways no test could see, and the bot
-   helper — which presses the instant a band appears — was blind to all of them. Write the probe,
-   read it, delete it. Ten minutes each time.
-
-**A bug class the probe found that will recur.** A better athlete's meter sweeps *slower* — that is
-how the framework pays them. So any game that puts its band away from the middle of the track **and**
-imposes a fixed per-stage clock can make specialists time out on chances novices convert. T-6.25 hit
-it and its scoring curve inverted (rating 55 beating rating 90). Fix: denominate the clock in sweeps,
-`DIRECT_SWEEPS * BASE_SWEEP_SECONDS / meter.sweepRate`. Check any new timed stage against this.
-
-**The pattern that has now bitten four times, and the rule that follows.** Every screen written while
-one sport existed named that sport in its imports, and every one of them passed its own tests while
-being wrong for the second sport: `#/play` (T-8.1); `playbook-match.ts` importing `basketballSquads`
-(T-6.21); `arcade.ts` building its catalogue from `[basketball]`, which paid *every* arcade run's XP
-into basketball's award table so a soccer penalty trained `threePoint` (T-6.15); and **T-6.16's**,
-the worst of them — `modes/live/screen.ts` drew every soccer athlete and every soccer ball with
-`sports/basketball/art.ts` and played basketball's audio cues, so a soccer match was basketball
-players chasing an orange ball to a rim clank. **Before adding or touching a sport-facing screen,
-grep `src/ui` and `src/modes` for a sport-module import.** The fix is always the same: the thing the
-screen was hardcoding becomes a `SportModule` member.
+   helper — which presses the instant a band appears — was blind to all of them.
+3. **A better athlete's meter sweeps *slower*.** So any game that puts its band away from the middle
+   of the track *and* imposes a fixed per-stage clock can make specialists time out on chances
+   novices convert. T-6.25 hit it and its scoring curve inverted. Denominate the clock in sweeps.
+4. **Before adding or touching a sport-facing screen, grep `src/ui` and `src/modes` for a
+   sport-module import.** This bit four times: `#/play` (T-8.1), `playbook-match.ts` (T-6.21),
+   `arcade.ts` (T-6.15), and worst, `modes/live/screen.ts` drawing every soccer athlete with
+   `sports/basketball/art.ts` and playing basketball's audio cues (T-6.16). All four passed every
+   test they had. The fix is always the same: what the screen hardcoded becomes a `SportModule`
+   member.
 
 ### Engine-core changes this phase — the Gate 6 list
 
@@ -149,7 +149,7 @@ None of the three names a sport.
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 27 | 27 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 27 | 27 | `done` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -464,6 +464,7 @@ One row per gate: the result and what it turned on. The full evaluation — ever
 | 3 — Athletes & roster (v0.2) | 2026-07-28 | **NOT PASSED** | Same two blockers, unchanged. Nothing in Phase 3 alters the analysis. | [phase 3 notes](./notes/phase-3.md#gate-record) |
 | 5 — Playbook (v0.4) | 2026-07-29 | **NOT PASSED** | Every automatable check green, and unlike Gate 4 **all four of `03`'s criteria are machine-checkable and are met**: a full match, key moments, hot seat, and Live/Playbook agreement within ±8. Blocked only on the device matrix and the deploy, now four gates deep. Playbook's eFG% is 46.6% against Live's 44.6% without tuning. | [phase 5 notes](./notes/phase-5.md#gate-record) |
 | 4 — Arcade (v0.3) | 2026-07-28 | **NOT PASSED** | Same two blockers, now three gates deep. Two of `03`'s four criteria ("fun standalone", "a child can start one unaided") are claims about a person, not a program, and no test will close them. 1 941 tests, coverage 94.9%. | [phase 4 notes](./notes/phase-4.md#gate-record) |
+| 6 — Soccer · all three modes (v0.5) | 2026-07-31 | **NOT PASSED** | Every automatable check green: 2 788 unit, 45 E2E, coverage 94.9%, bench 0.058 ms/step at 11v11, budgets inside. All three of `03`'s criteria met, the third (`engine/` touched only for core improvements) demonstrably so — three changes, none naming a sport. Blocked on the device matrix and the deploy, now **five gates deep**, with five mini-games never played by a human. One open finding handed to Phase 7: Live soccer scores 12.8 goals a match on shot *volume*, not conversion. | [phase 6 notes](./notes/phase-6.md#gate-record) |
 
 ---
 

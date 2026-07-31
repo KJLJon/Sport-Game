@@ -1669,3 +1669,97 @@ asserts the goal ratio separately — and that band is currently failing at 5.26
 `free-kick` 0.90, `one-on-one` 0.73. The goal-line save being three times either attacking moment is
 a consequence of defending half the time against a side that shoots constantly — it will move on its
 own when Phase 7 fixes shot volume, and tuning it before then would be tuning against a placeholder.
+
+---
+
+## Gate record
+
+**Gate 6 (v0.5) — evaluated 2026-07-31. Result: NOT PASSED.**
+
+Two blockers, both unchanged since Gate 2, plus **one new finding of the phase's own**.
+
+### 1. Every task done or cut
+
+**27 of 27 `done`, none cut.** T-6.12's row was flipped in T-6.23's commit — its work, its notes, and
+its entry in the engine-change list all said done while the status said `todo`. The Summary table was
+also reconciled: it had undercounted by seven since Phase 6 began, because `pnpm progress:check`
+counts statuses and never compares them against the Summary.
+
+### 2. Full suite green
+
+| Check | Result |
+|---|---|
+| `pnpm verify` (typecheck · lint · unit) | **155 files, 2 788 tests, green** |
+| `pnpm e2e` | **45 passed**, including all sixteen `11` §9 PWA scenarios and the soccer deep-link specs |
+| `pnpm bench` | soccer 11v11 (23 entities) **0.058 ms mean, 0.098 ms p95** against a 4 ms step budget |
+| `pnpm build && pnpm budget` | initial JS **66.1 KB gzip / 200 KB**; install **507.7 KB / 6 MB** |
+| `pnpm balance:soccer` | **3 bands failing** — see §6 |
+
+### 3. Coverage thresholds
+
+Hold, and were not lowered. **Statements/lines 94.87%, branches 91.99%, functions 93.42%** against
+floors of 85% and 80%; the 95% tiers for `athletes`, `economy`, `achievements`, and `storage` pass,
+and the run would have failed if any per-directory threshold had been breached.
+
+### 4. Invariants
+
+No invariant regressed. INV-11 **gained** a soccer parity case (T-6.18) and it passes: an elite
+eleven beats a weak one in both Live and Playbook. `layering.test.ts` gained the structural half of
+INV-5 — nothing under `src/engine/` may import a sport or a mode (T-6.17).
+
+### 5. Device matrix (`12` §7)
+
+**Not run.** Blocked on the deploy, as at every gate since 2. The user tests on a phone against a
+published build, so this is genuinely unavailable rather than skipped.
+
+**Five soccer mini-games have never been played by a human**, which is the largest untested surface
+this phase produced. The feel notes in each task's entry are written from driving the sessions
+headlessly and reading the numbers; they are honest about that, and they are not a substitute.
+
+### 6. Gate 6's own criteria (`03`)
+
+> Both sports playable in all three modes, ≥55 fps at 11v11 on target hardware, and the Phase 6 diff
+> touches `engine/` only for genuine core improvements.
+
+1. **Both sports playable in all three modes — MET.** Soccer plays Live, Playbook, and all five of
+   `09` §3.2's soccer arcade games, each reachable by tapping. `catalogue.ts` has no `pending` rows.
+2. **≥55 fps at 11v11 — MET in simulation, UNVERIFIED on hardware.** The sim step is 0.058 ms mean
+   for 23 entities, which leaves ~68× headroom inside the 4 ms budget, and the render path is
+   unit-tested against the recording canvas. Neither is a frame rate on a phone. Same blocker as §5.
+3. **`engine/` touched only for genuine core improvements — MET.** Three changes in the whole phase:
+   `MatchStateMachine.extendPeriod` (T-6.2), `Camera.resize` no longer clamping an explicit zoom
+   floor (T-6.12, a real bug), and `MatchRules.maxOvertimePeriods` (T-6.17). None names a sport, and
+   each is justified at length in the notes. T-6.17's audit found nothing basketball-shaped left in
+   `engine/` at all.
+
+### 7. The new finding, and why it does not read as a gate failure
+
+`pnpm balance:soccer` (T-6.18) reports **Live soccer at 12.84 goals a match on 58.5 shots**, against
+Playbook's 2.44 on 9.5 and a plausible band of 1.2–5.5. Live's **conversion is inside band at 21.9%**
+— the shooting and keeper models are fine — so this is shot *volume* and nothing else.
+
+Volume is the placeholder CPU's, and `sports/soccer/index.ts` said so before the phase's balance row
+was started: there is no off-ball intelligence beyond holding a role and pressing the ball, so every
+carrier who reaches the final third with a metre of space shoots. **This cannot be fixed before Phase
+7**, and the one change that moved it — raising `SHOOTING.baseError` — fixed Live by breaking
+Playbook, because T-6.20 put Live's shooting model under both. It was reverted.
+
+It is recorded as an open finding against **Phase 7** rather than as a Gate 6 failure, because the
+gate's own three criteria do not include a balance band and because the harness that measures it did
+not exist until this phase built it.
+
+### 8. Tag and deploy
+
+**Not done.** Same blocker. v0.5 is not tagged.
+
+### Deferred, with reasons
+
+| Item | Reason |
+|---|---|
+| Device matrix | No device reachable without a deploy. Five mini-games unplayed by a human. |
+| Tagged v0.5 deploy | User action; `deploy.yml` runs on tagged releases. |
+| Live soccer shot volume | Needs Phase 7's CPU. Harness in place, finding logged. |
+| The penalty key moment | Playbook's model has no fouls, so nothing can award a spot kick. Its real home is the shootout that decides a drawn match, which needs match-level support. |
+| A shootout after extra time | `maxOvertimePeriods` now ends a level match as a draw. Deciding it needs a tiebreak phase above the engine. |
+| Soccer HUD | Still basketball-shaped — personal fouls, a clock counting down. A `SportHudSpec` change, so Phase 9. |
+| Automated evaluation of Penalty Shootout | Its keeping rounds deliberately expose no band, so no band-driven harness can play them. Whether to expose one is a design question for the user. |
