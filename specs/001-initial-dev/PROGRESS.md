@@ -149,7 +149,7 @@ None of the three names a sport.
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 27 | 26 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 27 | 27 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -157,7 +157,7 @@ None of the three names a sport.
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **200** | **112** | | |
+| | **Total** | **200** | **113** | | |
 
 ---
 
@@ -304,7 +304,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.15 | Soccer arcade: Penalty Shootout | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | Both roles, alternating — the only launch-set game that swaps sides. Found and fixed **two hardcoded-basketball bugs in the arcade screens**, one of which would have paid every soccer run's XP into `threePoint`. [notes](./notes/phase-6.md#t-615) |
 | T-6.16 | Soccer art & audio pass | L | `done` | | `tests/unit/sports/soccer/art.test.ts`, `tests/unit/modes/live/audio.test.ts` | `auto` | A bug fix, not polish: the Live screen imported basketball's art and audio by name, so soccer was played by basketball players chasing an orange ball to a rim clank. Three new sport-module members; the screen now names no sport. [notes](./notes/phase-6.md#t-616) |
 | T-6.17 | Engine-core refactor: extract anything basketball-shaped that leaked into core | M | `done` | | `tests/invariants/layering.test.ts`, `tests/unit/engine/match.test.ts` | `auto` | The audit found nothing in `engine/` — the leaks were one layer up in the mode screens (T-6.16) — so the deliverable is the guard that stops the next one, plus `MatchRules.maxOvertimePeriods`, the core gap logged since T-6.14. [notes](./notes/phase-6.md#t-617) |
-| T-6.18 | Balance pass #2: goals, possession, conversion across Live and Playbook | M | `todo` | | | | |
+| T-6.18 | Balance pass #2: goals, possession, conversion across Live and Playbook | M | `done` | | `tools/balance-soccer.ts`, `tests/invariants/inv-11-cross-mode-parity.test.ts` | `auto` | **Playbook passes every band; Live fails on shot volume alone** — 58 shots a match, conversion fine — which is the placeholder CPU's and cannot be fixed before Phase 7. Also withdraws this phase's own "Penalty Shootout is under-tuned" claim as a measurement artefact. [notes](./notes/phase-6.md#t-618) |
 | T-6.19 | Soccer Playbook: intent controls — tempo, width, risk, press, focus | M | `done` | | `tests/unit/sports/soccer/playbook/intents.test.ts` | `auto` — headless, no screen reaches it yet | Five dimensions, and **each side holds all five** — what changes with possession is which of them speak. Settled T-6.14's open question with an optional `intents` map on `PlaybookCall`, not a composite id. Every middle option is exactly neutral, which is what keeps the turn budget true. [notes](./notes/phase-6.md#t-619) |
 | T-6.20 | Soccer Playbook: resolution model, reusing Live's shooting and passing | L | `done` | | `tests/unit/sports/soccer/playbook/model.test.ts` | `auto` — headless, no screen reaches it yet | Soccer's Live models have no probability to borrow, so the reuse is **composition** — `placementError`, `shotSpeed`, `keeperSpot`, `saveOutcome`, `passError`. **`MODEL_CALIBRATION` came out zero**: the Live passing model lands the turn count in `09` §2.3's band on its own. [notes](./notes/phase-6.md#t-620) |
 | T-6.21 | Soccer Playbook: narration and animated pitch diagram for turn outcomes | M | `done` | | `tests/unit/sports/soccer/playbook/{narration,diagram}.test.ts`, `tests/unit/ui/playbook-screens.test.ts`, `tests/e2e/play-hub.spec.ts` | `auto` + E2E from the hub, by tapping | **The screen was the task.** `playbook-match.ts` imported basketball by name, so `#/play/playbook` could not reach soccer at all; `PlaybookAdapter.squads()` is the seam change that fixed it. The diagram reads its shape from `formations.ts`, so a 4-3-3 draws as one. [notes](./notes/phase-6.md#t-621) |

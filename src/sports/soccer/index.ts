@@ -84,6 +84,7 @@ import {
   attackedGoal,
   crossedBoundary,
   isGoal,
+  goalOpenness,
   isInAttackingPenaltyArea,
   soccerPitch,
   shotDistance,
@@ -132,8 +133,24 @@ const SQUAD = 11;
 
 /** How close a taker must be to a restart spot before it counts as ready. */
 const RESTART_READY_RANGE = 1.2;
-/** Distance from goal inside which the CPU will have a go. */
-const SHOOTING_RANGE = 30;
+/**
+ * Distance from goal inside which the CPU will have a go, and how much of the goal it wants to see
+ * before it does.
+ *
+ * **Both tightened by T-6.18, and the balance harness is why.** At 30 m with no openness gate, any
+ * carrier with a little space shot the instant they crossed halfway: `pnpm balance:soccer` measured
+ * **56 shots and 13.6 goals a match**, against a real game's 25 and 2.7 and against soccer's own
+ * Playbook, which produced 2.6. Twenty-two metres is roughly the edge of the D, and `goalOpenness`
+ * — which already existed for exactly this and had no caller in Live — is what stops a shot from the
+ * by-line where there is no goal to aim at.
+ *
+ * This is a *threshold*, not tactics. Whether to shoot rather than work a better opening is the
+ * judgement Phase 7's CPU makes; this only stops the placeholder taking shots nobody would take.
+ *
+ * @spec-ref 06-game-design.md §3.2
+ */
+const SHOOTING_RANGE = 22;
+const MIN_SHOOTING_OPENNESS = 0.35;
 
 export interface SoccerState extends SportState {
   readonly sport: 'soccer';
@@ -953,7 +970,12 @@ function decide(state: SoccerState, world: World, step: number, rng: Rng): reado
   const distance = shotDistance(x, y, side);
   const pressure = pressureFor(state, world, carrier, side);
 
-  if (distance < SHOOTING_RANGE && (isInAttackingPenaltyArea(x, y, side) || pressure < 0.4)) {
+  const openness = goalOpenness(x, y, side);
+  if (
+    distance < SHOOTING_RANGE &&
+    openness > MIN_SHOOTING_OPENNESS &&
+    (isInAttackingPenaltyArea(x, y, side) || pressure < 0.4)
+  ) {
     return shoot(state, world, carrier, side, { kind: 'shoot', power: 1 }, step, rng);
   }
 

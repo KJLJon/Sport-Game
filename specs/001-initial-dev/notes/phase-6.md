@@ -1587,3 +1587,85 @@ that is the cheaper one), but its comment now says the engine owns the rule.
 
 **Gate 6's engine-change list is therefore three, all justified**: `extendPeriod` (T-6.2),
 `Camera.resize` (T-6.12), and `maxOvertimePeriods` (T-6.17). None of them names a sport.
+
+---
+
+### T-6.18
+
+Balance pass #2 — goals, possession, conversion across Live and Playbook.
+
+**The deliverable is the measurement, and it found one large defect that this task could not fix.**
+`tools/balance-soccer.ts` (`pnpm balance:soccer`) plays both modes and reports one table, because
+"across Live and Playbook" is one question rather than two and the interesting number is whether they
+agree. Everything is counted off the `SportEvent` stream rather than the box score, which is
+basketball-shaped and whose soccer version is Phase 9's HUD work.
+
+**The numbers, 25 matches per mode:**
+
+| | Live | Playbook | plausible |
+|---|---|---|---|
+| Goals per match | **12.84** | 2.44 | 1.2–5.5 |
+| Shots per match | **58.5** | 9.5 | 8–45 |
+| Conversion | 21.9% | 25.6% | 4–30% |
+| Home win share | 40% | 40% | 30–70% |
+| Draw share | 20% | — | 5–55% |
+
+**Playbook passes every band. Live fails on volume alone — its conversion is fine.** That is the
+precise diagnosis and it matters: the shooting and keeper models are not the problem. Live simply
+takes fifty-eight shots a match instead of twenty-five, and 22% of a great many shots is a great many
+goals. A single-match trace shows why — 37 shots, a median gap of 7.5 s between them, and the carrier
+rule being `distance < range && (in the box || pressure < 0.4)`, evaluated every step.
+
+**Shot volume is the placeholder CPU's, and `sports/soccer/index.ts` said so before this task
+started**: "there is no off-ball intelligence beyond holding a role and pressing the ball. That is
+Phase 7's whole job, and T-6.18's balance pass will move the numbers once there is a real opponent to
+balance against." With no notion of working a better opening, every carrier who reaches the final
+third with a metre of space shoots. **Live's soccer scoring cannot be balanced until Phase 7 exists**,
+and the harness is now here to balance it with.
+
+**Two tuning attempts, one kept and one reverted, both worth recording.**
+
+1. **Shot gate tightened** (kept): `SHOOTING_RANGE` 30 m → 22 m, plus a `goalOpenness > 0.35` gate.
+   `goalOpenness` already existed for exactly this and had *no caller in Live*. It stops shots from
+   the by-line where there is no goal to aim at. Honest caveat: it did **not** measurably reduce
+   volume — 56 → 65 shots at n=12, which is inside the noise at that sample size. It is kept as a
+   plausibility fix, not claimed as a balance one.
+2. **`SHOOTING.baseError` 0.55 → 1.15** (reverted). Half a metre of placement error across a 7.32 m
+   goal does make an ordinary professional a marksman, and raising it took Live from 13.6 goals to
+   10.4. It also took **Playbook from 2.58 to 0.92**, because T-6.20 put Live's shooting model under
+   Playbook and the constant feeds both. Reverted with the reasoning left in the comment, because a
+   change that fixes one mode by breaking the other is worse than the state it started from.
+
+**A correction to this file's own earlier claim.** T-6.23's notes recorded Penalty Shootout as
+"badly under-tuned — a rating-90 athlete averages 156 against a 600 first-star threshold". **That
+finding was a measurement artefact and is withdrawn.** The Shootout's keeping rounds expose no band
+on `ArcadeGameView.target` — deliberately, since the whole point of that half is that nothing tells
+you which way the kicker is going — so `pressInBand` never presses, every keeping round times out,
+three lives are gone by round six, and the best score any probe run ever recorded was 390. **The
+probe cannot play half of that game**, so its numbers were never evidence about the game's balance.
+
+The real, actionable finding underneath it: **no automated harness can evaluate the Shootout**, and
+that includes its own tests, which assert `score(90) > score(30)` through `pressInBand`. Whether to
+expose a band during the keeping stage is a *design* question — it would hand the player the read the
+round exists to withhold — and it is left for the user rather than decided here.
+
+One change was made to it regardless, for consistency with the four games built since: **a life is no
+longer spent on a concession where the keeper read it right** and the athlete's outcome band came up
+short. That is the split every other game in the set draws (`09` §2.4) and the Shootout was the only
+one charging for it. It changes none of the measured numbers, because timeouts dominate.
+
+**INV-11's soccer parity run now exists**, and it passes: an elite eleven beats a weak one in both
+Live and Playbook. Deliberately four matches per mode rather than basketball's forty — a Live soccer
+match is ~29,000 steps against basketball's few thousand, and eight per mode took the invariants file
+from seconds to over two minutes. Four is enough for the *ordering* claim where the true rates are
+far apart, and it is not enough for anything finer, which is why nothing finer is asserted.
+
+**Worth being clear about what parity does and does not say.** The two modes disagree about the
+scoreline by a factor of five and still rank rosters identically. INV-11 is about *who wins*; a mode
+producing twice the goals of another is a different complaint, which is why `balance-soccer.ts`
+asserts the goal ratio separately — and that band is currently failing at 5.26×.
+
+**Key-moment rates** (T-6.22) were reviewed and left alone: `last-line` 2.7 a match, `header` 0.93,
+`free-kick` 0.90, `one-on-one` 0.73. The goal-line save being three times either attacking moment is
+a consequence of defending half the time against a side that shoots constantly — it will move on its
+own when Phase 7 fixes shot volume, and tuning it before then would be tuning against a placeholder.

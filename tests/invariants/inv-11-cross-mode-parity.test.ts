@@ -33,6 +33,12 @@ import {
   basketballSquads,
   createBasketballPlaybook,
 } from '../../src/sports/basketball/playbook/index.ts';
+import { simulatePlaybookMatch } from '../../src/modes/playbook/match.ts';
+import { soccer } from '../../src/sports/soccer/index.ts';
+import { SOCCER_RULES } from '../../src/sports/soccer/rules.ts';
+import { soccerPlaybook } from '../../src/sports/soccer/playbook/index.ts';
+import { soccerSquads } from '../../src/sports/soccer/playbook/squad.ts';
+import type { SoccerPlaybookState } from '../../src/sports/soccer/playbook/resolution.ts';
 import { roster, type Tier } from '../../tools/playbook-rosters.ts';
 import type { Athlete } from '../../src/athletes/types.ts';
 
@@ -184,4 +190,88 @@ describe('INV-11 — the two modes read the same ratings (`09` §7)', () => {
       await liveWinRate(home, away, 'determinism', n),
     );
   }, 120_000);
+});
+
+/**
+ * Soccer's first parity run (T-6.18).
+ *
+ * **Deliberately smaller than basketball's**, and the reason is cost rather than confidence: a Live
+ * soccer match is about 29,000 simulation steps against basketball's few thousand, so the batch sizes
+ * above would add minutes to every suite run. What is asserted here is therefore the *ordering*
+ * claim `09` §7 actually makes — a roster good enough to win in one mode wins in the other — and not
+ * a ±8 tolerance, which at this sample size would be asserting the noise.
+ *
+ * **This is not a claim that soccer is balanced.** `pnpm balance:soccer` measures Live at 12.8 goals
+ * a match against Playbook's 2.4, and that gap is real and logged. INV-11 is about *who wins*, and
+ * two modes can disagree wildly about the scoreline while agreeing completely about the winner —
+ * which is exactly what soccer does today.
+ */
+describe('INV-11 — cross-mode outcome parity, soccer (T-6.18)', () => {
+  /**
+   * Four, and it is a cost decision that has to be stated rather than hidden. A Live soccer match is
+   * ~29,000 simulation steps against basketball's few thousand, so eight per mode took this file
+   * from seconds to over two minutes. Four is enough for the *ordering* claim between an elite side
+   * and a weak one — where the true rates are far apart and sampling noise cannot manufacture a pass
+   * — and it is not enough for anything finer, which is why nothing finer is asserted.
+   */
+  const SOCCER_MATCHES = 4;
+
+  async function soccerLiveWinRate(
+    home: readonly Athlete[],
+    away: readonly Athlete[],
+    label: string,
+  ): Promise<number> {
+    let wins = 0;
+    for (let i = 0; i < SOCCER_MATCHES; i += 1) {
+      const match = simulateMatch({
+        seed: `${label}-soccer-live-${i}`,
+        sport: soccer,
+        playerSide: -1,
+        rosters: [home, away],
+      });
+      const view = match.view();
+      if (view.score[0] > view.score[1]) wins += 1;
+      await breathe(i);
+    }
+    return (wins / SOCCER_MATCHES) * 100;
+  }
+
+  async function soccerPlaybookWinRate(
+    home: readonly Athlete[],
+    away: readonly Athlete[],
+    label: string,
+  ): Promise<number> {
+    let wins = 0;
+    for (let i = 0; i < SOCCER_MATCHES; i += 1) {
+      const match = simulatePlaybookMatch<SoccerPlaybookState>({
+        seed: `${label}-soccer-playbook-${i}`,
+        adapter: soccerPlaybook,
+        sport: 'soccer',
+        rules: SOCCER_RULES,
+        squads: soccerSquads(home, away),
+        playerSide: -1,
+      });
+      if (match.state.score[0] > match.state.score[1]) wins += 1;
+      await breathe(i);
+    }
+    return (wins / SOCCER_MATCHES) * 100;
+  }
+
+  /** Elevens rather than fives, and soccer bodies rather than basketball ones. */
+  function elevens(home: Tier, away: Tier, label: string) {
+    return [roster(`${label}-h`, home, 11), roster(`${label}-a`, away, 11)] as const;
+  }
+
+  it('ranks the same rosters the same way in both modes', async () => {
+    const [strong, weak] = elevens('strong', 'weak', 'soccer-rank');
+
+    const live = await soccerLiveWinRate(strong, weak, 'rank');
+    const playbook = await soccerPlaybookWinRate(strong, weak, 'rank');
+
+    // The claim `09` §7 makes, and the failure it names: "if a roster wins 70% in one mode and 40%
+    // in the other, something is wrong with the model". Both modes must put the better side ahead.
+    expect(live, 'soccer Live').toBeGreaterThan(50);
+    expect(playbook, 'soccer Playbook').toBeGreaterThan(50);
+    // Explicit, because the default 5 s would fail on the Live batch alone.
+  }, 180_000);
 });

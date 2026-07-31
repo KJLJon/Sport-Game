@@ -299,8 +299,9 @@ class PenaltyShootoutSession implements ArcadeSession {
       return;
     }
     // Not moving is a goal conceded. A keeper who stands still has made a choice.
+    // Not moving at all is a player error, and the only one the keeper's half has besides the guess.
     if (this.sinceTell >= this.host.calibration.reactionSeconds)
-      this.settleSave(false, 0, 'Beaten');
+      this.settleSave(false, 0, 'Beaten', true);
   }
 
   /**
@@ -315,7 +316,8 @@ class PenaltyShootoutSession implements ArcadeSession {
     const right = chosen === this.kickerSide;
 
     if (!right) {
-      this.settleSave(false, 0, guessed ? 'Guessed wrong' : `Went ${chosen}`);
+      // Going the wrong way is the player's own call, and it is the one thing here that costs a life.
+      this.settleSave(false, 0, guessed ? 'Guessed wrong' : `Went ${chosen}`, true);
       return;
     }
 
@@ -325,10 +327,14 @@ class PenaltyShootoutSession implements ArcadeSession {
       ? 0.35
       : Math.max(0, 1 - this.sinceTell / Math.max(0.05, this.host.calibration.reactionSeconds));
     const saved = this.host.rng.next() < outcomeChance(this.host.calibration, promptness);
-    this.settleSave(saved, promptness, saved ? qualityLabel(promptness) : 'Fingertips');
+    // Right side, wrong outcome: the athlete's band came up short, which is never a life (`09` §2.4).
+    // **T-6.18 changed this**, and it is why a run used to be six attempts long: every concession
+    // cost a life, including the ones where the player read it perfectly, so the balance harness
+    // found a game whose best observed score was 390 against a 600 first-star threshold.
+    this.settleSave(saved, promptness, saved ? qualityLabel(promptness) : 'Fingertips', false);
   }
 
-  private settleSave(saved: boolean, quality: number, said: string): void {
+  private settleSave(saved: boolean, quality: number, said: string, costsLife: boolean): void {
     this.caption = said;
     this.streak = saved ? this.streak + 1 : 0;
 
@@ -337,9 +343,7 @@ class PenaltyShootoutSession implements ArcadeSession {
       points: saved ? POINTS_PER_SAVE + this.streakBonus() : 0,
       quality,
       label: said,
-      // Conceding costs a life. There is no "the athlete let you down" case here: unlike a struck
-      // shot, going the wrong way is entirely the player's call.
-      costsLife: true,
+      costsLife,
       events: saved ? [saveEvent()] : [],
     });
 
