@@ -15,9 +15,11 @@ import {
   DEFAULT_SETUP,
   playbookScreen,
   readSetup,
-  setupQuery,
+  setupParams,
   splitRoster,
 } from '../../../src/ui/screens/playbook.ts';
+import { ROUTES } from '../../../src/app/routes.ts';
+import { buildHash, parseHash, resolveRoute } from '../../../src/app/router.ts';
 import { clockText, playbookMatchScreen } from '../../../src/ui/screens/playbook-match.ts';
 import { appDatabase, closeAppDatabase } from '../../../src/storage/app-db.ts';
 import { deleteDatabase } from '../../../src/storage/idb.ts';
@@ -32,7 +34,11 @@ function context(query: Record<string, string> = {}) {
     host,
     params: {},
     query,
-    navigate: (to: string) => navigated.push(to),
+    // Records the hash the *router* would build, not the path it was handed. A stub that dropped
+    // the second argument is what let a broken "Start match" ship: the assertion passed on a
+    // string the app never actually navigated to.
+    navigate: (to: string, params: Record<string, string> = {}) =>
+      navigated.push(buildHash(to, params)),
     navigated,
   };
 }
@@ -62,12 +68,16 @@ describe('the setup choice round-trips', () => {
       speed: 'fast' as const,
       hotSeat: true,
     };
-    const query = Object.fromEntries(
-      setupQuery(choice)
-        .split('&')
-        .map((pair) => pair.split('=') as [string, string]),
-    );
+    // Through the router's own encoder and parser, because the bug this replaced was in exactly
+    // that step: a hand-assembled hash came back as one percent-encoded segment.
+    const { query } = parseHash(buildHash('/play/playbook/match', setupParams(choice)));
     expect(readSetup(query)).toEqual(choice);
+  });
+
+  it('builds a hash the router can resolve back to the match screen', () => {
+    const hash = buildHash('/play/playbook/match', setupParams(DEFAULT_SETUP));
+
+    expect(resolveRoute(ROUTES, parseHash(hash))?.route.id).toBe('play-playbook-match');
   });
 
   it('falls back to the defaults for anything a newer build wrote', () => {
@@ -149,6 +159,10 @@ describe('the setup screen', () => {
     expect(ctx.navigated).toHaveLength(1);
     expect(ctx.navigated[0]).toContain('#/play/playbook/match?');
     expect(ctx.navigated[0]).toContain('difficulty=legend');
+    // The hash has to survive being parsed back, which is the half that was broken.
+    const location = parseHash(ctx.navigated[0]!);
+    expect(resolveRoute(ROUTES, location)?.route.id).toBe('play-playbook-match');
+    expect(readSetup(location.query).difficulty).toBe('legend');
   });
 
   it('names the second local player on the hot-seat option (`09` §4)', async () => {

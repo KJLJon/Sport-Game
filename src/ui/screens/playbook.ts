@@ -64,15 +64,20 @@ const KEY_MOMENT_BLURBS: Readonly<Record<KeyMomentFrequency, string>> = {
   every: 'Play every chance yourself.',
 };
 
-/** Encodes the choice into a query string, so a match is a link and the back button works. */
-export function setupQuery(choice: PlaybookSetupChoice): string {
-  const params = [
-    `difficulty=${choice.difficulty}`,
-    `moments=${choice.keyMoments}`,
-    `speed=${choice.speed}`,
-  ];
-  if (choice.hotSeat) params.push('hotseat=1');
-  return params.join('&');
+/**
+ * Encodes the choice as router query parameters, so a match is a link and the back button works.
+ *
+ * Parameters, not a query *string*: `navigate(path, query)` builds and escapes the hash itself, and
+ * handing it a pre-assembled `#/…?a=b` got the whole thing percent-encoded into one unmatchable
+ * path segment — "Start match" landed on Not Found. Returning the record removes the temptation.
+ */
+export function setupParams(choice: PlaybookSetupChoice): Record<string, string> {
+  return {
+    difficulty: choice.difficulty,
+    moments: choice.keyMoments,
+    speed: choice.speed,
+    ...(choice.hotSeat ? { hotseat: '1' } : {}),
+  };
 }
 
 /** Reads it back, falling back to the defaults for anything a newer build wrote. */
@@ -219,7 +224,7 @@ export function playbookScreen(): Screen {
             label: 'Start match',
             variant: 'primary',
             size: 'large',
-            onClick: () => context.navigate(`#/play/playbook/match?${setupQuery(choice)}`),
+            onClick: () => context.navigate('/play/playbook/match', setupParams(choice)),
           }),
         );
 

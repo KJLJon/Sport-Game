@@ -597,6 +597,9 @@
 
 .home__links {
   display: flex;
+  /* Three destinations at the narrowest supported width need the second row rather than a
+     two-line label squeezed into one column (T-8.1 added "Choose a game" alongside the others). */
+  flex-wrap: wrap;
   gap: var(--space-8);
 }
 

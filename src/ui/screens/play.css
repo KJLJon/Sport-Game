@@ -1,0 +1,167 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   8 — Modes hub, progression, achievements, economy
+ * @task    T-8.1 — Home screen, mode selector, Quick Play (two taps from cold launch)
+ * @story   US-10.1 — Jump straight into a game
+ * @design  10-ui-ux.md §3 (visual language), §3.2 (targets), §8.1 (first launch), §11 (a11y)
+ *
+ * Purpose: layout for the Play hub. Every value is a token, so theme, UI scale, and reduced
+ * motion apply with nothing here to override.
+ *
+ * The two states a card can be in — ready and pending — differ by border, elevation, and the
+ * sentence inside them, never by colour alone (`10` §11).
+ */
+
+.play-screen {
+  display: grid;
+  gap: var(--space-24);
+  max-width: 720px;
+}
+
+.play-screen__lede {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-16);
+}
+
+.play-section {
+  display: grid;
+  gap: var(--space-12);
+}
+
+.play-section__title {
+  margin: 0;
+  padding: 0;
+  font-size: var(--text-20);
+}
+
+/* ── Sport picker: `10` §8.1 step 2, "two big cards" ──────────────────────── */
+
+.play-sports {
+  /* Contains the absolutely-positioned inputs below; without it they escape to the viewport and
+     land on top of whatever happens to be at the top of the page. */
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-12);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.play-sports > .play-section__title {
+  grid-column: 1 / -1;
+}
+
+/*
+ * Visually hidden, not `display: none` — the radio must stay focusable, reachable by the
+ * accessibility tree, and the target of its label. `.segmented__input` is the same pattern; the
+ * `pointer-events: none` matters, because an invisible input that still swallows taps is a input
+ * bug you only find on a device.
+ */
+.play-sports__input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.play-sports__card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target-primary);
+  padding: var(--space-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  color: var(--text-hi);
+  font-size: var(--text-20);
+  cursor: pointer;
+  transition: border-color var(--dur-micro) var(--ease-out);
+}
+
+.play-sports__input:checked + .play-sports__card {
+  border-color: var(--accent);
+  /* The selected card is also the only one with an inset ring, so selection survives greyscale. */
+  box-shadow: inset 0 0 0 2px var(--accent);
+  background: var(--surface-2);
+}
+
+.play-sports__input:focus-visible + .play-sports__card {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.play-sports__name {
+  font-weight: 600;
+}
+
+/* ── Mode cards ───────────────────────────────────────────────────────────── */
+
+.play-modes {
+  display: grid;
+  gap: var(--space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.play-mode {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  /* The whole card is the target, so it never falls below the minimum (`10` §3.2). */
+  min-height: var(--target-primary);
+}
+
+.play-mode--ready {
+  box-shadow: var(--elevation-1);
+  color: inherit;
+  text-decoration: none;
+}
+
+.play-mode--ready:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.play-mode--pending {
+  background: var(--surface-0);
+  border-style: dashed;
+}
+
+.play-mode__name {
+  margin: 0;
+  font-size: var(--text-20);
+}
+
+.play-mode__blurb {
+  margin: 0;
+  font-size: var(--text-16);
+}
+
+.play-mode__hint,
+.play-mode__pending {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.play-mode__go {
+  justify-self: start;
+  margin-top: var(--space-8);
+  padding: var(--space-8) var(--space-16);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--text-14);
+  font-weight: 600;
+}
+
+.play-screen__footer {
+  display: flex;
+  gap: var(--space-12);
+}

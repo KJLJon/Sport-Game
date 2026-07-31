@@ -1,0 +1,123 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   8 — Modes hub, progression, achievements, economy
+ * @task    T-8.1 — Home screen, mode selector, Quick Play (two taps from cold launch)
+ * @story   US-10.1 — Jump straight into a game
+ * @design  10-ui-ux.md §2 (two taps to play), §8.1 (first launch), §8.2 (Quick Play)
+ *
+ * Purpose: that the game can be *started*, by tapping, in the built app.
+ *
+ * **Why this suite exists.** Through Phases 2–6 every mode was verified by its own deep link, and
+ * every one of them passed, while the Play tab still landed on a Phase-0 placeholder — so the
+ * shipped build had four working modes and no way to reach any of them. A deep-link test cannot
+ * see that, because it starts past the part that was broken. These tests start at the home screen
+ * and only use the controls a thumb can find, which is the one property nothing else asserted.
+ */
+import { expect, test, type Page } from '@playwright/test';
+import { BASE, resetOrigin } from './helpers.ts';
+
+test.beforeEach(async ({ context, page }) => {
+  await resetOrigin(context, page);
+  await page.setViewportSize({ width: 390, height: 844 });
+});
+
+/**
+ * Back to the Play hub between assertions.
+ *
+ * Deliberately the URL rather than a tap: the home button becomes Quick Play once something has
+ * been played (`10` §8.2), and a Live match hides the tab bar (`chrome: 'bare'`), so neither
+ * control is available from everywhere these tests need to return from. The tap-path itself is
+ * asserted by the first test, which is the one that is about it.
+ */
+async function openHub(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}#/play`);
+  await expect(page.locator('.play-screen')).toBeVisible();
+}
+
+test('two taps from a cold launch reach a live match', async ({ page }) => {
+  await page.goto(BASE);
+
+  // Tap one: the home screen's single primary action.
+  await page.locator('.home__play').click();
+  // Tap two: a mode.
+  await page.setViewportSize({ width: 900, height: 460 });
+  await page.locator('a.play-mode--ready[href="#/play/live/basketball"]').click();
+
+  await expect(page.locator('canvas.live__canvas')).toBeVisible();
+});
+
+test('every mode the hub offers actually opens', async ({ page }) => {
+  await openHub(page);
+
+  const hrefs = await page
+    .locator('a.play-mode--ready')
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href') ?? ''));
+  expect(hrefs.length).toBeGreaterThan(0);
+
+  for (const href of hrefs) {
+    await openHub(page);
+    await page.locator(`a.play-mode--ready[href="${href}"]`).click();
+    // Not-found is the failure this whole suite is about, so it is what is asserted against.
+    await expect(page.locator('body')).not.toContainText("That screen doesn't exist");
+    expect(page.url()).toContain(href.replace(/^#/, ''));
+  }
+});
+
+test('switching sport switches what can be started, and says why not', async ({ page }) => {
+  await openHub(page);
+
+  await page.locator('label[for="play-sport-soccer"]').click();
+
+  await expect(page.locator('a.play-mode--ready[href="#/play/live/soccer"]')).toBeVisible();
+  // A mode soccer cannot start is present and explains itself, rather than silently vanishing.
+  const pending = page.locator('.play-mode__pending');
+  await expect(pending.first()).toBeVisible();
+  await expect(pending.first()).not.toBeEmpty();
+});
+
+test('a Playbook match starts from the setup screen (the hash the router can parse)', async ({
+  page,
+}) => {
+  await openHub(page);
+  await page.locator('a.play-mode--ready[href="#/play/playbook"]').click();
+
+  await page.getByRole('button', { name: 'Start match' }).click();
+
+  // The bug this guards: a pre-assembled `#/…?a=b` handed to `navigate()` came back
+  // percent-encoded as one unmatchable segment, and every Playbook match landed on Not Found.
+  await expect(page.locator('body')).not.toContainText("That screen doesn't exist");
+  expect(page.url()).toContain('#/play/playbook/match?');
+  await expect(page.locator('.play-call-sheet')).toBeVisible();
+});
+
+test('Quick Play remembers the last match and starts it in one tap', async ({ page }) => {
+  await openHub(page);
+  await page.locator('label[for="play-sport-soccer"]').click();
+  await page.setViewportSize({ width: 900, height: 460 });
+  await page.locator('a.play-mode--ready[href="#/play/live/soccer"]').click();
+  await expect(page.locator('canvas.live__canvas')).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(BASE);
+
+  const quick = page.locator('.home__play');
+  await expect(quick).toHaveText('Quick Play · Live Soccer');
+
+  await page.setViewportSize({ width: 900, height: 460 });
+  await quick.click();
+  await expect(page).toHaveURL(/#\/play\/live\/soccer$/);
+  await expect(page.locator('canvas.live__canvas')).toBeVisible();
+});
+
+test('quitting a match lands on the hub, not a placeholder', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 460 });
+  await page.goto(`${BASE}#/play/live/basketball`);
+  await expect(page.locator('canvas.live__canvas')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Quit match' }).click();
+
+  await expect(page.locator('.play-screen')).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('Arrives in');
+});
