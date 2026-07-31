@@ -48,6 +48,8 @@ import type {
   PlaybookState,
   TurnResolution,
 } from '../../../modes/playbook/types.ts';
+import type { Athlete } from '../../../athletes/types.ts';
+import type { TurnDiagram } from '../../../modes/playbook/diagram.ts';
 import { SOCCER_RULES, TIMING, stepsToGameSeconds } from '../rules.ts';
 import {
   DEFAULT_INTENTS,
@@ -58,6 +60,7 @@ import {
   optionsFor,
   type SoccerIntents,
 } from './intents.ts';
+import { buildDiagram } from './diagram.ts';
 import { narrateTurn } from './narration.ts';
 import { OPENING_PHASE, nextPhase, type SoccerPhase } from './phases.ts';
 import {
@@ -69,6 +72,7 @@ import {
   resolvePhaseTurn,
   type SoccerPlaybookState,
 } from './resolution.ts';
+import { soccerSquads } from './squad.ts';
 
 export type SoccerPlaybook = PlaybookAdapter<SoccerPlaybookState>;
 
@@ -156,6 +160,16 @@ function baselineCall(
 export const soccerPlaybook: SoccerPlaybook = {
   turnKind: 'phase',
 
+  // How a roster becomes two elevens. `SportModule.meta.squadSize` already says how many athletes
+  // that takes, so this member is only the mapping — and it is what lets the Playbook screen start
+  // a soccer match without importing a soccer symbol by name (INV-5).
+  squads(
+    home: readonly Athlete[],
+    away: readonly Athlete[],
+  ): readonly [PlaybookSquad, PlaybookSquad] {
+    return soccerSquads(home, away);
+  },
+
   // The same clock Live shows, at the same compression: a Playbook half is forty-five game minutes
   // spent one phase of play at a time. `secondsPerStep` is soccer's own compression and nothing
   // else, so a Playbook half and a Live half are the same number of simulation steps (INV-11).
@@ -212,6 +226,10 @@ export const soccerPlaybook: SoccerPlaybook = {
 
   narrate(state: PlaybookState<SoccerPlaybookState>, resolution: TurnResolution): NarrationLine {
     return narrateTurn(state, resolution);
+  },
+
+  diagram(state: PlaybookState<SoccerPlaybookState>, resolution: TurnResolution): TurnDiagram {
+    return buildDiagram(state, resolution);
   },
 
   /**
@@ -293,6 +311,8 @@ export {
   phaseThird,
 } from './phases.ts';
 export { PHASE_ODDS, phaseOutcomeOf, resolvePhaseTurn } from './resolution.ts';
-export { soccerSquad, soccerSquads } from './squad.ts';
+export { soccerSquad } from './squad.ts';
+export { soccerSquads };
+export { buildDiagram } from './diagram.ts';
 export type { SoccerPhase } from './phases.ts';
 export type { SoccerPlaybookState } from './resolution.ts';

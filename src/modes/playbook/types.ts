@@ -273,6 +273,20 @@ export interface PlaybookAdapter<S = unknown> {
   readonly turnKind: TurnKind;
   readonly clock: PlaybookClock;
 
+  /**
+   * Two lists of athletes into the two squads this sport's turns resolve against (T-6.21).
+   *
+   * **Why it is on the seam.** The turn screen has to build a match before it can render one, and
+   * before this it did that by importing `basketballSquads` by name — which is exactly the sport
+   * branching INV-5 exists to prevent, and the reason `#/play/playbook` could not reach soccer at
+   * all. How many athletes a side needs is already `SportModule.meta.squadSize`; this is only the
+   * mapping, which nothing outside the sport can write.
+   */
+  squads(
+    home: readonly Athlete[],
+    away: readonly Athlete[],
+  ): readonly [PlaybookSquad, PlaybookSquad];
+
   /** The sport's own between-turn state. Seeded, so two matches with one seed are one match. */
   createState(setup: PlaybookSetup, rng: Rng): S;
 

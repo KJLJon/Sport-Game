@@ -37,11 +37,13 @@ import type { TurnDiagram } from '../../../modes/playbook/diagram.ts';
 import { BASKETBALL_RULES, TIMING, stepsToGameSeconds } from '../rules.ts';
 import { BASKETBALL_CALLS, defensiveProfile, offensiveProfile } from './calls.ts';
 import { coachCall } from './coach.ts';
+import type { Athlete } from '../../../athletes/types.ts';
 import { cpuCall } from './cpu.ts';
 import { buildDiagram } from './diagram.ts';
 import { applyKeyMomentOutcome, detectKeyMoment } from './key-moments.ts';
 import { narrateTurn } from './narration.ts';
 import { drainStamina, resolvePossession, type BasketballPlaybookState } from './resolution.ts';
+import { basketballSquads } from './squad.ts';
 
 export type BasketballPlaybook = PlaybookAdapter<BasketballPlaybookState>;
 
@@ -67,6 +69,13 @@ function callsFor(
  */
 export const basketballPlaybook: BasketballPlaybook = {
   turnKind: 'possession',
+
+  squads(
+    home: readonly Athlete[],
+    away: readonly Athlete[],
+  ): readonly [PlaybookSquad, PlaybookSquad] {
+    return basketballSquads(home, away);
+  },
 
   // The same clock Live shows, at the same compression — a Playbook quarter is twelve game minutes
   // spent one possession at a time, which is what makes possession counts comparable (INV-11).
@@ -175,5 +184,6 @@ export { MOMENT_GAMES, detectKeyMoment, leverageFor } from './key-moments.ts';
 export { coachCall, explainCall, scoreCalls, scoreDefence, scoreOffence } from './coach.ts';
 export { READ_WINDOW, cpuCall, readTendencies, starOf, temperatureFor } from './cpu.ts';
 export { BASKETBALL_CALLS } from './calls.ts';
-export { basketballSquad, basketballSquads, playbookRatings } from './squad.ts';
+export { basketballSquad, playbookRatings } from './squad.ts';
+export { basketballSquads };
 export type { BasketballPlaybookState } from './resolution.ts';
