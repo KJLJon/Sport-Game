@@ -320,7 +320,7 @@ Return types are as *declared*: `=> ?` means the source left it to inference.
 
 - `src/engine/match/state-machine.ts`  const MatchPhase
 - `src/engine/match/state-machine.ts`  type MatchPhaseName  = (typeof MatchPhase)[keyof typeof MatchPhase]
-- `src/engine/match/state-machine.ts`  interface MatchRules  { periods, periodSteps, overtimeSteps, clockRunsInStoppage }
+- `src/engine/match/state-machine.ts`  interface MatchRules  { periods, periodSteps, overtimeSteps, maxOvertimePeriods, clockRunsInStoppage }
 - `src/engine/match/state-machine.ts`  interface MatchResult  { homeScore, awayScore, winner, periodsPlayed, steps }
 - `src/engine/match/state-machine.ts`  class MatchStateMachine  (rules, bus?) => MatchStateMachine
 - `src/engine/match/state-machine.ts`  interface MatchSnapshot  { phase, period, periodStep, totalSteps, homeScore, awayScore, overtimePeriods, periodExtension }

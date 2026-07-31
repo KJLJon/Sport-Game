@@ -1536,3 +1536,54 @@ Audio, because the cue that tells you the score changed is not decoration.
 **Not verified on a device.** Every claim here is asserted against the recording canvas; whether the
 keeper actually reads as a keeper at phone size, and whether the goal cue is satisfying rather than
 twee, are both questions for the deploy that has been blocked since Gate 2.
+
+---
+
+### T-6.17
+
+Engine-core refactor: extract anything basketball-shaped that leaked into core.
+
+**The audit found nothing in `src/engine/`, and that is the honest headline.** A sweep for basketball
+vocabulary turns up three hits and all three are fine:
+
+- `MatchRules.clockRunsInStoppage` — a comment naming both sports as examples, which is the seam
+  working rather than leaking.
+- `DEFAULT_BALL_PHYSICS.restitution` — same, a comment giving both sports' values.
+- `EventKind.REBOUND` — a shared kind that today only basketball emits. Left alone deliberately: a
+  rebound off a keeper's parry is a real thing in soccer, hockey has them, and renaming a kind
+  ripples through every XP table, box score, audio mapping, and achievement rule in the project for
+  no gain. Recorded rather than churned.
+
+**The leaks were one layer up, and T-6.16 had just fixed the worst of them** — `modes/live/screen.ts`
+drawing every sport with `sports/basketball/art.ts` and playing basketball's audio cues. That is the
+useful finding: `engine/` was never the problem, because it has no reason to import a sport, while a
+*mode* legitimately imports both and so is where "the first sport's name" actually survives.
+
+**So the deliverable is the test that stops the next one.** A one-off audit that finds nothing is
+worth exactly as much as the guard it leaves behind: `layering.test.ts` now asserts that no file
+under `src/engine/` imports from `src/sports/` or `src/modes/`. INV-5 in structural form, next to the
+domain-must-not-import-UI rule that has been there since T-3.10.
+
+**One real core change, and it was the gap logged since T-6.14: `MatchRules.maxOvertimePeriods`.**
+
+`MatchStateMachine` offered another overtime period for as long as the score was level and
+`overtimeSteps` was set. That is right for basketball — a tied game plays OT after OT until somebody
+leads — and wrong for every sport with a different tiebreak. Soccer plays exactly two extra halves
+and then takes penalties, and with nothing to cap it a level Playbook match reached **period 15**
+before the turn engine's `MAX_TURNS` guard caught it.
+
+**Why it had to be here rather than in the sport.** T-6.14 fixed Playbook by overriding
+`adapter.isFinished`, which worked and left **Live broken** — Live has no `isFinished` to override.
+Any sport with a bounded tiebreak would have to reimplement the same cap in each mode that gave it a
+hook. One optional number on `MatchRules` serves every sport and every mode, the default stays
+unbounded so basketball is untouched, and `SOCCER_RULES` now carries `maxOvertimePeriods: 2`.
+
+What happens *instead* of another period is deliberately not the engine's business. The field says
+only that the match stops; a sport whose laws call for a shootout runs one above this layer, which is
+where the unwired Penalty Shootout still sits.
+
+Soccer's `isFinished` override is kept as a belt-and-braces guard (the turn loop has two exits and
+that is the cheaper one), but its comment now says the engine owns the rule.
+
+**Gate 6's engine-change list is therefore three, all justified**: `extendPeriod` (T-6.2),
+`Camera.resize` (T-6.12), and `maxOvertimePeriods` (T-6.17). None of them names a sport.

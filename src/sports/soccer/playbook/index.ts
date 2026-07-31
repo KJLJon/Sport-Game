@@ -219,20 +219,20 @@ export const soccerPlaybook: SoccerPlaybook = {
   /**
    * Two halves of extra time, and then the match is over however it stands.
    *
-   * **This is covering a real defect, and it is worth naming rather than absorbing.**
-   * `MatchStateMachine` keeps offering another overtime period while the score is level and
-   * `MatchRules.overtimeSteps` is set, which is right for basketball — a tied basketball game plays
-   * OT after OT until somebody leads — and wrong for soccer, which plays exactly two extra halves
-   * and then takes penalties. Nothing capped it, so a level soccer match ran until the turn engine's
-   * `MAX_TURNS` guard caught it: the worst seed in the T-6.14 batch reached **period 15**.
+   * **The engine owns this now (T-6.17).** `MatchRules.maxOvertimePeriods` is soccer's `2`, so the
+   * state machine goes final on its own and this check is no longer the binding constraint. It is
+   * kept as a belt-and-braces guard because the turn loop has two exits and this is the cheaper one.
    *
-   * Live has the same bug for the same reason and is not fixed here — T-6.14 owns a Playbook
-   * adapter, not soccer's Live clock. It is logged in `PROGRESS.md` as a Phase 6 gap for T-6.17 to
-   * take, where an engine-side `maxOvertimePeriods` on `MatchRules` would serve every sport instead
-   * of one mode of one.
+   * The history is worth keeping, because it is why the engine gained the field. `MatchStateMachine`
+   * used to offer another overtime period for as long as the score was level and
+   * `MatchRules.overtimeSteps` was set — right for basketball, wrong for soccer. Nothing capped it,
+   * so a level match ran until the turn engine's `MAX_TURNS` guard caught it: the worst seed in the
+   * T-6.14 batch reached **period 15**. Overriding `isFinished` here fixed Playbook and left **Live
+   * broken**, because Live has no `isFinished` to override — which is exactly the argument for
+   * putting the cap on `MatchRules` instead, where it serves every sport and every mode.
    *
-   * A match still level after extra time is a draw for now. The shootout that should decide it is
-   * T-6.15's Penalty Shootout arcade game, and wiring it in is T-6.22's key-moment work.
+   * A match still level after extra time is a **draw**. The shootout that should decide it is
+   * T-6.15's Penalty Shootout, and wiring it needs match-level support — see `PROGRESS.md`.
    *
    * @spec-ref 06-game-design.md §3.2 — "extra time then penalties"
    */
