@@ -149,7 +149,7 @@ None of the three names a sport.
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 27 | 27 | `done` | v0.5 |
+| 6 | Soccer · all three modes | 28 | 28 | `done` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -157,7 +157,7 @@ None of the three names a sport.
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **200** | **113** | | |
+| | **Total** | **201** | **114** | | |
 
 ---
 
@@ -314,6 +314,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.25 | Soccer arcade: Header | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | The jump is contested rather than clocked, and a good leap buys meter *speed* where One-on-One's touch buys band *width*; two bugs found that punished elite athletes — see the sweep-denominated clock. [notes](./notes/phase-6.md#t-625) |
 | T-6.26 | Soccer arcade: Last Line | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | One tap, one 45 s clock, no aiming — the set's only clocked run, and the marker crosses the track in exactly the athlete's `reactionSeconds`, which is the rating on screen undisguised. [notes](./notes/phase-6.md#t-626) |
 | T-6.27 | Soccer arcade: set registration, unlock wiring, and `calibrate()` tests | S | `done` | | `tests/unit/modes/arcade/launch-set.test.ts` | `auto` | Registration and unlock wiring needed no code (done per-commit; the hub's seam already worked), so the deliverable is the catalogue-level test neither sport's own file could make — 13 tests over both sets. [notes](./notes/phase-6.md#t-627) |
+| T-6.28 | HUD reads `SportHudSpec`: clock direction, foul label, action clock per sport | S | `done` | | `tests/unit/modes/live/hud.test.ts` | `auto` + both sports screenshotted at 844×390 from the production build | `SportHudSpec` had been part of the seam since T-2.10 and **nothing had ever read it**, so soccer was drawn with basketball's countdown and "0 PF"; the spec is now an argument to `drawHud`. [notes](./notes/phase-6.md#t-628) |
 
 ### Phase 7 — CPU AI depth & difficulty ladder
 

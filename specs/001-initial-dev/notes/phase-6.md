@@ -1670,6 +1670,68 @@ asserts the goal ratio separately — and that band is currently failing at 5.26
 a consequence of defending half the time against a side that shoots constantly — it will move on its
 own when Phase 7 fixes shot volume, and tuning it before then would be tuning against a placeholder.
 
+### T-6.28
+
+**HUD reads `SportHudSpec`: clock direction, foul label, action clock per sport.**
+
+Added on 2026-07-31, out of Gate 6's known-gaps list (gap #2) and out of the user asking for
+something playable. The gap had been filed as Phase 9's on the grounds that it is a HUD change. That
+was the wrong call: a soccer match on the deployed build showed a clock counting **down** from 45:00
+and a tally reading **"0 PF"**, and neither of those reads as unfinished polish — they read as a
+broken game, and the first soccer match anyone plays is the one that decides what they think of it.
+
+**What was actually wrong.** `SportHudSpec` has been a member of the sport seam since T-2.10, with
+`showShotClock`, `showPossession`, and `buttonLabels` on it. **Nothing had ever read it.** Not the
+HUD, not the screen, not the touch controls — `grep` for any of its three members outside
+`sports/` and `types.ts` returned nothing. So every sport got basketball's HUD: countdown clock,
+"PF", and an action clock drawn whenever `SportStatus.actionClock` was non-null. Soccer had
+correctly declared `showShotClock: false` in T-6.10 and it had never made any difference.
+
+This is the fourth instance of Phase 6's recurring bug, and it is worth naming as such: **a
+sport-facing surface with a sport's conventions hardcoded, passing every test it has** (see the
+`PROGRESS.md` rule list — `#/play`, `playbook-match.ts`, `arcade.ts`, and the T-6.16 art/audio one).
+The difference here is that the seam member *already existed* to prevent it. A seam nothing reads is
+not a seam; it is a comment with a type annotation.
+
+**The shape of the fix.**
+
+- `SportHudSpec` gains `clock?: 'remaining' | 'elapsed'` and `foulLabel?: string | null`. Both
+  optional, both defaulting to basketball's answer, so no sport is broken by the addition and the
+  default is the behaviour that was there before — named, in `DEFAULT_HUD_SPEC`, rather than
+  scattered through the drawing code.
+- `SportStatus` gains an optional `periodElapsed`. It is **reported by the sport, not derived** from
+  `periodClock`, because the two are not complements: soccer's second half reads on to 90:00 rather
+  than restarting, and added time lengthens the period without moving the mark being counted past.
+  Only the sport knows either.
+- `drawHud` takes the spec as an argument. `hud.ts` declares its own `HudSpec` — the three members
+  it needs — rather than importing `SportHudSpec`, so the HUD depends on a shape and not on the
+  sport seam.
+- `formatElapsedClock` is separate from `formatClock` on purpose. `formatClock` switches to tenths
+  inside the last minute, which is right for a countdown about to expire and absurd for a clock
+  starting at zero: soccer would kick off reading `0:00`, `0:00.1`, `0:00.2`.
+
+**One deliberate fallback.** A sport that asks for `'elapsed'` and reports no `periodElapsed` gets
+the countdown, not `0:00`. A clock frozen at zero for a whole match reads as a crash; a clock running
+the wrong way reads as a bug — and only one of those is recoverable by looking at it. Tested.
+
+**Verified** on the production build at 844×390, both sports: soccer reads `Half 1 · 1:06` counting
+up with `0 FOULS` and no shot clock; basketball is byte-for-byte what it was — `Quarter 1 · 11:36`
+counting down, `0 PF`, shot clock `17`. The whole suite stayed green (2795 tests), which is the point
+worth noticing: **not one existing test failed**, because every one of them was written against the
+default spec. Nothing in the suite had ever asserted what soccer's HUD showed.
+
+**Two gaps this leaves, both logged rather than fixed.**
+
+1. **Soccer's second half restarts at 0:00 instead of running on to 90:00.** `status()` is handed no
+   period — the seam gives it only the state — so `elapsedGameSeconds` is called with a hardcoded
+   `period = 1`, which is what `periodClock` already did on the same line. Wrong, and far less wrong
+   than counting down. Threading the period through `status()` is its own change.
+2. **Soccer's foul rate is broken, and this change is what made it visible.** With the tally now
+   labelled and legible, a match showed **12 fouls inside 1:06 of game time** — a real match has
+   twenty-odd in ninety minutes. Nothing to do with the HUD; it is `fouls.ts` awarding contact far
+   too readily, and it was invisible while the number sat under a basketball label nobody read.
+   Measured, not eyeballed, in the row below.
+
 ---
 
 ## Gate record

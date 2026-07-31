@@ -21,6 +21,9 @@ import {
   drawHud,
   drawMinimap,
   foulLabel,
+  formatElapsedClock,
+  DEFAULT_HUD_SPEC,
+  type HudSpec,
   formatActionClock,
   formatClock,
   hudLayout,
@@ -293,5 +296,65 @@ describe('the live box score', () => {
     const rows = boxRows(view({ box: createBoxScore() }), 1);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ label: 'Team', points: '0', shooting: '0-0' });
+  });
+});
+
+/**
+ * T-6.28. Every assertion here failed before the HUD read `SportHudSpec`: a soccer match drew
+ * basketball's countdown and labelled soccer's fouls "PF", and the spec had sat unread since T-2.10.
+ */
+describe('the HUD takes its shape from the sport (T-6.28)', () => {
+  const SOCCER: HudSpec = { showShotClock: false, clock: 'elapsed', foulLabel: 'FOULS' };
+
+  function texts(spec: HudSpec, v = view()): string[] {
+    const ctx = recordingCanvas();
+    drawHud(ctx, v, hudLayout(800, 400), spec);
+    return ctx.ofKind('fillText').map((c) => String(c.args[0]));
+  }
+
+  it('counts up for a sport whose clock counts up, and down for one whose does not', () => {
+    const v = view({ status: { ...view().status, periodClock: 415, periodElapsed: 2285 } });
+    // The same match state: 6:55 left of the half, 38:05 played.
+    expect(texts(SOCCER, v)).toContain('38:05');
+    expect(texts(SOCCER, v)).not.toContain('6:55');
+    expect(texts(DEFAULT_HUD_SPEC, v)).toContain('6:55');
+  });
+
+  it('keeps counting past the regulation mark, because added time does', () => {
+    const v = view({ status: { ...view().status, periodClock: 0, periodElapsed: 2772 } });
+    expect(texts(SOCCER, v)).toContain('46:12');
+  });
+
+  it('labels the foul tally in the sport′s own word', () => {
+    expect(texts(SOCCER).some((t) => t.includes('FOULS'))).toBe(true);
+    expect(texts(SOCCER).some((t) => t.includes('PF'))).toBe(false);
+    expect(texts(DEFAULT_HUD_SPEC).some((t) => t.includes('PF'))).toBe(true);
+  });
+
+  it('hides the tally entirely for a sport that does not show one', () => {
+    const spec: HudSpec = { showShotClock: true, foulLabel: null };
+    expect(texts(spec).some((t) => t.includes('PF'))).toBe(false);
+    // The rest of the scoreboard is untouched.
+    expect(texts(spec)).toContain('42');
+  });
+
+  it('draws no action clock for a sport that does not show one, even when the count exists', () => {
+    // `actionClock` is 18 in the fixture. Basketball puts it on screen; soccer must not.
+    expect(texts(DEFAULT_HUD_SPEC)).toContain('18');
+    expect(texts(SOCCER)).not.toContain('18');
+  });
+
+  it('falls back to the countdown rather than to 0:00 when elapsed was never reported', () => {
+    // A sport that asks for an up-counting clock and forgets to report one. A frozen 0:00 reads as
+    // a crash; the countdown is at least live and true.
+    expect(texts({ showShotClock: false, clock: 'elapsed' })).toContain('6:55');
+  });
+
+  it('formats an up-counting clock in whole seconds from the first tick', () => {
+    // `formatClock` would give "0.0", "12.4" — tenths, which are right for a countdown expiring and
+    // nonsense for a clock starting from zero.
+    expect(formatElapsedClock(0)).toBe('0:00');
+    expect(formatElapsedClock(12.4)).toBe('0:12');
+    expect(formatElapsedClock(2700)).toBe('45:00');
   });
 });

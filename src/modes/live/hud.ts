@@ -2,6 +2,7 @@
  * @spec    001-initial-dev
  * @phase   2 — Basketball · Live
  * @task    T-2.10 — Match HUD: score, clocks, fouls, live box score, minimap, off-screen indicators
+ * @task    T-6.28 — HUD reads `SportHudSpec`: clock direction, foul label, action clock per sport
  * @story   US-2.3 — See what is happening
  * @story   US-2.4 — See the state of the match at a glance
  * @design  06-game-design.md §4 (in-match HUD), 10-ui-ux.md §3 (tokens), §4 (safe areas),
@@ -10,8 +11,15 @@
  *            colour alone; 44 px touch targets)
  *
  * Purpose: draws the match state a player has to be able to read at a glance while their thumbs are
- * busy. Everything it draws comes from `MatchView` and nothing else — it never sees a `World`, a
- * `RulesState`, or the word "basketball".
+ * busy. Everything it draws comes from `MatchView` and the sport's `SportHudSpec`, and nothing else
+ * — it never sees a `World`, a `RulesState`, or the word "basketball".
+ *
+ * **That last claim was false until T-6.28.** The file named no sport, but it had basketball's
+ * conventions welded in: the clock counted down, the foul tally was labelled "PF", and any sport
+ * reporting an action clock got one drawn. `SportHudSpec` had existed since T-2.10 to say otherwise
+ * and *nothing had ever read it*, so a soccer match — which counts up, calls them fouls, and has no
+ * shot clock — was drawn as a basketball game with the wrong numbers in it. The spec is now an
+ * argument to `drawHud`, and `DEFAULT_HUD_SPEC` is the old behaviour, named.
  *
  * **Why the layout is computed rather than hard-coded.** A phone's safe area is not a constant: a
  * notch, a rotation, and the browser's own chrome all move it, and a HUD that assumes otherwise puts
@@ -132,6 +140,39 @@ export function formatActionClock(seconds: number): string {
 }
 
 /**
+ * `M:SS` in whole seconds, for a clock that counts *up*.
+ *
+ * Deliberately not `formatClock`: that one switches to tenths inside the last minute, which is
+ * right for a countdown about to expire and absurd on a clock starting from zero — a soccer match
+ * would kick off reading `0:00`, `0:00.1`, `0:00.2`.
+ */
+export function formatElapsedClock(seconds: number): string {
+  const clamped = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(clamped / 60);
+  return `${minutes}:${(clamped - minutes * 60).toString().padStart(2, '0')}`;
+}
+
+/**
+ * How the HUD reads a sport it has never heard of. A subset of `SportHudSpec`, so `hud.ts` depends
+ * on the shape it needs rather than on the sport seam.
+ */
+export interface HudSpec {
+  readonly showShotClock: boolean;
+  readonly clock?: 'remaining' | 'elapsed';
+  readonly foulLabel?: string | null;
+}
+
+/**
+ * What a sport gets by saying nothing. Basketball's conventions, because they were the HUD's
+ * hardcoded assumptions before `SportHudSpec` was wired up and this keeps that behaviour exact.
+ */
+export const DEFAULT_HUD_SPEC: HudSpec = {
+  showShotClock: true,
+  clock: 'remaining',
+  foulLabel: 'PF',
+};
+
+/**
  * The whole HUD, in one call.
  *
  * Drawn in screen space, not world space: the caller submits this to the renderer's `hud` layer
@@ -141,14 +182,34 @@ export function drawHud(
   ctx: Canvas2D,
   view: MatchView,
   layout: HudLayout,
+  spec: HudSpec = DEFAULT_HUD_SPEC,
   theme: HudTheme = DEFAULT_HUD_THEME,
 ): void {
-  drawScoreboard(ctx, view, layout, theme);
+  drawScoreboard(ctx, view, layout, spec, theme);
   if (view.status.stoppage !== null) drawStoppage(ctx, view, layout, theme);
   if (view.status.meter !== null) drawMeter(ctx, view.status.meter, layout, theme);
 }
 
-function drawScoreboard(ctx: Canvas2D, view: MatchView, layout: HudLayout, theme: HudTheme): void {
+/**
+ * The game clock as this sport keeps it.
+ *
+ * An `'elapsed'` sport that has not reported `periodElapsed` falls back to the countdown rather
+ * than to `0:00`, because a clock frozen at zero for a whole match reads as a crash and a clock
+ * running the wrong way reads as a bug — and only one of those is recoverable by looking at it.
+ */
+export function clockText(view: MatchView, spec: HudSpec): string {
+  const elapsed = view.status.periodElapsed;
+  if (spec.clock === 'elapsed' && elapsed !== undefined) return formatElapsedClock(elapsed);
+  return formatClock(view.status.periodClock);
+}
+
+function drawScoreboard(
+  ctx: Canvas2D,
+  view: MatchView,
+  layout: HudLayout,
+  spec: HudSpec,
+  theme: HudTheme,
+): void {
   const { board, scale } = layout;
 
   ctx.fillStyle = theme.panel;
@@ -176,20 +237,28 @@ function drawScoreboard(ctx: Canvas2D, view: MatchView, layout: HudLayout, theme
   const centre = board.x + board.width / 2;
   ctx.fillStyle = theme.text;
   ctx.font = `600 ${Math.round(15 * scale)}px system-ui, sans-serif`;
-  ctx.fillText(formatClock(view.status.periodClock), centre, mid);
+  ctx.fillText(clockText(view, spec), centre, mid);
 
   ctx.fillStyle = theme.dim;
   ctx.font = `500 ${Math.round(10 * scale)}px system-ui, sans-serif`;
   ctx.fillText(`${view.periodName} ${view.period}`, centre, board.y + board.height * 0.26);
 
-  drawActionClock(ctx, view, layout, theme);
-  drawFouls(ctx, view, layout, theme);
+  drawActionClock(ctx, view, layout, spec, theme);
+  drawFouls(ctx, view, layout, spec, theme);
 }
 
 /** The action clock sits under the board and turns amber when it is nearly out. */
-function drawActionClock(ctx: Canvas2D, view: MatchView, layout: HudLayout, theme: HudTheme): void {
+function drawActionClock(
+  ctx: Canvas2D,
+  view: MatchView,
+  layout: HudLayout,
+  spec: HudSpec,
+  theme: HudTheme,
+): void {
   const clock = view.status.actionClock;
-  if (clock === null) return;
+  // Two independent conditions: the sport may have no action clock at all, or may have one it does
+  // not put on screen. Soccer is the first to say no, and said it long before anything listened.
+  if (clock === null || !spec.showShotClock) return;
 
   const { board, scale } = layout;
   const urgent = clock <= 5;
@@ -205,9 +274,16 @@ function drawActionClock(ctx: Canvas2D, view: MatchView, layout: HudLayout, them
 }
 
 /** Team fouls, with the bonus spelled out rather than implied by a colour (INV-11). */
-function drawFouls(ctx: Canvas2D, view: MatchView, layout: HudLayout, theme: HudTheme): void {
+function drawFouls(
+  ctx: Canvas2D,
+  view: MatchView,
+  layout: HudLayout,
+  spec: HudSpec,
+  theme: HudTheme,
+): void {
   const fouls = view.status.teamFouls;
-  if (fouls === null) return;
+  const label = spec.foulLabel === undefined ? 'PF' : spec.foulLabel;
+  if (fouls === null || label === null) return;
 
   const bonus = view.status.bonus ?? [false, false];
   const { board, scale } = layout;
@@ -216,15 +292,15 @@ function drawFouls(ctx: Canvas2D, view: MatchView, layout: HudLayout, theme: Hud
 
   ctx.textAlign = 'left';
   ctx.fillStyle = bonus[0] === true ? theme.warn : theme.dim;
-  ctx.fillText(foulLabel(fouls[0], bonus[0] === true), board.x + 8, y);
+  ctx.fillText(foulLabel(fouls[0], bonus[0] === true, label), board.x + 8, y);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = bonus[1] === true ? theme.warn : theme.dim;
-  ctx.fillText(foulLabel(fouls[1], bonus[1] === true), board.x + board.width - 8, y);
+  ctx.fillText(foulLabel(fouls[1], bonus[1] === true, label), board.x + board.width - 8, y);
 }
 
-export function foulLabel(fouls: number, bonus: boolean): string {
-  return bonus ? `${fouls} PF · BONUS` : `${fouls} PF`;
+export function foulLabel(fouls: number, bonus: boolean, label = 'PF'): string {
+  return bonus ? `${fouls} ${label} · BONUS` : `${fouls} ${label}`;
 }
 
 /** Why play has stopped (`06` §4: "brief, skippable, with the reason stated"). */

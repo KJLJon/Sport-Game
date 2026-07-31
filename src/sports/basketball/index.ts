@@ -294,6 +294,10 @@ export interface BasketballState extends SportState {
 const hud: SportHudSpec = {
   showShotClock: true,
   showPossession: true,
+  // Both of these were the HUD's hardcoded assumptions until T-6.28 made them the sport's to state.
+  // Named explicitly rather than left to default, so the contrast with soccer is readable here.
+  clock: 'remaining',
+  foulLabel: 'PF',
   // @spec-ref 06-game-design.md §2 — context-sensitive button labels
   buttonLabels: {
     onBall: ['Shoot', 'Pass'],
