@@ -24,7 +24,7 @@ import { createLoop, type Loop } from '../../engine/loop.ts';
 import { Button, EMPTY_FRAME, makeFrame, type InputFrame } from '../../engine/input/types.ts';
 import type { Canvas2D } from '../../engine/render/renderer.ts';
 import type { Athlete } from '../../athletes/types.ts';
-import { basketball } from '../../sports/basketball/index.ts';
+import { PLAYABLE_SPORTS, loadSport } from '../../sports/playable.ts';
 import { arcadeCatalogue, findGame } from '../../modes/arcade/registry.ts';
 import { dailyChallenge, dailyConfig } from '../../modes/arcade/daily.ts';
 import { startRun } from '../../modes/arcade/modes.ts';
@@ -92,7 +92,10 @@ export function arcadeGameScreen(): Screen {
     async mount(context: ScreenContext): Promise<void> {
       const doc = context.host.ownerDocument;
       const view = doc.defaultView;
-      const games = arcadeCatalogue([basketball]);
+      // Every playable sport's set, not basketball's — see `arcade.ts` on why that mattered.
+      const games = arcadeCatalogue(
+        await Promise.all(PLAYABLE_SPORTS.map((sport) => sport.load())),
+      );
       const game = findGame(games, context.params['id'] ?? '');
 
       if (game === undefined) {
@@ -104,6 +107,9 @@ export function arcadeGameScreen(): Screen {
         );
         return;
       }
+
+      // The award table the run trains against comes from the game's own sport (`09` §3.4).
+      const xpAwards = (await loadSport(game.sport)).xpAwards ?? [];
 
       const requested = context.query['mode'] ?? 'scored';
       const mode: ArcadeMode = isArcadeMode(requested) ? requested : 'scored';
@@ -351,7 +357,11 @@ export function arcadeGameScreen(): Screen {
         const progress = arcadeProgression({
           result,
           athlete: config.athlete,
-          awards: basketball.xpAwards ?? [],
+          // **The game's own sport's award table.** Hardcoding basketball's was harmless while every
+          // arcade game was basketball's; with soccer's set it would have paid a penalty kick into
+          // `threePoint`, silently, and `09` §3.4's promise that the arcade trains the same ratings
+          // the sim does would have been false for half the games in the build.
+          awards: xpAwards,
         });
         learned = progressionSummary(progress);
         renderOverlay();

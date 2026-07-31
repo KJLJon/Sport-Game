@@ -63,7 +63,7 @@ describe('the play hub', () => {
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '#/play/live/basketball',
       '#/play/playbook?sport=basketball',
-      '#/play/arcade',
+      '#/play/arcade?sport=basketball',
     ]);
   });
 
@@ -74,17 +74,17 @@ describe('the play hub', () => {
     soccer!.checked = true;
     soccer!.dispatchEvent(new Event('change'));
 
-    // Soccer reaches Live and Playbook; its arcade set is T-6.15 and T-6.23–T-6.27, and the card
-    // for it says so rather than disappearing (`10` §10).
+    // Soccer reaches all three modes now: Live from Phase 6, Playbook from T-6.21, and the arcade
+    // from T-6.15's Penalty Shootout. The pending list is empty and that is a real state too — the
+    // assertion stays so that a mode *becoming* unavailable is caught rather than shrugged at.
     const links = [...ctx.host.querySelectorAll<HTMLAnchorElement>('a.play-mode--ready')];
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '#/play/live/soccer',
       '#/play/playbook?sport=soccer',
+      '#/play/arcade?sport=soccer',
     ]);
 
-    const pending = [...ctx.host.querySelectorAll('.play-mode__pending')];
-    expect(pending).toHaveLength(1);
-    expect(pending.every((node) => (node.textContent ?? '').length > 0)).toBe(true);
+    expect([...ctx.host.querySelectorAll('.play-mode__pending')]).toHaveLength(0);
   });
 
   it('honours a sport named in the query, so the picker is linkable', () => {

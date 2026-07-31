@@ -13,10 +13,10 @@
  * `.playbook` say whether the sport has supplied the mode's rules; they say nothing about whether
  * a *screen* can reach it. That gap was real: soccer had a complete `PlaybookAdapter` for two tasks
  * while the Playbook screen still imported basketball by name, so deriving the picker from the
- * module would have offered a route that dead-ended. T-6.21 closed it for Playbook and soccer's row
- * moved here rather than the rule changing — the arcade set (T-6.15, T-6.23–T-6.27) is the same
- * shape and is still pending. This list is what the app can honestly start right now, and each gap
- * names the reason in the player's own words rather than a task ID.
+ * module would have offered a route that dead-ended. T-6.21 closed it for Playbook and T-6.15 opened
+ * soccer's arcade with its first game; both rows moved here rather than the rule changing. This list
+ * is what the app can honestly start right now, and each gap names the reason in the player's own
+ * words rather than a task ID.
  *
  * A mode is not a branch. Nothing downstream of a match reads these ids — progression, the economy,
  * achievements, and stats all see one `SportEvent` stream and cannot tell the modes apart (INV-9).
@@ -70,9 +70,8 @@ export const PLAY_MODE_CATALOGUE: readonly PlayMode[] = [
     name: 'Arcade',
     blurb: 'One skill at a time: shooting, dribbling, reactions. Twenty seconds a go.',
     hint: 'One thumb, either way up. Anyone can play it immediately.',
-    sports: ['basketball'],
-    route: () => '#/play/arcade',
-    pending: () => 'Soccer mini-games are still being built.',
+    sports: ['basketball', 'soccer'],
+    route: (sport) => `#/play/arcade?sport=${sport}`,
   },
 ];
 

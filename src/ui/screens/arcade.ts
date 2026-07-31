@@ -23,7 +23,7 @@
  * buy it.
  */
 import type { Athlete } from '../../athletes/types.ts';
-import { basketball } from '../../sports/basketball/index.ts';
+import { PLAYABLE_SPORTS } from '../../sports/playable.ts';
 import { arcadeCatalogue } from '../../modes/arcade/registry.ts';
 import { challengeCode, dailyChallenge, dateKey } from '../../modes/arcade/daily.ts';
 import { starLine } from '../../modes/arcade/scoring.ts';
@@ -54,9 +54,17 @@ const MODE_LABELS: Readonly<Record<ArcadeMode, string>> = {
   daily: 'Daily',
 };
 
-/** The catalogue this build has. One sport today; soccer's five join it in Phase 6 (`09` §5). */
-function catalogue(): readonly ArcadeGameDef[] {
-  return arcadeCatalogue([basketball]);
+/**
+ * The catalogue this build has: every playable sport's set, in one list.
+ *
+ * **It used to be `[basketball]`, written when that was the only set** — and that is the same
+ * hardcoded sport that made `#/play/playbook` unreachable for soccer until T-6.21. `PLAYABLE_SPORTS`
+ * is the one place a sport's import path is written down, so a set added to a module appears here
+ * without this file changing (`09` §5).
+ */
+async function catalogue(): Promise<readonly ArcadeGameDef[]> {
+  const modules = await Promise.all(PLAYABLE_SPORTS.map((sport) => sport.load()));
+  return arcadeCatalogue(modules);
 }
 
 function bestLine(best: ArcadeBest | undefined): string {
@@ -73,7 +81,7 @@ export function arcadeScreen(): Screen {
       const doc = context.host.ownerDocument;
       context.host.replaceChildren(skeleton(doc, { lines: 4, label: 'Loading the arcade' }));
 
-      const games = catalogue();
+      const games = await catalogue();
       let athletes: Athlete[];
       let bests: ReadonlyMap<string, ArcadeBest>;
       let unlocked: ReadonlyMap<string, { unlocked: boolean; requirement: string }>;
