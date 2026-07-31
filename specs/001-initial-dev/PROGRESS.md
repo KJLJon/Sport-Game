@@ -12,7 +12,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.29 — touch-button captions. **`done`** and pushed. Phase 6 is 29 of 29.
+- **Task:** T-6.30 — honest empty states. **`done`** and pushed. Phase 6 is 30 of 30.
 - **Branch:** `claude/playable-build-98n7aa`. PR #13 is **merged**, and **`v0.6.0` is tagged and
   deployed** — the user has played it.
 - **Next step:** **Phase 7 — CPU AI depth**, starting at T-7.1. But read the user feedback below
@@ -27,10 +27,10 @@ vertically and horizontally but maybe that will come with bonus round of camera 
    buttons now say `Shoot`/`Pass`/`Sprint`. Whether the *feel* is right — stick deadzone, auto-switch,
    sprint on a held button rather than a toggle — is untested by anyone and is **T-7.8**'s (assists)
    and Phase 9's. Ask before assuming the labels fixed it.
-2. **"Some screens don't seem to work"** — `#/store` and `#/progress` are the only stubs left, both
-   Phase 8, and both are **tabs in the bottom bar**, so they are the most tappable things in the app.
-   They say "Arrives in Phase 8", which reads as broken rather than as unbuilt. Cheap fix available
-   well before Phase 8 lands: make the placeholder say what it will be and link somewhere useful.
+2. ~~**"Some screens don't seem to work"**~~ — **addressed by T-6.30.** `#/store` and `#/progress`
+   are the only stubs left, both Phase 8, and both are **tabs in the bottom bar**. They said "Arrives
+   in Phase 8"; they now say they are still being built and offer a way back to a match. The screens
+   are still empty — that is Phase 8 — but they no longer read as broken.
 3. **"Both vertically and horizontally"** — Live routes declare `orientation: 'landscape'`, so a
    portrait phone gets "Turn your phone sideways to play" and nothing else. The user guessed this is
    **Phase 12** (camera and framing) and they are right: a portrait match needs the camera to frame a
@@ -73,7 +73,7 @@ must be asked for explicitly at every gate** — not recorded as a blocker and l
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 29 | 29 | `done` | v0.5 |
+| 6 | Soccer · all three modes | 30 | 30 | `done` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -81,7 +81,7 @@ must be asked for explicitly at every gate** — not recorded as a blocker and l
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **202** | **115** | | |
+| | **Total** | **203** | **116** | | |
 
 ---
 
@@ -240,6 +240,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.27 | Soccer arcade: set registration, unlock wiring, and `calibrate()` tests | S | `done` | | `tests/unit/modes/arcade/launch-set.test.ts` | `auto` | Registration and unlock wiring needed no code (done per-commit; the hub's seam already worked), so the deliverable is the catalogue-level test neither sport's own file could make — 13 tests over both sets. [notes](./notes/phase-6.md#t-627) |
 | T-6.28 | HUD reads `SportHudSpec`: clock direction, foul label, action clock per sport | S | `done` | | `tests/unit/modes/live/hud.test.ts` | `auto` + both sports screenshotted at 844×390 from the production build | `SportHudSpec` had been part of the seam since T-2.10 and **nothing had ever read it**, so soccer was drawn with basketball's countdown and "0 PF"; the spec is now an argument to `drawHud`. [notes](./notes/phase-6.md#t-628) |
 | T-6.29 | Draw the touch buttons' captions from `SportHudSpec.buttonLabels` | S | `done` | | `tests/unit/modes/live/controls.test.ts` | `auto` + both sports screenshotted from the production build | The buttons were three bare circles and the user could not tell what they did; `buttonLabels` had the right words since T-2.10 and nothing read them. [notes](./notes/phase-6.md#t-629) |
+| T-6.30 | Make the unbuilt screens read as unbuilt rather than as broken | S | `done` | | `tests/unit/ui/screens.test.ts` | `auto` | "Arrives in Phase 8" is a sentence about the build plan shown to a player who never read it; the stubs now say they are unbuilt and offer a way back to a match. [notes](./notes/phase-6.md#t-630) |
 
 ### Phase 7 — CPU AI depth & difficulty ladder
 

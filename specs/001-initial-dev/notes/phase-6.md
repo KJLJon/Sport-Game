@@ -1778,6 +1778,38 @@ closed the user's complaint until they say so.
 fixed here: the Store and Progress tabs are Phase-8 stubs sitting in the bottom bar where they are
 the most tappable things in the app, and Live is landscape-only, which is Phase 12's camera work.
 
+### T-6.30
+
+**Make the unbuilt screens read as unbuilt rather than as broken.**
+
+Third item from the same user session. They said "some screens don't seem to work", and they meant
+`#/store` and `#/progress` — the last two `stub()` routes, both **tabs in the bottom bar**, which
+makes them among the most tappable things in the app. What they showed was:
+
+> **Store**
+> Packs, the market, and selling athletes.
+> *Arrives in Phase 8.*
+
+That third line is a sentence about this repository's plan. To anyone who has not read `03` — which
+is everyone the user is showing the game to — it is a page that failed to load and then apologised in
+jargon. It also offered nothing to tap, which makes it a dead end, and `10` §10 has a name for that.
+
+**The fix is small and the reasoning is not.** The note now reads "Still being built — there is
+nothing to do here yet", and there is a primary button back to `#/play`. The `arrivesIn` phase is
+kept — it is real traceability, and `docs/traceability.md` wants it — but it moved to a
+`data-arrives-in` attribute, so it is there for whoever is debugging a build and not prose a player
+has to read past.
+
+**A test now asserts the absence of the old behaviour**, not just the presence of the new one:
+`expect(host.textContent).not.toMatch(/phase \d/i)`. The previous test asserted the note read exactly
+`"Arrives in Phase 3."` — it was green the entire time the screen was confusing people, because it
+was checking that the string was what someone had decided to write, not that the string was any good.
+That is the same failure mode as the four dormant `SportHudSpec` members: **the suite tested the
+implementation of a decision rather than the decision.**
+
+This is properly T-9.7's territory ("the forgotten states"). Taken early because it is three lines
+and it was actively costing the user something.
+
 ---
 
 ## Gate record

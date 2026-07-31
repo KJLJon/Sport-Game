@@ -231,6 +231,11 @@ something to work around in the sport module.
 | T-6.27 | Soccer arcade: set registration, unlock wiring, and `calibrate()` tests | S | T-6.26 | US-16.2 | |
 | T-6.28 | HUD reads `SportHudSpec`: clock direction, foul label, action clock per sport | S | T-6.16 | US-2.4 | |
 | T-6.29 | Draw the touch buttons' captions from `SportHudSpec.buttonLabels` | S | T-6.28 | US-2.6 | |
+| T-6.30 | Make the unbuilt screens read as unbuilt rather than as broken | S | — | US-13.6 | |
+
+**T-6.30 was added on 2026-07-31**, from the same session: the two remaining stubs are bottom-bar
+tabs, and they told the player "Arrives in Phase 8". A slice of T-9.7's territory, taken early
+because it is three lines and it was actively confusing someone.
 
 **T-6.29 was added on 2026-07-31**, from the user's first session with a deployed build: they
 could play, and could not tell what the three on-screen circles did. `buttonLabels` had carried
