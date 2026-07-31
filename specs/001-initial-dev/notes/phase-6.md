@@ -1365,3 +1365,52 @@ declared duration is the truth rather than an estimate.
 Feel note: the one I kept replaying, and the only game in the set where the athlete *is* the
 experience rather than a modifier on it. Playing a novice keeper is legibly hopeless in a way that
 teaches more about the rating system than the athlete card does.
+
+---
+
+### T-6.27
+
+Set registration, unlock wiring, and `calibrate()` tests — and **two of the three needed no code**.
+
+**Registration was already done, one commit at a time.** T-6.23 changed the rule: a game joins
+`SOCCER_ARCADE` in the commit that builds it, because a game outside the array is invisible to
+`games.test.ts`'s set-wide contract — the one file whose whole job is stopping five games quietly
+disagreeing. Leaving registration to this task would have meant four games shipping untested by the
+contract and then all being wired at once, which is the opposite of what the contract is for.
+
+**Unlock wiring turned out to be a seam that already worked.** The hub reads `unlockStates()`
+generically over whatever catalogue it is given, `ARCADE_UNLOCKS_BY_ID` has had all ten ids since
+T-4.1, and T-6.15 had already fixed `arcade.ts` to build its catalogue from every playable sport
+rather than from `[basketball]`. So soccer's five got unlock handling by existing. Recorded as a
+non-event rather than dressed up as work.
+
+**What was actually missing was any test of the catalogue as a whole**, and that is the deliverable:
+`tests/unit/modes/arcade/launch-set.test.ts`, thirteen tests over both sports at once. The per-game
+files cannot make these claims, and three of them would have caught real, invisible bugs:
+
+- **An unlock claimed twice**, which would ship a hub where two tiles opened together — a ceremony
+  that lies. Asserted in both directions, so an unlock claimed by *nobody* also fails.
+- **A game unlocked by the other sport's achievement.** The tile would work; it would simply open
+  when the player did something in a sport they were not playing.
+- **A `calibrate()` whose reported rating drifts from the ratings it says it reads.** Asserted
+  against `deriveRatings` + `arcadeRating` directly, which is the tie `09` §7 rests on: tuning an
+  athlete's soccer ability has to tune all three modes, and this is where that stops being a claim.
+
+Also: `calibrate()` is *pure* (INV-10's signature can be satisfied by a function that memoises a
+personal best; the behavioural half is now stated), difficulty moves the forgiveness and never the
+rating or the label (INV-1, `06` §7), and each sport's five games spread across at least five
+ratings with no single rating appearing in all five — a set whose games all read `finishing` would
+be one game with five pictures.
+
+**Three assumptions I had to correct against the code rather than assert into it**, all worth knowing:
+
+1. **Game ids are not prefixed with the sport id.** Basketball's are `bball.`, not `basketball.`. The
+   assertion became the claim that holds — one prefix per sport, no two sports sharing one.
+2. **The arrays are not in `09` §3.2's order.** Each `index.ts` orders its set *easiest first*,
+   because that is hub order and the first tile a newcomer taps should need the least explaining.
+   Membership is asserted; sequence deliberately is not.
+3. **`unlockStates()` currently returns `unlocked: true` for everything**, because
+   `ACHIEVEMENTS_LANDED` is `false` until T-8.6 — a hub of ten permanently locked tiles is worse than
+   an honest temporary shortcut. Rather than work around it, there is now a test asserting the
+   shortcut *is still in force*, so the commit that flips the flag has to come here and invert this
+   test rather than discovering the change in the hub.
