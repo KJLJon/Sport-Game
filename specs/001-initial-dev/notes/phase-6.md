@@ -1264,3 +1264,53 @@ about six rounds to stop doing it. That is the right shape for a mini-game, but 
 first run is discouraging in a way the Free Kick's is not, and "Went too early" is doing a lot of
 work as the only thing telling you why. If one of these three games needs a coaching line on the
 run-over screen, it is this one.
+
+---
+
+### T-6.25
+
+Header — attack the cross.
+
+**The jump is contested, and that is this game's own idea.** Everywhere else in the set you are timed
+against a clock or a keeper. Here you are timed against *another jumper*: `jumpBand()` is centred on
+the cross's meeting point and then shifted by `CONTEST_SHIFT` (±0.09 of the flight, drawn per round),
+so the window is somewhere slightly different every time and cannot be learned as a number. Early and
+the defender is still rising into you; late and you are under it.
+
+**A great leap buys hang time, and hang time is control.** Jump quality sets the direction meter's
+*speed*, not its width — deliberately a different lever from One-on-One's, which widens the band. A
+good touch gives you more goal; a good leap gives you more time.
+
+**Contact height is read from the sim, not restated.** `PASS_PROFILES.cross.arrivalHeight` is 1.9 m,
+and the PROGRESS note from T-6.9 flagged it as heading's hook. A test asserts the two agree, so a
+change to what a cross *is* reaches this game rather than diverging from it.
+
+**Two bugs, both of which punished exactly the athletes they were meant to reward.** The probe caught
+both, and neither was visible to the test suite, because `pressInBand` presses the instant the band
+is under the marker and so cannot experience either failure. Under the human model the curve came out
+**409 / 993 / 888 / 802** for ratings 30 / 55 / 75 / 90 — rating 55 beating rating 90.
+
+1. **The direction band was wider than the gap.** It is centred on the opening the keeper leaves;
+   when the athlete's window grew wider than that opening, the surplus sat *over the keeper*, so a
+   press inside the band could still be claimed. The better the athlete, the more of their reward
+   landed on unsafe ground. `fitBandToOpening()` now shrinks the band to the gap after `speedScale`
+   is known, and being in the band is the whole truth — one check, no separate keeper test.
+2. **The directing clock was denominated in seconds.** A better athlete's meter sweeps *slower* —
+   that is how the framework pays them — and the band sits wherever the round's gap is. At rating 90
+   with a good leap the marker needed ~3.6 s to cross the track and had 1.6 s, so specialists timed
+   out on precisely the far-side chances novices converted. The clock is now `DIRECT_SWEEPS` (1.25)
+   of the meter's own sweep, floored at 1.1 s, which is the same promise at every rating.
+
+**The second one generalises and is worth carrying forward.** Any game that puts a band somewhere
+other than the middle of the track and then imposes a fixed clock has this bug latent in it. The
+other three are safe by inspection — the Free Kick's power band tops out at 0.76 against a 4 s stage,
+One-on-One's finish is centred at 0.5 against 2.2 s — but **T-6.26 should be checked against it
+deliberately**, and any future game should denominate its clock in sweeps whenever its band moves.
+
+After both fixes, human-model means: **485 / 859 / 1,543 / 1,923**. Monotonic, and the top two are
+finally separated. There is a regression test at 75-vs-90 stated against the human model, because
+`pressInBand` scores 1,848 against 1,913 across the same pair and would not have failed.
+
+Feel note: the best of the four. Beating a defender to a ball is a more interesting thing to be good
+at than beating a clock, and the floated cross — slow jump, frantic finish — has a rhythm none of the
+others have. The driven one is nearly the opposite and the alternation is what carries the run.

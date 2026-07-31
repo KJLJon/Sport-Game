@@ -10,12 +10,16 @@ import { describe, expect, it } from 'vitest';
 import {
   FREE_KICK_DISTANCE,
   FREE_KICK_ROUNDS,
+  CONTACT_HEIGHT_M,
+  CROSSES,
+  HEADER_ROUNDS,
   ONE_ON_ONE_ROUNDS,
   ROUNDS_PER_RUN,
   SOCCER_ARCADE,
   pickSide,
   windLabel,
 } from '../../../../../src/sports/soccer/arcade/index.ts';
+import { PASS_PROFILES } from '../../../../../src/sports/soccer/passing.ts';
 import { SOCCER_XP_AWARDS } from '../../../../../src/sports/soccer/xp.ts';
 import { SOCCER_WEIGHTS } from '../../../../../src/sports/soccer/weights.ts';
 import { soccer } from '../../../../../src/sports/soccer/index.ts';
@@ -27,7 +31,13 @@ import { newSportSkill } from '../../../../../src/athletes/types.ts';
 import { ARCADE_UNLOCKS_BY_ID } from '../../../../../src/achievements/ids.ts';
 import { arcadeConfig } from '../../../../helpers/arcade.ts';
 import { athlete, attributes } from '../../../../helpers/athletes.ts';
-import { drive, pressEvery, pressInBand, pressNever } from '../../../../helpers/arcade-drive.ts';
+import {
+  drive,
+  humanPlayer,
+  pressEvery,
+  pressInBand,
+  pressNever,
+} from '../../../../helpers/arcade-drive.ts';
 import { recordingCanvas } from '../../../../helpers/canvas.ts';
 
 const LAYOUT = { width: 390, height: 700, mirror: false, reducedMotion: false };
@@ -42,12 +52,13 @@ function soccerAthlete(rating: number): ReturnType<typeof athlete> {
 
 describe('the set', () => {
   it('is what has actually been built, and says nothing about what has not', () => {
-    // T-6.25 and T-6.26 add Header and Last Line. Until they exist, the array is the three that do
-    // — an absent thing is absent, not stubbed.
+    // T-6.26 adds Last Line. Until it exists, the array is the four that do — an absent thing is
+    // absent, not stubbed.
     expect(SOCCER_ARCADE.map((game) => game.id)).toEqual([
       'soccer.penalty-shootout',
       'soccer.free-kick',
       'soccer.one-on-one',
+      'soccer.header',
     ]);
     expect(soccer.arcade).toBe(SOCCER_ARCADE);
   });
@@ -491,5 +502,65 @@ describe('One-on-One in particular', () => {
       return total;
     };
     expect(score(90)).toBeGreaterThan(score(30));
+  });
+});
+
+describe('Header in particular', () => {
+  const game = SOCCER_ARCADE[3]!;
+
+  it('takes its contact height from the sim, so a cross means one thing in both places', () => {
+    expect(CONTACT_HEIGHT_M).toBe(PASS_PROFILES.cross.arrivalHeight);
+  });
+
+  it('makes neither cross the good one', () => {
+    // The trade the two crosses exist for: the driven ball is the harder jump (shorter flight, later
+    // meeting point) and the easier finish (the keeper cannot come for it). If one cross were better
+    // on both axes the round-to-round variety would be noise.
+    expect(CROSSES.driven.flightSeconds).toBeLessThan(CROSSES.floated.flightSeconds);
+    expect(CROSSES.driven.meetAt).toBeGreaterThan(CROSSES.floated.meetAt);
+    expect(CROSSES.driven.keeperReach).toBeLessThan(CROSSES.floated.keeperReach);
+  });
+
+  it('pays a specialist more than a good athlete — the curve must not invert at the top', () => {
+    // A regression test with a specific bug behind it. Two of them, in fact: a direction band wider
+    // than the gap put an elite athlete's extra window over the keeper, and a fixed directing clock
+    // was shorter than the time a specialist's (deliberately slower) meter needed to cross the track
+    // at all. Both punished exactly the athletes they were supposed to reward, and rating 55 came out
+    // ahead of rating 90. `pressInBand` cannot see either — it presses the instant the band is under
+    // the marker — so this is stated against the human model, which has to wait for the marker.
+    const score = (rating: number): number => {
+      let total = 0;
+      for (let seed = 0; seed < 10; seed += 1) {
+        const run = startRun(
+          game,
+          arcadeConfig({ seed: `hd-curve-${seed}`, athlete: soccerAthlete(rating) }),
+        );
+        drive(run, { press: humanPlayer({ seed: `h${seed}` }), steps: 12_000 });
+        run.finish();
+        total += run.result()?.score ?? 0;
+      }
+      return total;
+    };
+
+    const good = score(75);
+    const specialist = score(90);
+    expect(specialist).toBeGreaterThan(good);
+    expect(good).toBeGreaterThan(score(30));
+  });
+
+  it('lets a specialist see every cross out, rather than timing out on the far ones', () => {
+    // The symptom the sweep-denominated clock fixes: a run that ends early because the marker could
+    // not reach the band is a run the athlete never got to play.
+    const run = startRun(game, arcadeConfig({ seed: 'hd-full', athlete: soccerAthlete(92) }));
+    drive(run, { press: pressInBand, steps: 12_000 });
+    run.finish();
+    expect(run.result()?.attempts).toBe(HEADER_ROUNDS);
+  });
+
+  it('a cross let go is a chance lost, and it costs a life', () => {
+    const run = startRun(game, arcadeConfig({ seed: 'hd-idle', athlete: soccerAthlete(80) }));
+    drive(run, { press: pressNever, steps: 3000 });
+    expect(run.finished).toBe(true);
+    expect(run.view().lastOutcome?.label).toBe('Let it go');
   });
 });
