@@ -12,13 +12,48 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** none. **Phase 6 is complete — 27 of 27 tasks `done`, and Gate 6 has been evaluated.**
-- **Gate 6: NOT PASSED**, for the same two reasons as Gates 2–5 — the device matrix and the deploy,
-  both user actions. Every automatable check is green and all three of `03`'s own criteria are met.
-  Full record in [the notes](./notes/phase-6.md#gate-record).
-- **Branch:** `claude/phase-7-continuation-xd93ve`, PR #12 (draft). PRs #9–#11 are merged.
-- **Next step:** **Phase 7 — CPU AI depth & difficulty ladder**, starting at T-7.1. It is the phase
-  soccer's Live balance is waiting on (see the finding below), so the two fit together.
+- **Task:** T-6.28 — HUD reads `SportHudSpec`. **`done`** and pushed. Phase 6 is 28 of 28.
+- **Branch:** `claude/playable-build-98n7aa`, PR #13 (draft).
+- **Next step:** **draw the touch buttons' labels** — see "the one that is still open" below. Then
+  **Phase 7**, starting at T-7.1.
+
+### 🔴 Read this before repeating five gates' worth of a wrong assumption
+
+**The deploy was never the blocker. Not tagging was.** Gates 2–6 each recorded "the deploy" as an
+outstanding user action, and every one of them was wrong: `deploy.yml` has **four successful runs**,
+and `v0.2.0`–`v0.5.0` all deployed fine. What had not happened was **tagging anything since
+`v0.5.0`** — which was three PRs and twenty commits back.
+
+So the live site served `v0.5.0`, where `routes.ts` still read:
+
+```ts
+pattern: '/play',
+value: stub('play', 'Play', 'Pick a sport and a way to play.', 'Phase 2'),
+```
+
+The user tapped **Play**, got a Phase-2 placeholder, and reported that they could not work out how to
+play the game. Everything they were looking for — the modes hub (T-8.1, PR #10), soccer's Playbook,
+all five mini-games, Gate 6 — was on `main`, undeployed, and had been for days. **The gate protocol's
+step 7 says "tag and deploy"; sessions were reading that as one action and doing neither.**
+
+**A tag is the only way to ship.** `deploy.yml` fires on `push: tags: ['v*']` and `workflow_dispatch`.
+Neither is reachable from a sandboxed session: the git proxy **refuses tag pushes** (`send-pack:
+unexpected disconnect`, on every retry), and the GitHub App has **no `actions: write`**, so
+`workflow_dispatch` returns 403. Both were tried on 2026-07-31. **Tagging is a user action, and it
+must be asked for explicitly at every gate** — not recorded as a blocker and left.
+
+### The one that is still open
+
+**The touch buttons have no labels, and that is why a new player cannot play.** `drawTouchControls`
+in `modes/live/screen.ts` strokes three bare circles. `SportHudSpec.buttonLabels` has carried the
+right words for both sports since T-2.10 — basketball `['Shoot', 'Pass']` / `['Call', 'Screen']` /
+`['Steal', 'Block']`, soccer `['Tackle', 'Slide']` — and, like the rest of that spec before T-6.28,
+**nothing reads it**. A player sees three unlabelled grey circles and a joystick.
+
+Drawing them needs one thing the seam does not yet carry: *which* of the three states applies. The
+sport knows (it knows who is carrying); `SportStatus` does not expose it. Suggested shape — an
+optional `buttonContext?: string` on `SportStatus`, keying into `hud.buttonLabels`, which is already
+a `Record<string, …>` precisely so a sport can name its own states.
 
 ### What Phase 6 delivered
 
@@ -116,7 +151,8 @@ None of the three names a sport.
   `pnpm -s verify` plus the targeted spec is enough.
 - **Two bonus phases added** at the user's request: **Phase 12** (camera and framing) and **Phase 13**
   (visual overhaul: sprites or pseudo-3D). Both sit at the top of `03`'s cut order.
-- **Blockers:** the device matrix and the deploy, unchanged since Gate 2 and now three gates deep.
+- **Blockers:** the device matrix. **The deploy is not one** — see the red block above; it was never
+  blocked, it was never tagged. Ask the user to tag at every gate, in as many words.
   The user can only test a deployed build (they are on mobile), so a LAN dev server is no help and
   **the deploy is genuinely the only route to a real device**. `deploy.yml` runs on tagged releases.
 - **Things that need a phone, not the suite:** the 3 s advantage window; whether a slightly underhit
