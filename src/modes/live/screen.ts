@@ -29,20 +29,17 @@
  * input, what the box score currently says — is the awkward part. Splitting them across files means
  * exporting that lifecycle, and a lifecycle with three owners is a lifecycle with none.
  *
- * Entities are drawn generically here — a body, a team marking, a shadow — because a top-down
- * athlete is not sport-specific. Anything that *is* goes through the sport's own `drawOverlay`.
+ * **Nothing sport-specific is drawn here, and that was not always true.** Until T-6.16 this file
+ * imported `sports/basketball/art.ts` by name and drew every athlete and every ball with it, on the
+ * reasoning that a top-down athlete is generic. The body is; the *kit* is not, and the result was a
+ * soccer match played by basketball players chasing an orange ball. Athletes, the ball, and overlays
+ * all now go through `SportRenderer`, and this file names no sport at all.
  */
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { CanvasHost, type CanvasSize } from '../../app/canvas-host.ts';
 import { Camera } from '../../engine/render/camera.ts';
-import {
-  Detail,
-  Renderer,
-  type Canvas2D,
-  type OffscreenLayer,
-} from '../../engine/render/renderer.ts';
-import { drawAthlete, drawBall, paletteFor } from '../../sports/basketball/art.ts';
-import { BasketballAudio } from './audio.ts';
+import { Renderer, type Canvas2D, type OffscreenLayer } from '../../engine/render/renderer.ts';
+import { MatchAudio } from './audio.ts';
 import { createLoop, type Loop } from '../../engine/loop.ts';
 import { InputRouter, TouchInput } from '../../engine/input/sources.ts';
 import {
@@ -51,7 +48,7 @@ import {
   stickVisual,
   type ControlLayout,
 } from '../../engine/input/joystick.ts';
-import { NO_ENTITY, type EntityId } from '../../engine/world.ts';
+import type { EntityId } from '../../engine/world.ts';
 import type { Side } from '../../engine/match/events.ts';
 import type { SportModule } from '../../sports/types.ts';
 import { LiveMatch } from './match.ts';
@@ -172,7 +169,8 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       overlay.className = 'live__overlay';
       root.appendChild(overlay);
 
-      const audio = new BasketballAudio(null);
+      // The sport supplies the event→cue mapping; a sport without one is silent (T-6.16).
+      const audio = new MatchAudio(null, {}, options.sport.audio ?? null);
       const stopAudio = audio.attach(match.bus);
       listeners.push(stopAudio);
 
@@ -345,8 +343,10 @@ function draw(
   );
 
   renderer.submit('field', (c, v) => sport.render.drawField(c, sport.field, v));
-  renderer.submit('entities', (c) => drawEntities(c, match, view.status.controlled));
-  renderer.submit('ball', (c) => drawBallEntity(c, world, ball));
+  renderer.submit('entities', (c) =>
+    sport.render.drawAthletes(c, match.sportState as never, world, view.status.controlled),
+  );
+  renderer.submit('ball', (c) => sport.render.drawBall(c, match.sportState as never, world, ball));
   renderer.submit('effects', (c, v) =>
     sport.render.drawOverlay(c, match.sportState as never, world, v),
   );
@@ -365,47 +365,6 @@ function draw(
   });
 
   renderer.render(ctx, transform);
-}
-
-/**
- * Athlete bodies and the ball, through the sport's own art (T-2.12).
- *
- * This was generic inline drawing until the art pass landed. It is worth being explicit about why it
- * moved: a top-down athlete looked sport-agnostic, but the *kit* is not — team markings, the
- * controlled-athlete ring, and the ball's colour are all things a sport should own, and duplicating
- * them here meant two places to change and one of them silently wrong.
- */
-function drawEntities(ctx: Canvas2D, match: LiveMatch, controlled: EntityId): void {
-  const world = match.world;
-  const palette = paletteFor('dark');
-
-  world.forEach((id) => {
-    if (world.kind[id] === 1) return;
-    const team = (world.team[id] as Side) === 1 ? 1 : 0;
-    drawAthlete(
-      ctx,
-      world.x[id] as number,
-      world.y[id] as number,
-      world.facing[id] as number,
-      palette.teams[team],
-      Detail.FULL,
-      { team, controlled: id === controlled, radius: world.radius[id] as number },
-    );
-  });
-}
-
-/** The ball, with the height cue the art pass owns. */
-function drawBallEntity(ctx: Canvas2D, world: LiveMatch['world'], ball: EntityId): void {
-  if (ball === NO_ENTITY) return;
-  drawBall(
-    ctx,
-    world.x[ball] as number,
-    world.y[ball] as number,
-    world.z[ball] as number,
-    paletteFor('dark'),
-    Detail.FULL,
-    { radius: world.radius[ball] as number },
-  );
 }
 
 /** The floating stick and the context buttons (`06` §2). Targets are ≥44 px by construction. */

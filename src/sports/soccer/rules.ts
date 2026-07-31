@@ -92,6 +92,18 @@ export const SOCCER_RULES: MatchRules = {
   periods: 2,
   periodSteps: TIMING.halfRealSeconds * TICK_RATE,
   overtimeSteps: gameSecondsToSteps(TIMING.extraTimeGameSeconds),
+  /**
+   * Two extra halves and no more (T-6.17). Soccer does not keep playing until somebody leads — it
+   * plays extra time once and then takes penalties, and without this the engine offered another
+   * period for as long as the score stayed level: a Playbook match reached period 15 before the
+   * adapter's own `isFinished` capped it, and Live had no such cap at all.
+   *
+   * A match still level after these two is a **draw** as far as the engine is concerned. The
+   * shootout that should decide it is not wired — see `PROGRESS.md`.
+   *
+   * @spec-ref 06-game-design.md §3.2 — "extra time then penalties"
+   */
+  maxOvertimePeriods: 2,
   // The clock does not stop for a throw-in, and the player does not get the time back.
   clockRunsInStoppage: true,
 };

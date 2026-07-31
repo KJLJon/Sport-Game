@@ -23,6 +23,7 @@ import type { InputFrame } from '../engine/input/types.ts';
 import type { SportEvent } from '../engine/match/events.ts';
 import type { MatchRules } from '../engine/match/state-machine.ts';
 import type { Canvas2D, ViewTransform } from '../engine/render/renderer.ts';
+import type { SportAudio } from '../modes/live/audio.ts';
 import type { EntityId, World } from '../engine/world.ts';
 import type { Athlete } from '../athletes/types.ts';
 import type { ArcadeGameDef } from '../modes/arcade/types.ts';
@@ -176,6 +177,21 @@ export interface SportAiAdapter {
 export interface SportRenderer {
   /** Static field content — drawn once into an off-screen layer and blitted (T-1.7). */
   drawField(ctx: Canvas2D, field: FieldGeometry, view: ViewTransform): void;
+  /**
+   * The athletes, in this sport's own kit.
+   *
+   * **Added by T-6.16, and it was fixing a live bug rather than tidying.** The Live screen used to
+   * import `sports/basketball/art.ts` directly and draw every athlete with it, so a soccer match was
+   * played by basketball players chasing an orange ball with seams on it. The screen cannot own this
+   * because the *kit* is not generic — soccer puts its goalkeeper in a different one, and only
+   * soccer knows which entity that is.
+   *
+   * Takes the sport's own state for exactly that reason: `controlled` is the athlete the player is,
+   * and everything else the sport needs to tell its athletes apart is already in `state`.
+   */
+  drawAthletes(ctx: Canvas2D, state: SportState, world: World, controlled: EntityId): void;
+  /** The ball, with whatever height cue this sport uses. Its own layer, so it draws over bodies. */
+  drawBall(ctx: Canvas2D, state: SportState, world: World, ball: EntityId): void;
   /** Per-frame sport-specific overlays: possession arrows, zone highlights. */
   drawOverlay(ctx: Canvas2D, state: SportState, world: World, view: ViewTransform): void;
   /** A cache key for the static layer, so a theme or size change redraws it and nothing else does. */
@@ -266,6 +282,14 @@ export interface SportModule<S extends SportState = SportState> {
   readonly ai: SportAiAdapter;
   readonly render: SportRenderer;
   readonly hud: SportHudSpec;
+
+  /**
+   * What this sport's events sound like (T-6.16). Optional: a sport with no mapping is silent, which
+   * is a better default than borrowing another sport's — before this existed, `modes/live/screen.ts`
+   * constructed a basketball-specific audio layer for every sport, so soccer answered a goal with a
+   * rim clank.
+   */
+  readonly audio?: SportAudio;
 
   /**
    * The sport's mini-games (`09` §5). Optional for the same reason `playbook` is: a Phase-1 test

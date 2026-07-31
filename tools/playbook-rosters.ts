@@ -29,7 +29,9 @@ import {
 export const TIERS = { weak: 42, average: 58, strong: 74 } as const;
 export type Tier = keyof typeof TIERS;
 
-function drawAttributes(rng: Rng, mean: number): Attributes {
+/** A spread of attributes around a mean. Exported for `balance-soccer.ts`, which needs the same
+ * draw for a squad whose *bodies* have to be soccer-shaped rather than basketball-shaped. */
+export function drawAttributes(rng: Rng, mean: number): Attributes {
   const out = {} as Record<AttributeId, number>;
   for (const id of ATTRIBUTE_IDS) {
     out[id] = Math.max(1, Math.min(99, Math.round(rng.gaussian(mean, 9))));

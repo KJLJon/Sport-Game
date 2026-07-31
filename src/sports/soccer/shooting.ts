@@ -72,6 +72,13 @@ export const SHOOTING = {
   /**
    * Placement error in metres, at the goal mouth, for a 50-rated finisher taking an unpressured
    * tap from `errorFreeMetres` out. Everything else multiplies this.
+   *
+   * **T-6.18 tried raising this to 1.15 and put it back.** Half a metre of error across a 7.32 m
+   * goal does make an ordinary professional a marksman — the balance harness measures 68% of Live
+   * shots on target and 43% of them scored, against a real game's ~33% and ~11% — but this constant
+   * feeds **both** modes since T-6.20, and the change that took Live from 13.6 goals a match to 10.4
+   * took Playbook from 2.58, which is right, to 0.92, which is not. Live's problem is shot *volume*
+   * (55 a match) rather than shot accuracy, and volume is the placeholder CPU's. See `PROGRESS.md`.
    */
   baseError: 0.55,
   /** How much of the error a perfect `finishing` removes. */

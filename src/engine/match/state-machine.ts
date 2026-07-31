@@ -32,6 +32,23 @@ export interface MatchRules {
   readonly periodSteps: number;
   /** Extra periods when tied at the end. `0` means draws are allowed. */
   readonly overtimeSteps?: number;
+  /**
+   * How many extra periods a tie may go to before the match is over however it stands. Omitted is
+   * **unbounded** — keep playing until somebody leads.
+   *
+   * **Added by T-6.17, and it is a core gap rather than an accommodation.** Unbounded was the only
+   * behaviour available, which is right for basketball and wrong for every sport that has a
+   * different tiebreak: soccer plays exactly two extra halves and then takes penalties, and with
+   * nothing to cap it a level Playbook match reached **period 15** before the sport adapter's own
+   * `isFinished` caught it. A sport ending its own overtime by overriding `isFinished` works, but
+   * every sport would have to reimplement it, and Live has no `isFinished` to override — which is
+   * why soccer's Live had the bug and its Playbook did not. One number on `MatchRules` serves them
+   * both and every sport after them.
+   *
+   * What happens *instead* of another period is not the engine's business: this only says the match
+   * stops, and a sport whose laws call for a shootout runs one above this layer.
+   */
+  readonly maxOvertimePeriods?: number;
   /** Whether the clock keeps running during a stoppage. Basketball: no. Soccer: yes. */
   readonly clockRunsInStoppage?: boolean;
 }
@@ -182,7 +199,9 @@ export class MatchStateMachine {
 
     const regulationDone = this.period >= this.rules.periods;
     const tied = this.score[0] === this.score[1];
-    const overtimeAvailable = (this.rules.overtimeSteps ?? 0) > 0;
+    const cap = this.rules.maxOvertimePeriods;
+    const overtimeAvailable =
+      (this.rules.overtimeSteps ?? 0) > 0 && (cap === undefined || this.overtimePeriods < cap);
 
     if (regulationDone && (!tied || !overtimeAvailable)) {
       this.transition(MatchPhase.FINAL);

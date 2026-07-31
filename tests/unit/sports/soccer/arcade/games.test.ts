@@ -7,8 +7,20 @@
  * deliberate: these are claims about `ArcadeGameDef`, so every set has to make them.
  */
 import { describe, expect, it } from 'vitest';
-import { SOCCER_ARCADE } from '../../../../../src/sports/soccer/arcade/index.ts';
-import { ROUNDS_PER_RUN, pickSide } from '../../../../../src/sports/soccer/arcade/index.ts';
+import {
+  FREE_KICK_DISTANCE,
+  FREE_KICK_ROUNDS,
+  CONTACT_HEIGHT_M,
+  CROSSES,
+  HEADER_ROUNDS,
+  LAST_LINE_SECONDS,
+  ONE_ON_ONE_ROUNDS,
+  ROUNDS_PER_RUN,
+  SOCCER_ARCADE,
+  pickSide,
+  windLabel,
+} from '../../../../../src/sports/soccer/arcade/index.ts';
+import { PASS_PROFILES } from '../../../../../src/sports/soccer/passing.ts';
 import { SOCCER_XP_AWARDS } from '../../../../../src/sports/soccer/xp.ts';
 import { SOCCER_WEIGHTS } from '../../../../../src/sports/soccer/weights.ts';
 import { soccer } from '../../../../../src/sports/soccer/index.ts';
@@ -20,7 +32,13 @@ import { newSportSkill } from '../../../../../src/athletes/types.ts';
 import { ARCADE_UNLOCKS_BY_ID } from '../../../../../src/achievements/ids.ts';
 import { arcadeConfig } from '../../../../helpers/arcade.ts';
 import { athlete, attributes } from '../../../../helpers/athletes.ts';
-import { drive, pressEvery, pressInBand, pressNever } from '../../../../helpers/arcade-drive.ts';
+import {
+  drive,
+  humanPlayer,
+  pressEvery,
+  pressInBand,
+  pressNever,
+} from '../../../../helpers/arcade-drive.ts';
 import { recordingCanvas } from '../../../../helpers/canvas.ts';
 
 const LAYOUT = { width: 390, height: 700, mirror: false, reducedMotion: false };
@@ -35,9 +53,14 @@ function soccerAthlete(rating: number): ReturnType<typeof athlete> {
 
 describe('the set', () => {
   it('is what has actually been built, and says nothing about what has not', () => {
-    // T-6.23–T-6.27 add Free Kick, One-on-One, Header, and Last Line. Until they exist, the array
-    // is one game — an absent thing is absent, not stubbed.
-    expect(SOCCER_ARCADE.map((game) => game.id)).toEqual(['soccer.penalty-shootout']);
+    // All five of `09` §3.2's soccer games, in the order the hub shows them.
+    expect(SOCCER_ARCADE.map((game) => game.id)).toEqual([
+      'soccer.penalty-shootout',
+      'soccer.free-kick',
+      'soccer.one-on-one',
+      'soccer.header',
+      'soccer.last-line',
+    ]);
     expect(soccer.arcade).toBe(SOCCER_ARCADE);
   });
 
@@ -188,7 +211,30 @@ describe('every game plays', () => {
     }
   });
 
-  it('emits only zones soccer’s XP table knows, so a run actually trains something', () => {
+  it('emits events soccer’s XP table actually pays for, so a run trains something', () => {
+    // Rewritten at T-6.26. The claim that matters is "a run trains something"; asserting that every
+    // game emits a *shot* was an accident of the first four all being shooting games, and Last Line
+    // is a keeper's game that trains `goalkeeping` through saves and never takes a shot at all.
+    const pays = (event: { kind: string; detail?: Record<string, unknown> }): boolean =>
+      SOCCER_XP_AWARDS.some((award) => {
+        if (award.kind !== event.kind || award.rating === undefined || award.xp <= 0) return false;
+        return Object.entries(award.when ?? {}).every(
+          ([key, value]) => event.detail?.[key] === value,
+        );
+      });
+
+    for (const game of SOCCER_ARCADE) {
+      const run = startRun(
+        game,
+        arcadeConfig({ seed: `zones:${game.id}`, athlete: soccerAthlete(80) }),
+      );
+      drive(run, { press: pressInBand, steps: 6000 });
+
+      expect(run.events().some(pays), game.id).toBe(true);
+    }
+  });
+
+  it('names only shot zones soccer’s XP table knows, for every game that shoots', () => {
     const known = new Set(
       SOCCER_XP_AWARDS.filter((award) => award.kind === EventKind.SHOT).map(
         (award) => award.when?.['zone'],
@@ -202,9 +248,9 @@ describe('every game plays', () => {
       );
       drive(run, { press: pressInBand, steps: 6000 });
 
-      const shots = run.events().filter((event) => event.kind === EventKind.SHOT);
-      expect(shots.length, game.id).toBeGreaterThan(0);
-      for (const shot of shots) expect(known, game.id).toContain(shot.detail?.['zone']);
+      for (const shot of run.events().filter((event) => event.kind === EventKind.SHOT)) {
+        expect(known, game.id).toContain(shot.detail?.['zone']);
+      }
     }
   });
 
@@ -304,5 +350,327 @@ describe('Penalty Shootout in particular', () => {
       return total;
     };
     expect(score(90)).toBeGreaterThan(score(30));
+  });
+});
+
+describe('Free Kick in particular', () => {
+  const game = SOCCER_ARCADE[1]!;
+
+  it('says what the wind is doing in words, not in an arrow alone', () => {
+    // `10` §11 — nothing in an arcade game is conveyed by a glyph or a colour on its own.
+    expect(windLabel(0)).toBe('still');
+    expect(windLabel(0.01)).toBe('still');
+    expect(windLabel(-0.05)).toContain('←');
+    expect(windLabel(0.05)).toContain('→');
+    expect(windLabel(0.1)).toContain('strong');
+    expect(windLabel(-0.1)).toContain('strong');
+    expect(windLabel(0.04)).toContain('light');
+  });
+
+  it('keeps the aim band inside the meter whatever the wind and the keeper do', () => {
+    // The band is the gap *shifted back by the wind*, so it is the one thing in the game that can be
+    // pushed off the end of the track. Sampled while the run advances, because both inputs are
+    // redrawn every round.
+    let sampled = 0;
+    const run = startRun(game, arcadeConfig({ seed: 'fk-band', athlete: soccerAthlete(70) }));
+    drive(run, {
+      steps: 4000,
+      press: (current) => {
+        const target = current.view().game.target;
+        if (target !== null) {
+          sampled += 1;
+          expect(target.from).toBeGreaterThanOrEqual(0);
+          expect(target.to).toBeLessThanOrEqual(1);
+          expect(target.to).toBeGreaterThan(target.from);
+        }
+        return false;
+      },
+    });
+    expect(sampled).toBeGreaterThan(100);
+  });
+
+  it('pays for the distance, so the long ones are worth wanting', () => {
+    // Kicks are drawn across `FREE_KICK_DISTANCE`, and a goal from the far end is worth more than
+    // one from the near end. Asserted against the range rather than against a single kick, because
+    // which distance a round draws is the run's business.
+    expect(FREE_KICK_DISTANCE.max).toBeGreaterThan(FREE_KICK_DISTANCE.min);
+
+    const distances = new Set<number>();
+    for (let seed = 0; seed < 6; seed += 1) {
+      const run = startRun(
+        game,
+        arcadeConfig({ seed: `fk-dist-${seed}`, athlete: soccerAthlete(80) }),
+      );
+      drive(run, { press: pressInBand, steps: 6000 });
+      for (const event of run.events()) {
+        if (event.kind === EventKind.SHOT && event.value !== undefined) distances.add(event.value);
+      }
+    }
+
+    expect(distances.size).toBeGreaterThan(3);
+    for (const distance of distances) {
+      expect(distance).toBeGreaterThanOrEqual(FREE_KICK_DISTANCE.min);
+      expect(distance).toBeLessThanOrEqual(FREE_KICK_DISTANCE.max);
+    }
+  });
+
+  it('never runs past its own kick count, however well it is played', () => {
+    const run = startRun(game, arcadeConfig({ seed: 'fk-rounds', athlete: soccerAthlete(95) }));
+    drive(run, { press: pressInBand, steps: 12_000 });
+    run.finish();
+    expect(run.result()?.attempts ?? 0).toBeLessThanOrEqual(FREE_KICK_ROUNDS);
+  });
+
+  it('rewards a competent player and still lets a poor one finish', () => {
+    const score = (rating: number): number => {
+      let total = 0;
+      for (let seed = 0; seed < 8; seed += 1) {
+        const run = startRun(
+          game,
+          arcadeConfig({ seed: `fk-${seed}`, athlete: soccerAthlete(rating) }),
+        );
+        drive(run, { press: pressInBand, steps: 8000 });
+        run.finish();
+        total += run.result()?.score ?? 0;
+      }
+      return total;
+    };
+    expect(score(90)).toBeGreaterThan(score(30));
+  });
+});
+
+describe('One-on-One in particular', () => {
+  const game = SOCCER_ARCADE[2]!;
+
+  it('wants the touch late, because the keeper has to commit before it beats them', () => {
+    // The window's *position* is the lesson the game teaches, so it is asserted rather than left to
+    // a constant nobody reads. Sampled across the approach of several rounds.
+    let sampled = 0;
+    const run = startRun(game, arcadeConfig({ seed: 'oo-late', athlete: soccerAthlete(70) }));
+    drive(run, {
+      steps: 4000,
+      press: (current) => {
+        const { meter, target } = current.view().game;
+        // The approach runs from 0 upward and its band never bounces, so a sample taken while the
+        // marker is still climbing is unambiguously the touch band rather than the finishing meter's.
+        if (meter !== null && target !== null && meter < 0.05) {
+          sampled += 1;
+          expect((target.from + target.to) / 2).toBeGreaterThan(0.5);
+        }
+        return false;
+      },
+    });
+    expect(sampled).toBeGreaterThan(10);
+  });
+
+  it('a better touch opens more goal — the two taps are cause and effect', () => {
+    // The claim the whole game rests on: the finishing band after a good touch is wider than after
+    // a poor one, for the *same* athlete on the *same* seed. Driven by pressing at a fixed point in
+    // the approach, early (a poor touch) against on time (a good one).
+    const openingAfter = (at: number): number => {
+      let touched = false;
+      let widest = 0;
+      const run = startRun(game, arcadeConfig({ seed: 'oo-open', athlete: soccerAthlete(80) }));
+      drive(run, {
+        steps: 600,
+        press: (current) => {
+          const { meter, target } = current.view().game;
+          if (meter === null || target === null) return false;
+          if (!touched) {
+            // Still in the approach: press once the marker reaches the asked-for point.
+            if (meter >= at) {
+              touched = true;
+              return true;
+            }
+            return false;
+          }
+          widest = Math.max(widest, target.to - target.from);
+          return false;
+        },
+      });
+      return widest;
+    };
+
+    const poor = openingAfter(0.4);
+    const good = openingAfter(0.67);
+    expect(good).toBeGreaterThan(poor);
+  });
+
+  it('a chance not taken is a chance smothered, and it costs a life', () => {
+    // Standing still through the approach must resolve rather than hang — the keeper arrives.
+    const run = startRun(game, arcadeConfig({ seed: 'oo-idle', athlete: soccerAthlete(80) }));
+    drive(run, { press: pressNever, steps: 3000 });
+    expect(run.finished).toBe(true);
+    expect(run.view().lastOutcome?.label).toBe('Smothered');
+  });
+
+  it('never runs past its own chance count', () => {
+    const run = startRun(game, arcadeConfig({ seed: 'oo-rounds', athlete: soccerAthlete(95) }));
+    drive(run, { press: pressInBand, steps: 12_000 });
+    run.finish();
+    expect(run.result()?.attempts ?? 0).toBeLessThanOrEqual(ONE_ON_ONE_ROUNDS);
+  });
+
+  it('rewards a competent player and still lets a poor one finish', () => {
+    const score = (rating: number): number => {
+      let total = 0;
+      for (let seed = 0; seed < 8; seed += 1) {
+        const run = startRun(
+          game,
+          arcadeConfig({ seed: `oo-${seed}`, athlete: soccerAthlete(rating) }),
+        );
+        drive(run, { press: pressInBand, steps: 8000 });
+        run.finish();
+        total += run.result()?.score ?? 0;
+      }
+      return total;
+    };
+    expect(score(90)).toBeGreaterThan(score(30));
+  });
+});
+
+describe('Header in particular', () => {
+  const game = SOCCER_ARCADE[3]!;
+
+  it('takes its contact height from the sim, so a cross means one thing in both places', () => {
+    expect(CONTACT_HEIGHT_M).toBe(PASS_PROFILES.cross.arrivalHeight);
+  });
+
+  it('makes neither cross the good one', () => {
+    // The trade the two crosses exist for: the driven ball is the harder jump (shorter flight, later
+    // meeting point) and the easier finish (the keeper cannot come for it). If one cross were better
+    // on both axes the round-to-round variety would be noise.
+    expect(CROSSES.driven.flightSeconds).toBeLessThan(CROSSES.floated.flightSeconds);
+    expect(CROSSES.driven.meetAt).toBeGreaterThan(CROSSES.floated.meetAt);
+    expect(CROSSES.driven.keeperReach).toBeLessThan(CROSSES.floated.keeperReach);
+  });
+
+  it('pays a specialist more than a good athlete — the curve must not invert at the top', () => {
+    // A regression test with a specific bug behind it. Two of them, in fact: a direction band wider
+    // than the gap put an elite athlete's extra window over the keeper, and a fixed directing clock
+    // was shorter than the time a specialist's (deliberately slower) meter needed to cross the track
+    // at all. Both punished exactly the athletes they were supposed to reward, and rating 55 came out
+    // ahead of rating 90. `pressInBand` cannot see either — it presses the instant the band is under
+    // the marker — so this is stated against the human model, which has to wait for the marker.
+    const score = (rating: number): number => {
+      let total = 0;
+      for (let seed = 0; seed < 10; seed += 1) {
+        const run = startRun(
+          game,
+          arcadeConfig({ seed: `hd-curve-${seed}`, athlete: soccerAthlete(rating) }),
+        );
+        drive(run, { press: humanPlayer({ seed: `h${seed}` }), steps: 12_000 });
+        run.finish();
+        total += run.result()?.score ?? 0;
+      }
+      return total;
+    };
+
+    const good = score(75);
+    const specialist = score(90);
+    expect(specialist).toBeGreaterThan(good);
+    expect(good).toBeGreaterThan(score(30));
+  });
+
+  it('lets a specialist see every cross out, rather than timing out on the far ones', () => {
+    // The symptom the sweep-denominated clock fixes: a run that ends early because the marker could
+    // not reach the band is a run the athlete never got to play.
+    const run = startRun(game, arcadeConfig({ seed: 'hd-full', athlete: soccerAthlete(92) }));
+    drive(run, { press: pressInBand, steps: 12_000 });
+    run.finish();
+    expect(run.result()?.attempts).toBe(HEADER_ROUNDS);
+  });
+
+  it('a cross let go is a chance lost, and it costs a life', () => {
+    const run = startRun(game, arcadeConfig({ seed: 'hd-idle', athlete: soccerAthlete(80) }));
+    drive(run, { press: pressNever, steps: 3000 });
+    expect(run.finished).toBe(true);
+    expect(run.view().lastOutcome?.label).toBe('Let it go');
+  });
+});
+
+describe('Last Line in particular', () => {
+  const game = SOCCER_ARCADE[4]!;
+
+  it('is the set’s only clocked run, because a keeper’s game is a volley', () => {
+    expect(game.scored.seconds).toBe(LAST_LINE_SECONDS);
+    expect(game.scored.lives).toBeNull();
+    for (const other of SOCCER_ARCADE) {
+      if (other.id !== game.id) expect(other.scored.seconds, other.id).toBeNull();
+    }
+  });
+
+  it('runs the clock out rather than ending on lives', () => {
+    const run = startRun(game, arcadeConfig({ seed: 'll-clock', athlete: soccerAthlete(80) }));
+    drive(run, { press: pressInBand, steps: 6000 });
+    run.finish();
+    const result = run.result();
+    expect(result?.seconds).toBeGreaterThanOrEqual(LAST_LINE_SECONDS - 1);
+    // Plenty of shots faced, none of which could have been ended early by conceding.
+    expect(result?.attempts ?? 0).toBeGreaterThan(10);
+  });
+
+  it('spans the whole track while a shot is live, which is what makes it a reaction test', () => {
+    // Load-bearing rather than lazy: `humanPlayer` tells a countdown from a sweep by exactly this,
+    // and reacts with a latency instead of anticipating. A narrower band would silently turn the
+    // game into one the model can read the future of.
+    let sampled = 0;
+    const run = startRun(game, arcadeConfig({ seed: 'll-band', athlete: soccerAthlete(70) }));
+    drive(run, {
+      steps: 2000,
+      press: (current) => {
+        const { meter, target } = current.view().game;
+        if (meter !== null) {
+          sampled += 1;
+          expect(target).toEqual({ from: 0, to: 1 });
+        }
+        return false;
+      },
+    });
+    expect(sampled).toBeGreaterThan(50);
+  });
+
+  it('beats a keeper who commits before the strike, however they commit', () => {
+    // Two ways to try to cheat a reaction test, and neither may work. A masher lands an edge during
+    // every wait, so every shot is dived on before it is struck. A holder lands one edge ever, and
+    // then stands still through every shot after it. Both must score nothing on a rating-90 keeper,
+    // who would otherwise save about half of them.
+    const masher = startRun(game, arcadeConfig({ seed: 'll-early', athlete: soccerAthlete(90) }));
+    drive(masher, { press: pressEvery(2), steps: 4000 });
+    masher.finish();
+    expect(masher.result()?.made).toBe(0);
+    expect(masher.view().lastOutcome?.label).toBe('Dived early');
+
+    const holder = startRun(game, arcadeConfig({ seed: 'll-hold', athlete: soccerAthlete(90) }));
+    drive(holder, { press: () => true, steps: 4000 });
+    holder.finish();
+    expect(holder.result()?.made).toBe(0);
+  });
+
+  it('trains goalkeeping through saves, and never takes a shot', () => {
+    const run = startRun(game, arcadeConfig({ seed: 'll-events', athlete: soccerAthlete(85) }));
+    drive(run, { press: pressInBand, steps: 6000 });
+
+    const kinds = run.events().map((event) => event.kind);
+    expect(kinds).toContain(EventKind.SAVE);
+    expect(kinds).not.toContain(EventKind.SHOT);
+  });
+
+  it('pays a faster keeper more, because the window is their reaction time', () => {
+    const score = (rating: number): number => {
+      let total = 0;
+      for (let seed = 0; seed < 8; seed += 1) {
+        const run = startRun(
+          game,
+          arcadeConfig({ seed: `ll-${seed}`, athlete: soccerAthlete(rating) }),
+        );
+        drive(run, { press: humanPlayer({ seed: `h${seed}` }), steps: 6000 });
+        run.finish();
+        total += run.result()?.score ?? 0;
+      }
+      return total;
+    };
+    expect(score(90)).toBeGreaterThan(score(60));
+    expect(score(60)).toBeGreaterThan(score(30));
   });
 });

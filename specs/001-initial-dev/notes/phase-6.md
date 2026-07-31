@@ -1147,3 +1147,619 @@ and the tell shortening as the run goes on is what makes rounds seven through te
 from one through four. The one thing that is not right yet: a round you lose to a keeper who
 guessed correctly reads as unfair rather than unlucky, because nothing on screen distinguishes
 "they read you" from "they got lucky". T-6.16's audio pass is probably where that gets fixed.
+
+---
+
+### T-6.23
+
+Free Kick — soccer's second mini-game, and the first one where the interesting decision is not a
+timing decision.
+
+**Two gates, two taps, and one axis each.** `09` §3.2 asks for four things — curve, aim, wind,
+distance — and the obvious way to build that is one blob of "shot quality" that all four feed. That
+would have been a worse Penalty Shootout. Instead the wall and the keeper were split into two
+different kinds of obstacle:
+
+- The **wall is a height gate**, and height is the strike meter. Under the band the kick never
+  clears the wall; over it, it clears the bar. Distance moves the band *up* and narrows it.
+- The **keeper is a width gate**, and width is the aim meter. Where the marker stops is the line,
+  and the wind then drags the ball off it.
+
+So each tap answers one question, and a miss can say which one you got wrong: "Into the wall",
+"Over the bar", "Wide", "Keeper saves". That wording is the whole of the game's teaching.
+
+**The band shows where to aim, not where to score, and that is the design.** The aim band is the
+unguarded stretch of goal *shifted back by the wind*. A band drawn on the target itself would be an
+instrument that lies about the only decision in the game — you would aim at it, the wind would take
+the ball off it, and the HUD would have set you up. Showing the compensated line is the same honesty
+the Shootout's aim band keeps when the keeper has not committed. It also means the wind is legible
+without any arithmetic: the band moves, you follow it.
+
+**Both gaps stay live.** The band shows whichever of the two stretches either side of the keeper
+survives the wind shift wider, but scoring is judged against the real frame — posts and keeper reach
+— so the smaller gap still works for anyone who wants it. A band is a recommendation.
+
+**Registered on landing, not at T-6.27.** `index.ts` previously said T-6.27 would register all five
+games. That is now the wrong order: a game that is not in `SOCCER_ARCADE` is not covered by
+`games.test.ts`'s set-wide contract, which is the file that exists specifically so five games cannot
+quietly disagree. Free Kick joins the array in the commit that builds it, and T-6.27's job narrows
+to the unlock wiring and the cross-set `calibrate()` sweep. The array's comment now says "what has
+actually been built" rather than naming a future task.
+
+**Tuned against a measurement, not a guess — and the first numbers were wrong three ways.** A
+throwaway probe drove twenty seeded runs per rating with both `pressInBand` and `humanPlayer`:
+
+1. **Eight rounds ran 14–17 s**, under `09` §3.1's twenty-second floor. Ten rounds puts a competent
+   run at 20–24 s.
+2. **Three stars were arithmetically unreachable.** Eight perfect rounds topped out around 2,276
+   against a 2,300 threshold. Ten rounds caps near 3,160, so 2,300 is now a genuinely good run
+   rather than an impossible one.
+3. **Every miss cost a life**, which is not the split the rest of the set draws. A life is now spent
+   only on a *player* error — the height, the line, or the corner — and never on the athlete's
+   outcome band coming up short. That is `09` §2.4 applied to run length: a novice's ceiling should
+   be a lower score, not a shorter run.
+
+`durationSeconds` is **35**, which is what a run measurably takes rather than a round number.
+
+The human-model curve after tuning, mean score over twenty seeds: rating 30 → 313, 55 → 1,031,
+75 → 1,353, 90 → 1,869. Monotonic and well separated, which is the claim `09` §2.4 actually makes.
+
+**A finding that is not this task's to fix: Penalty Shootout is badly under-tuned.** The same probe
+pointed at T-6.15's game gives a rating-90 athlete a mean score of **156 against a 600 first-star
+threshold** — three stars are unreachable, one star is unreachable, and a run lasts ~12 s against a
+declared 75. Nothing about it is broken, and every test it has still passes, because none of them
+assert what a good player actually scores. It belongs to **T-6.18**, and it is the strongest argument
+yet that the balance pass needs a scored-run harness (the equivalent of `pnpm balance` for arcade)
+rather than a read-through.
+
+Feel note: the wind is the thing. Aiming a post's width outside the frame and watching it curl back
+inside is the best moment in soccer's arcade set so far, and it is better than anything in the
+Shootout. The rounds where the wind draws near zero are noticeably flatter — if the range is ever
+tuned, tune it *up*. The one thing not yet right is that the wall is invisible as an obstacle: it is
+drawn, but the failure "Into the wall" happens on the meter, so the picture and the reason live in
+two different places on the screen. T-6.16's art pass is where that gets joined up.
+
+---
+
+### T-6.24
+
+One-on-One — through on goal, keeper coming out.
+
+**The two taps are cause and effect, and that is what makes it a different game.** In the Shootout
+and the Free Kick the taps are independent — placing the shot well does not make striking it easier.
+Here the first tap *is* the second's difficulty: the touch decides how much goal is open, and the
+finish is played into whatever it left. A scuffed touch is a harder finish rather than a failed
+attempt, which is what a one-on-one actually feels like and why `09` §3.2 names both halves in one
+line. Mechanically it is one field: `meter.windowScale` is set from the touch quality when the touch
+lands, between `OPENING.scuffed` (0.55) and `OPENING.perfect` (1.75).
+
+**The approach is a countdown, not a sweep — the first one-way meter in the project.** Every other
+meter bounces, so a missed moment comes round again. A keeper closing you down does not. The marker
+runs once and there is one moment in it worth taking.
+
+This turned out to be free: `humanPlayer`'s "sweep" branch estimates marker velocity and aims at the
+band's centre, which is exactly right for a one-way marker too. Its *countdown* branch is for a band
+that spans the whole track, which this is not. No helper changes were needed, and that is worth
+recording because the next game that wants a one-way meter will wonder.
+
+**The window's position is asserted, not just its width.** `TOUCH_AT` is 0.67 — late, because the
+keeper has to commit before the touch beats them. That is the lesson the game teaches, so there is a
+test that samples the band during the approach and asserts its centre is past the midpoint. A
+constant nobody reads would have drifted.
+
+**Where the window comes from, and a thing that is genuinely not pressure.** The window's width in
+*seconds* is the athlete's (INV-10). `APPROACH_SECONDS` varies 1.15–2.05 s per round, which changes
+how big a *slice* of the marker's travel that window is — but in real seconds the difficulty is
+identical either way. So a fast keeper is not mechanically harder; it is harder because the moment
+arrives with less warning. Worth being honest about: the round-to-round variety here is pacing, not
+difficulty, and if the game ever needs a real difficulty ramp it has to come from somewhere else.
+
+**Tuned against the probe.** Human-model mean over twenty seeds: rating 30 → 275, 55 → 920,
+75 → 1,277, 90 → 2,168. The first star thresholds gave a rating-90 athlete three stars *on average*,
+which is not what three stars should mean; raised to 450/1,300/2,500, so the average good run is two
+stars and a strong one is three. `durationSeconds` 35, against a measured 24 s for a competent run.
+
+Feel note: the late window is the whole game, and going early feels safe and scores nothing — it took
+about six rounds to stop doing it. That is the right shape for a mini-game, but it does mean the
+first run is discouraging in a way the Free Kick's is not, and "Went too early" is doing a lot of
+work as the only thing telling you why. If one of these three games needs a coaching line on the
+run-over screen, it is this one.
+
+---
+
+### T-6.25
+
+Header — attack the cross.
+
+**The jump is contested, and that is this game's own idea.** Everywhere else in the set you are timed
+against a clock or a keeper. Here you are timed against *another jumper*: `jumpBand()` is centred on
+the cross's meeting point and then shifted by `CONTEST_SHIFT` (±0.09 of the flight, drawn per round),
+so the window is somewhere slightly different every time and cannot be learned as a number. Early and
+the defender is still rising into you; late and you are under it.
+
+**A great leap buys hang time, and hang time is control.** Jump quality sets the direction meter's
+*speed*, not its width — deliberately a different lever from One-on-One's, which widens the band. A
+good touch gives you more goal; a good leap gives you more time.
+
+**Contact height is read from the sim, not restated.** `PASS_PROFILES.cross.arrivalHeight` is 1.9 m,
+and the PROGRESS note from T-6.9 flagged it as heading's hook. A test asserts the two agree, so a
+change to what a cross *is* reaches this game rather than diverging from it.
+
+**Two bugs, both of which punished exactly the athletes they were meant to reward.** The probe caught
+both, and neither was visible to the test suite, because `pressInBand` presses the instant the band
+is under the marker and so cannot experience either failure. Under the human model the curve came out
+**409 / 993 / 888 / 802** for ratings 30 / 55 / 75 / 90 — rating 55 beating rating 90.
+
+1. **The direction band was wider than the gap.** It is centred on the opening the keeper leaves;
+   when the athlete's window grew wider than that opening, the surplus sat *over the keeper*, so a
+   press inside the band could still be claimed. The better the athlete, the more of their reward
+   landed on unsafe ground. `fitBandToOpening()` now shrinks the band to the gap after `speedScale`
+   is known, and being in the band is the whole truth — one check, no separate keeper test.
+2. **The directing clock was denominated in seconds.** A better athlete's meter sweeps *slower* —
+   that is how the framework pays them — and the band sits wherever the round's gap is. At rating 90
+   with a good leap the marker needed ~3.6 s to cross the track and had 1.6 s, so specialists timed
+   out on precisely the far-side chances novices converted. The clock is now `DIRECT_SWEEPS` (1.25)
+   of the meter's own sweep, floored at 1.1 s, which is the same promise at every rating.
+
+**The second one generalises and is worth carrying forward.** Any game that puts a band somewhere
+other than the middle of the track and then imposes a fixed clock has this bug latent in it. The
+other three are safe by inspection — the Free Kick's power band tops out at 0.76 against a 4 s stage,
+One-on-One's finish is centred at 0.5 against 2.2 s — but **T-6.26 should be checked against it
+deliberately**, and any future game should denominate its clock in sweeps whenever its band moves.
+
+After both fixes, human-model means: **485 / 859 / 1,543 / 1,923**. Monotonic, and the top two are
+finally separated. There is a regression test at 75-vs-90 stated against the human model, because
+`pressInBand` scores 1,848 against 1,913 across the same pair and would not have failed.
+
+Feel note: the best of the four. Beating a defender to a ball is a more interesting thing to be good
+at than beating a clock, and the floated cross — slow jump, frantic finish — has a rhythm none of the
+others have. The driven one is nearly the opposite and the alternation is what carries the run.
+
+---
+
+### T-6.26
+
+Last Line — play the keeper. The fifth and final game of `09` §3.2's soccer set.
+
+**One tap, one clock, no aiming — and it is the only game in the set shaped that way.** Everything
+else is two taps and a count of rounds. A keeper's job does not decompose into a placement and a
+strike, and a run that ended after ten shots would be over before the rhythm started. So Last Line is
+forty-five seconds and a single button, and it is soccer's only clocked run.
+
+**The window is the athlete's reaction time, undisguised.** The marker crosses the whole track in
+exactly `calibration.reactionSeconds`. A novice's shot is past them in a fifth of a second; a
+specialist's hangs for more than half of one. Nothing else in the project puts a derived rating on
+screen this directly, and it is the clearest demonstration of `09` §2.4 anywhere in the game — two
+players tapping identically get different results and the reason needs no explaining.
+
+**The band spans the whole track on purpose.** That is precisely how `humanPlayer` tells a countdown
+from a sweep: it reacts to what was on screen a latency ago rather than estimating where the marker
+is heading. Anticipation is the one thing a reaction test must not reward, so the band's shape is
+load-bearing and there is a test that says so.
+
+**Two ways to cheat, both closed.** The meter reads `null` through the wait before each strike, so a
+press then is a keeper committing early and concedes. A masher lands an edge in every wait and saves
+nothing; a holder lands one edge ever and is then beaten by every shot after it. Both are asserted
+against a rating-90 keeper who would otherwise save about half.
+
+**Rebounds.** A save spills back out 35% of the time, and the follow-up arrives with no wait and 70%
+of the allowance. Conceding to a rebound you had already saved is the most annoying thing in the
+game, which is exactly why it belongs — it is what makes a save the start of something rather than
+the end of it.
+
+**T-6.25's latent bug was checked for and is not present.** Last Line's band spans the track, so
+there is no "marker cannot reach the band in time" failure available to it; the clock is the run's,
+not the stage's.
+
+**A set-wide test had to be rewritten, and it was wrong before this game existed.** The contract said
+*every* game emits a `SHOT` whose zone the XP table knows. That was an accident of the first four all
+being shooting games: Last Line takes no shots at all and trains `goalkeeping` through saves. The
+assertion is now the claim that actually mattered — every game emits **at least one event the XP
+table pays a rating for** — plus a separate, weaker one that any game which *does* shoot names a
+known zone. Strictly stronger, and it no longer assumes what kind of game a game is.
+
+Human-model means over twenty seeds: **524 / 1,108 / 1,691 / 1,978** for ratings 30 / 55 / 75 / 90,
+at 4/28 saves for the novice and 13.5/29 for the specialist. Every run lasts exactly 45 s, so the
+declared duration is the truth rather than an estimate.
+
+Feel note: the one I kept replaying, and the only game in the set where the athlete *is* the
+experience rather than a modifier on it. Playing a novice keeper is legibly hopeless in a way that
+teaches more about the rating system than the athlete card does.
+
+---
+
+### T-6.27
+
+Set registration, unlock wiring, and `calibrate()` tests — and **two of the three needed no code**.
+
+**Registration was already done, one commit at a time.** T-6.23 changed the rule: a game joins
+`SOCCER_ARCADE` in the commit that builds it, because a game outside the array is invisible to
+`games.test.ts`'s set-wide contract — the one file whose whole job is stopping five games quietly
+disagreeing. Leaving registration to this task would have meant four games shipping untested by the
+contract and then all being wired at once, which is the opposite of what the contract is for.
+
+**Unlock wiring turned out to be a seam that already worked.** The hub reads `unlockStates()`
+generically over whatever catalogue it is given, `ARCADE_UNLOCKS_BY_ID` has had all ten ids since
+T-4.1, and T-6.15 had already fixed `arcade.ts` to build its catalogue from every playable sport
+rather than from `[basketball]`. So soccer's five got unlock handling by existing. Recorded as a
+non-event rather than dressed up as work.
+
+**What was actually missing was any test of the catalogue as a whole**, and that is the deliverable:
+`tests/unit/modes/arcade/launch-set.test.ts`, thirteen tests over both sports at once. The per-game
+files cannot make these claims, and three of them would have caught real, invisible bugs:
+
+- **An unlock claimed twice**, which would ship a hub where two tiles opened together — a ceremony
+  that lies. Asserted in both directions, so an unlock claimed by *nobody* also fails.
+- **A game unlocked by the other sport's achievement.** The tile would work; it would simply open
+  when the player did something in a sport they were not playing.
+- **A `calibrate()` whose reported rating drifts from the ratings it says it reads.** Asserted
+  against `deriveRatings` + `arcadeRating` directly, which is the tie `09` §7 rests on: tuning an
+  athlete's soccer ability has to tune all three modes, and this is where that stops being a claim.
+
+Also: `calibrate()` is *pure* (INV-10's signature can be satisfied by a function that memoises a
+personal best; the behavioural half is now stated), difficulty moves the forgiveness and never the
+rating or the label (INV-1, `06` §7), and each sport's five games spread across at least five
+ratings with no single rating appearing in all five — a set whose games all read `finishing` would
+be one game with five pictures.
+
+**Three assumptions I had to correct against the code rather than assert into it**, all worth knowing:
+
+1. **Game ids are not prefixed with the sport id.** Basketball's are `bball.`, not `basketball.`. The
+   assertion became the claim that holds — one prefix per sport, no two sports sharing one.
+2. **The arrays are not in `09` §3.2's order.** Each `index.ts` orders its set *easiest first*,
+   because that is hub order and the first tile a newcomer taps should need the least explaining.
+   Membership is asserted; sequence deliberately is not.
+3. **`unlockStates()` currently returns `unlocked: true` for everything**, because
+   `ACHIEVEMENTS_LANDED` is `false` until T-8.6 — a hub of ten permanently locked tiles is worse than
+   an honest temporary shortcut. Rather than work around it, there is now a test asserting the
+   shortcut *is still in force*, so the commit that flips the flag has to come here and invert this
+   test rather than discovering the change in the hub.
+
+---
+
+### T-6.22 — closed
+
+The key-moment half, written once all five mini-games existed. The CPU half is above, from the
+earlier session; this is what finished the row.
+
+**Four of `09` §2.4's five soccer moments are wired, and the fifth has no trigger to give it.**
+
+| Moment | Game | What it reads |
+|---|---|---|
+| Direct free kick | `soccer.free-kick` | a shot from the `setPiece` phase, played *without* width |
+| Header from a cross | `soccer.header` | a shot with the attacking side's width intent set to `wide` |
+| One-on-one | `soccer.one-on-one` | a `chance`-phase shot the shooting model rates ≥ 0.18 xG |
+| Goal-line save | `soccer.last-line` | the **defending** player, and the shot was on target |
+| Penalty | — | **nothing.** See below. |
+
+**Why the penalty stays unwired, and where it actually belongs.** Soccer's Playbook resolves a phase
+into `advance · chance · corner · goal · saved · off-target · blocked · lost`. There are **no fouls
+in the model**, so nothing can award a spot kick. The available fake was to invent a foul roll inside
+the key-moment detector, which would have put a rules change in the wrong file and made Playbook and
+Live disagree about how often penalties happen. The Penalty Shootout's real home is the shootout that
+decides a match still level after extra time — which `index.ts`'s `isFinished` has named as missing
+since T-6.14 and which needs match-level support, not a moment. There is a test asserting the
+mapping table does *not* contain it, so the gap is a decision rather than an oversight.
+
+**Width outranks phase, deliberately.** A cross swung into the box from a corner is a header, not a
+free kick, and the player *asked for the cross* — reading a call they made beats reading a hidden
+roll. The ordering has its own test because it is the one thing about detection that is not obvious
+from the table.
+
+**The defending moment inverts `made`, and that is the most breakable line in the file.** `made`
+always means "the player did their job". Attacking, that is a goal; in goal, it is a shot **kept
+out**. Getting it backwards would score the entire defending half of the mode exactly wrong, every
+test in the project would still pass, and the symptom — conceding when you save — would look like a
+bug in the mini-game. It has its own test that says so in as many words.
+
+**Tuned against a probe, like the mini-games.** Detection fired on synthetic resolutions but the
+real question is what a real match produces. Thirty simulated matches, ~25 turns each:
+
+| | before | after |
+|---|---|---|
+| `last-line` | 2.70 / match | 2.70 |
+| `header` | 0.93 | 0.93 |
+| `free-kick` | 0.90 | 0.90 |
+| `one-on-one` | **0.13** | **0.73** |
+
+`CLEAR_CHANCE` started at 0.3 xG, which made the marquee soccer moment appear roughly **once every
+eight matches**. At 0.18 the whole set is about one moment every five turns, which is what "Standard"
+should feel like. A trimmed version of that probe is now a test: it asserts all four moments actually
+fire across twelve simulated matches, because detection reads `detail.phase` and `detail.chance` off
+events `resolution.ts` builds, and a rename on either side would zero a moment out in total silence.
+
+**A note for T-6.18.** The rates above are a first pass, not a balance decision. `last-line` at 2.7 a
+match is three times either attacking moment, because the player defends half the time and shots on
+target are common; whether that is the right feel is a question for the balance pass with a phone in
+hand, not for a unit test.
+
+---
+
+### T-6.16
+
+Soccer art and audio — and it turned out to be a **bug fix**, not a polish pass.
+
+**A soccer match was being played by basketball players chasing an orange ball with seams on it.**
+`modes/live/screen.ts` imported `sports/basketball/art.ts` by name and drew every athlete and every
+ball with it. Its own comment explained why that was fine — "entities are drawn generically here…
+because a top-down athlete is not sport-specific" — and that sentence is exactly what made it
+invisible for a whole phase. The *body* is generic. The **kit** is not.
+
+The same file constructed `BasketballAudio` unconditionally, so a soccer goal played a basketball
+swish, a save played nothing at all, and the "denied" cue was wired to `EventKind.REBOUND` — an event
+soccer never emits. **This is the fourth instance of the pattern the In-flight block warns about**,
+after `#/play`, `playbook-match.ts`, and `arcade.ts`. All four passed every test they had.
+
+**Three seam changes, all of them the sport module gaining a member it should always have had:**
+
+1. **`SportRenderer.drawAthletes(ctx, state, world, controlled)`** and **`.drawBall(...)`**. They
+   take the sport's *state*, which is the interesting part: soccer's goalkeeper wears a different
+   kit, that is a rule of the game rather than a decoration, and **only soccer knows which entity
+   the keeper is** (`SoccerState.keepers`). A signature that passed a colour could not have
+   expressed it. Basketball's implementation is the code moved verbatim out of the screen.
+2. **`SportModule.audio?: SportAudio`** — one method, `cue(event): AudioCue | null`. The sport
+   chooses *which* cue; `modes/live/audio.ts` keeps the *synthesis*, one voicing per cue, so two
+   sports sound like one game rather than like two engines. `BasketballAudio` became `MatchAudio` and
+   the file no longer imports a sport at all (INV-5). **A sport with no mapping is silent**, which is
+   a better default than borrowing somebody else's.
+3. `modes/live/screen.ts` now names **no sport anywhere**.
+
+**Soccer's own art**, in `sports/soccer/art.ts`:
+
+- **Three kits, not two.** Both outfield sides plus the keeper, and the keeper is told apart by
+  *shape* as well as hue — a band across the shoulders that neither outfield kit has — because a
+  colour nobody can resolve on a 105 m pitch shrunk to a phone is not an answer to "which dot is the
+  keeper" (`10` §11).
+- **A football, not a disc.** White with three dark panels and no seam line. The seam was the single
+  most visible symptom of the borrowed art, and the radius was the second: 0.11 m against a
+  basketball's 0.24.
+- **Not shared with basketball's art, deliberately.** The two draw a similar body and will not stay
+  similar. Two implementations of a hundred lines is not duplication worth an abstraction; a third
+  sport wanting the same body is, and **T-6.17 owns that call** when Phase 11 arrives.
+- `Canvas2D` has no `ellipse` — it is the slice of the real context the renderer actually uses
+  (T-1.7), which is what makes all of this testable with no browser. Shadows are circles. At this
+  size nobody can tell.
+
+**Soccer's `drawOverlay` draws the offside line**, which was `null` before. The second-last
+defender's x, drawn only for the side in possession, because that is when it constrains anything. It
+is soccer's one overlay that is information rather than decoration: a player who cannot see the line
+is guessing at a rule the sim is enforcing against them. `offside.ts` still owns the model; this
+reads a position and draws a line.
+
+**Soccer's cue mapping disagrees with basketball's instincts in one place, and that is the point.** A
+*save* is a cue and a shot on target is not. Soccer scores about three times a match against
+basketball's eighty, so every attempt announcing itself would be noise; what carries the tension is
+the outcome. The goal cue is the only one in the vocabulary allowed to be an event rather than a
+noise — a rising two-note figure, longer than anything else — and it keeps both notes under Reduced
+Audio, because the cue that tells you the score changed is not decoration.
+
+**Not verified on a device.** Every claim here is asserted against the recording canvas; whether the
+keeper actually reads as a keeper at phone size, and whether the goal cue is satisfying rather than
+twee, are both questions for the deploy that has been blocked since Gate 2.
+
+---
+
+### T-6.17
+
+Engine-core refactor: extract anything basketball-shaped that leaked into core.
+
+**The audit found nothing in `src/engine/`, and that is the honest headline.** A sweep for basketball
+vocabulary turns up three hits and all three are fine:
+
+- `MatchRules.clockRunsInStoppage` — a comment naming both sports as examples, which is the seam
+  working rather than leaking.
+- `DEFAULT_BALL_PHYSICS.restitution` — same, a comment giving both sports' values.
+- `EventKind.REBOUND` — a shared kind that today only basketball emits. Left alone deliberately: a
+  rebound off a keeper's parry is a real thing in soccer, hockey has them, and renaming a kind
+  ripples through every XP table, box score, audio mapping, and achievement rule in the project for
+  no gain. Recorded rather than churned.
+
+**The leaks were one layer up, and T-6.16 had just fixed the worst of them** — `modes/live/screen.ts`
+drawing every sport with `sports/basketball/art.ts` and playing basketball's audio cues. That is the
+useful finding: `engine/` was never the problem, because it has no reason to import a sport, while a
+*mode* legitimately imports both and so is where "the first sport's name" actually survives.
+
+**So the deliverable is the test that stops the next one.** A one-off audit that finds nothing is
+worth exactly as much as the guard it leaves behind: `layering.test.ts` now asserts that no file
+under `src/engine/` imports from `src/sports/` or `src/modes/`. INV-5 in structural form, next to the
+domain-must-not-import-UI rule that has been there since T-3.10.
+
+**One real core change, and it was the gap logged since T-6.14: `MatchRules.maxOvertimePeriods`.**
+
+`MatchStateMachine` offered another overtime period for as long as the score was level and
+`overtimeSteps` was set. That is right for basketball — a tied game plays OT after OT until somebody
+leads — and wrong for every sport with a different tiebreak. Soccer plays exactly two extra halves
+and then takes penalties, and with nothing to cap it a level Playbook match reached **period 15**
+before the turn engine's `MAX_TURNS` guard caught it.
+
+**Why it had to be here rather than in the sport.** T-6.14 fixed Playbook by overriding
+`adapter.isFinished`, which worked and left **Live broken** — Live has no `isFinished` to override.
+Any sport with a bounded tiebreak would have to reimplement the same cap in each mode that gave it a
+hook. One optional number on `MatchRules` serves every sport and every mode, the default stays
+unbounded so basketball is untouched, and `SOCCER_RULES` now carries `maxOvertimePeriods: 2`.
+
+What happens *instead* of another period is deliberately not the engine's business. The field says
+only that the match stops; a sport whose laws call for a shootout runs one above this layer, which is
+where the unwired Penalty Shootout still sits.
+
+Soccer's `isFinished` override is kept as a belt-and-braces guard (the turn loop has two exits and
+that is the cheaper one), but its comment now says the engine owns the rule.
+
+**Gate 6's engine-change list is therefore three, all justified**: `extendPeriod` (T-6.2),
+`Camera.resize` (T-6.12), and `maxOvertimePeriods` (T-6.17). None of them names a sport.
+
+---
+
+### T-6.18
+
+Balance pass #2 — goals, possession, conversion across Live and Playbook.
+
+**The deliverable is the measurement, and it found one large defect that this task could not fix.**
+`tools/balance-soccer.ts` (`pnpm balance:soccer`) plays both modes and reports one table, because
+"across Live and Playbook" is one question rather than two and the interesting number is whether they
+agree. Everything is counted off the `SportEvent` stream rather than the box score, which is
+basketball-shaped and whose soccer version is Phase 9's HUD work.
+
+**The numbers, 25 matches per mode:**
+
+| | Live | Playbook | plausible |
+|---|---|---|---|
+| Goals per match | **12.84** | 2.44 | 1.2–5.5 |
+| Shots per match | **58.5** | 9.5 | 8–45 |
+| Conversion | 21.9% | 25.6% | 4–30% |
+| Home win share | 40% | 40% | 30–70% |
+| Draw share | 20% | — | 5–55% |
+
+**Playbook passes every band. Live fails on volume alone — its conversion is fine.** That is the
+precise diagnosis and it matters: the shooting and keeper models are not the problem. Live simply
+takes fifty-eight shots a match instead of twenty-five, and 22% of a great many shots is a great many
+goals. A single-match trace shows why — 37 shots, a median gap of 7.5 s between them, and the carrier
+rule being `distance < range && (in the box || pressure < 0.4)`, evaluated every step.
+
+**Shot volume is the placeholder CPU's, and `sports/soccer/index.ts` said so before this task
+started**: "there is no off-ball intelligence beyond holding a role and pressing the ball. That is
+Phase 7's whole job, and T-6.18's balance pass will move the numbers once there is a real opponent to
+balance against." With no notion of working a better opening, every carrier who reaches the final
+third with a metre of space shoots. **Live's soccer scoring cannot be balanced until Phase 7 exists**,
+and the harness is now here to balance it with.
+
+**Two tuning attempts, one kept and one reverted, both worth recording.**
+
+1. **Shot gate tightened** (kept): `SHOOTING_RANGE` 30 m → 22 m, plus a `goalOpenness > 0.35` gate.
+   `goalOpenness` already existed for exactly this and had *no caller in Live*. It stops shots from
+   the by-line where there is no goal to aim at. Honest caveat: it did **not** measurably reduce
+   volume — 56 → 65 shots at n=12, which is inside the noise at that sample size. It is kept as a
+   plausibility fix, not claimed as a balance one.
+2. **`SHOOTING.baseError` 0.55 → 1.15** (reverted). Half a metre of placement error across a 7.32 m
+   goal does make an ordinary professional a marksman, and raising it took Live from 13.6 goals to
+   10.4. It also took **Playbook from 2.58 to 0.92**, because T-6.20 put Live's shooting model under
+   Playbook and the constant feeds both. Reverted with the reasoning left in the comment, because a
+   change that fixes one mode by breaking the other is worse than the state it started from.
+
+**A correction to this file's own earlier claim.** T-6.23's notes recorded Penalty Shootout as
+"badly under-tuned — a rating-90 athlete averages 156 against a 600 first-star threshold". **That
+finding was a measurement artefact and is withdrawn.** The Shootout's keeping rounds expose no band
+on `ArcadeGameView.target` — deliberately, since the whole point of that half is that nothing tells
+you which way the kicker is going — so `pressInBand` never presses, every keeping round times out,
+three lives are gone by round six, and the best score any probe run ever recorded was 390. **The
+probe cannot play half of that game**, so its numbers were never evidence about the game's balance.
+
+The real, actionable finding underneath it: **no automated harness can evaluate the Shootout**, and
+that includes its own tests, which assert `score(90) > score(30)` through `pressInBand`. Whether to
+expose a band during the keeping stage is a *design* question — it would hand the player the read the
+round exists to withhold — and it is left for the user rather than decided here.
+
+One change was made to it regardless, for consistency with the four games built since: **a life is no
+longer spent on a concession where the keeper read it right** and the athlete's outcome band came up
+short. That is the split every other game in the set draws (`09` §2.4) and the Shootout was the only
+one charging for it. It changes none of the measured numbers, because timeouts dominate.
+
+**INV-11's soccer parity run now exists**, and it passes: an elite eleven beats a weak one in both
+Live and Playbook. Deliberately four matches per mode rather than basketball's forty — a Live soccer
+match is ~29,000 steps against basketball's few thousand, and eight per mode took the invariants file
+from seconds to over two minutes. Four is enough for the *ordering* claim where the true rates are
+far apart, and it is not enough for anything finer, which is why nothing finer is asserted.
+
+**Worth being clear about what parity does and does not say.** The two modes disagree about the
+scoreline by a factor of five and still rank rosters identically. INV-11 is about *who wins*; a mode
+producing twice the goals of another is a different complaint, which is why `balance-soccer.ts`
+asserts the goal ratio separately — and that band is currently failing at 5.26×.
+
+**Key-moment rates** (T-6.22) were reviewed and left alone: `last-line` 2.7 a match, `header` 0.93,
+`free-kick` 0.90, `one-on-one` 0.73. The goal-line save being three times either attacking moment is
+a consequence of defending half the time against a side that shoots constantly — it will move on its
+own when Phase 7 fixes shot volume, and tuning it before then would be tuning against a placeholder.
+
+---
+
+## Gate record
+
+**Gate 6 (v0.5) — evaluated 2026-07-31. Result: NOT PASSED.**
+
+Two blockers, both unchanged since Gate 2, plus **one new finding of the phase's own**.
+
+### 1. Every task done or cut
+
+**27 of 27 `done`, none cut.** T-6.12's row was flipped in T-6.23's commit — its work, its notes, and
+its entry in the engine-change list all said done while the status said `todo`. The Summary table was
+also reconciled: it had undercounted by seven since Phase 6 began, because `pnpm progress:check`
+counts statuses and never compares them against the Summary.
+
+### 2. Full suite green
+
+| Check | Result |
+|---|---|
+| `pnpm verify` (typecheck · lint · unit) | **155 files, 2 788 tests, green** |
+| `pnpm e2e` | **45 passed**, including all sixteen `11` §9 PWA scenarios and the soccer deep-link specs |
+| `pnpm bench` | soccer 11v11 (23 entities) **0.058 ms mean, 0.098 ms p95** against a 4 ms step budget |
+| `pnpm build && pnpm budget` | initial JS **66.1 KB gzip / 200 KB**; install **507.7 KB / 6 MB** |
+| `pnpm balance:soccer` | **3 bands failing** — see §6 |
+
+### 3. Coverage thresholds
+
+Hold, and were not lowered. **Statements/lines 94.87%, branches 91.99%, functions 93.42%** against
+floors of 85% and 80%; the 95% tiers for `athletes`, `economy`, `achievements`, and `storage` pass,
+and the run would have failed if any per-directory threshold had been breached.
+
+### 4. Invariants
+
+No invariant regressed. INV-11 **gained** a soccer parity case (T-6.18) and it passes: an elite
+eleven beats a weak one in both Live and Playbook. `layering.test.ts` gained the structural half of
+INV-5 — nothing under `src/engine/` may import a sport or a mode (T-6.17).
+
+### 5. Device matrix (`12` §7)
+
+**Not run.** Blocked on the deploy, as at every gate since 2. The user tests on a phone against a
+published build, so this is genuinely unavailable rather than skipped.
+
+**Five soccer mini-games have never been played by a human**, which is the largest untested surface
+this phase produced. The feel notes in each task's entry are written from driving the sessions
+headlessly and reading the numbers; they are honest about that, and they are not a substitute.
+
+### 6. Gate 6's own criteria (`03`)
+
+> Both sports playable in all three modes, ≥55 fps at 11v11 on target hardware, and the Phase 6 diff
+> touches `engine/` only for genuine core improvements.
+
+1. **Both sports playable in all three modes — MET.** Soccer plays Live, Playbook, and all five of
+   `09` §3.2's soccer arcade games, each reachable by tapping. `catalogue.ts` has no `pending` rows.
+2. **≥55 fps at 11v11 — MET in simulation, UNVERIFIED on hardware.** The sim step is 0.058 ms mean
+   for 23 entities, which leaves ~68× headroom inside the 4 ms budget, and the render path is
+   unit-tested against the recording canvas. Neither is a frame rate on a phone. Same blocker as §5.
+3. **`engine/` touched only for genuine core improvements — MET.** Three changes in the whole phase:
+   `MatchStateMachine.extendPeriod` (T-6.2), `Camera.resize` no longer clamping an explicit zoom
+   floor (T-6.12, a real bug), and `MatchRules.maxOvertimePeriods` (T-6.17). None names a sport, and
+   each is justified at length in the notes. T-6.17's audit found nothing basketball-shaped left in
+   `engine/` at all.
+
+### 7. The new finding, and why it does not read as a gate failure
+
+`pnpm balance:soccer` (T-6.18) reports **Live soccer at 12.84 goals a match on 58.5 shots**, against
+Playbook's 2.44 on 9.5 and a plausible band of 1.2–5.5. Live's **conversion is inside band at 21.9%**
+— the shooting and keeper models are fine — so this is shot *volume* and nothing else.
+
+Volume is the placeholder CPU's, and `sports/soccer/index.ts` said so before the phase's balance row
+was started: there is no off-ball intelligence beyond holding a role and pressing the ball, so every
+carrier who reaches the final third with a metre of space shoots. **This cannot be fixed before Phase
+7**, and the one change that moved it — raising `SHOOTING.baseError` — fixed Live by breaking
+Playbook, because T-6.20 put Live's shooting model under both. It was reverted.
+
+It is recorded as an open finding against **Phase 7** rather than as a Gate 6 failure, because the
+gate's own three criteria do not include a balance band and because the harness that measures it did
+not exist until this phase built it.
+
+### 8. Tag and deploy
+
+**Not done.** Same blocker. v0.5 is not tagged.
+
+### Deferred, with reasons
+
+| Item | Reason |
+|---|---|
+| Device matrix | No device reachable without a deploy. Five mini-games unplayed by a human. |
+| Tagged v0.5 deploy | User action; `deploy.yml` runs on tagged releases. |
+| Live soccer shot volume | Needs Phase 7's CPU. Harness in place, finding logged. |
+| The penalty key moment | Playbook's model has no fouls, so nothing can award a spot kick. Its real home is the shootout that decides a drawn match, which needs match-level support. |
+| A shootout after extra time | `maxOvertimePeriods` now ends a level match as a draw. Deciding it needs a tiebreak phase above the engine. |
+| Soccer HUD | Still basketball-shaped — personal fouls, a clock counting down. A `SportHudSpec` change, so Phase 9. |
+| Automated evaluation of Penalty Shootout | Its keeping rounds deliberately expose no band, so no band-driven harness can play them. Whether to expose one is a design question for the user. |

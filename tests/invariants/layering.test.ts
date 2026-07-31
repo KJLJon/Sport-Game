@@ -29,6 +29,9 @@ const DOMAIN_DIRECTORIES = ['athletes', 'engine', 'sports', 'storage', 'economy'
 
 const IMPORTS_UI = /from\s+['"][^'"]*\/ui\/[^'"]*['"]/;
 
+/** An import reaching *up* out of the engine, into a sport or a mode. */
+const ENGINE_REACHING_UP = /from\s+['"][^'"]*\/(sports|modes)\/[^'"]*['"]/;
+
 describe('module layering', () => {
   it('never lets the domain layer import the UI layer', async () => {
     const offenders: string[] = [];
@@ -42,6 +45,27 @@ describe('module layering', () => {
     }
 
     expect(offenders, 'domain modules must not import from src/ui/').toEqual([]);
+  });
+
+  /**
+   * T-6.17's audit, turned into the thing that keeps it true.
+   *
+   * `03`'s row is "extract anything basketball-shaped that leaked into core", and the honest finding
+   * was that `src/engine/` imports no sport at all — the leaks were one layer up, in the shared
+   * mode screens (`modes/live/screen.ts` drew every sport with basketball's art until T-6.16). A
+   * one-off audit that finds nothing is worth exactly as much as the test that stops the next one,
+   * so this is that test: the engine may not import a sport *or a mode*, in either direction of the
+   * mistake. INV-5 in its structural form.
+   */
+  it('never lets the engine import a sport or a mode (INV-5)', async () => {
+    const offenders: string[] = [];
+
+    for (const file of await walkSourceFiles(`${SRC}/engine`)) {
+      const source = await readFile(file, 'utf8');
+      if (ENGINE_REACHING_UP.test(source)) offenders.push(file.slice(SRC.length + 1));
+    }
+
+    expect(offenders, 'src/engine/ must not import from src/sports/ or src/modes/').toEqual([]);
   });
 
   it('keeps the rating arithmetic where the domain layer can reach it', async () => {

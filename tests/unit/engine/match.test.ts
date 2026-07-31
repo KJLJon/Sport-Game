@@ -421,3 +421,63 @@ describe('snapshot and restore', () => {
     expect(play(true)).toEqual(play(false));
   });
 });
+
+describe('maxOvertimePeriods (T-6.17)', () => {
+  /** Short periods, so an unbounded tie can actually be observed running away. */
+  const SHORT: Partial<MatchRules> = { periods: 2, periodSteps: 4, overtimeSteps: 2 };
+
+  /** Plays a whole match at a tie and reports how many periods it took to end. */
+  function playTied(overrides: Partial<MatchRules>): number {
+    const { match } = machine({ ...SHORT, ...overrides });
+    match.start();
+    // A generous ceiling. Without a cap this loop is exactly what runs away, which is the point:
+    // soccer's Playbook reached period 15 before the sport's own guard caught it (T-6.14).
+    for (let guard = 0; guard < 500 && !match.isFinished; guard += 1) {
+      if (match.currentPhase === MatchPhase.PERIOD_BREAK) {
+        match.nextPeriod();
+        continue;
+      }
+      runSteps(match, 1);
+    }
+    return match.currentPeriod;
+  }
+
+  it('keeps offering overtime while the score is level when no cap is set', () => {
+    // Unbounded stays the default, and it has to: a tied basketball game plays overtime after
+    // overtime until somebody leads.
+    expect(playTied({})).toBeGreaterThan(20);
+  });
+
+  it('ends the match after the cap, however level it is', () => {
+    // Soccer's rule — two extra halves and then it stands. Four periods: two of regulation, two of
+    // extra time.
+    expect(playTied({ maxOvertimePeriods: 2 })).toBe(4);
+  });
+
+  it('a cap of zero leaves the tie standing at full time', () => {
+    expect(playTied({ maxOvertimePeriods: 0 })).toBe(2);
+  });
+
+  it('reports the draw as a draw rather than inventing a winner', () => {
+    const { match } = machine({ ...SHORT, maxOvertimePeriods: 1 });
+    match.start();
+    for (let guard = 0; guard < 500 && !match.isFinished; guard += 1) {
+      if (match.currentPhase === MatchPhase.PERIOD_BREAK) match.nextPeriod();
+      else runSteps(match, 1);
+    }
+    expect(match.result()?.winner).toBe(-1);
+    expect(match.result()?.periodsPlayed).toBe(3);
+  });
+
+  it('only ever ends a tie — a decided match is unaffected by the cap', () => {
+    const { match } = machine({ ...SHORT, maxOvertimePeriods: 2 });
+    match.start();
+    match.addScore(0, 1);
+    for (let guard = 0; guard < 500 && !match.isFinished; guard += 1) {
+      if (match.currentPhase === MatchPhase.PERIOD_BREAK) match.nextPeriod();
+      else runSteps(match, 1);
+    }
+    expect(match.currentPeriod).toBe(2);
+    expect(match.result()?.winner).toBe(0);
+  });
+});

@@ -84,12 +84,16 @@ import {
   attackedGoal,
   crossedBoundary,
   isGoal,
+  goalOpenness,
   isInAttackingPenaltyArea,
   soccerPitch,
   shotDistance,
   type Side as PitchSide,
 } from './pitch.ts';
 import { drawPitch, pitchKey } from './pitch-render.ts';
+import { drawAthlete, drawBall, paletteFor } from './art.ts';
+import { Detail } from '../../engine/render/renderer.ts';
+import type { SportAudio } from '../../modes/live/audio.ts';
 import {
   RestartKind,
   SOCCER_RULES,
@@ -129,8 +133,24 @@ const SQUAD = 11;
 
 /** How close a taker must be to a restart spot before it counts as ready. */
 const RESTART_READY_RANGE = 1.2;
-/** Distance from goal inside which the CPU will have a go. */
-const SHOOTING_RANGE = 30;
+/**
+ * Distance from goal inside which the CPU will have a go, and how much of the goal it wants to see
+ * before it does.
+ *
+ * **Both tightened by T-6.18, and the balance harness is why.** At 30 m with no openness gate, any
+ * carrier with a little space shot the instant they crossed halfway: `pnpm balance:soccer` measured
+ * **56 shots and 13.6 goals a match**, against a real game's 25 and 2.7 and against soccer's own
+ * Playbook, which produced 2.6. Twenty-two metres is roughly the edge of the D, and `goalOpenness`
+ * — which already existed for exactly this and had no caller in Live — is what stops a shot from the
+ * by-line where there is no goal to aim at.
+ *
+ * This is a *threshold*, not tactics. Whether to shoot rather than work a better opening is the
+ * judgement Phase 7's CPU makes; this only stops the placeholder taking shots nobody would take.
+ *
+ * @spec-ref 06-game-design.md §3.2
+ */
+const SHOOTING_RANGE = 22;
+const MIN_SHOOTING_OPENNESS = 0.35;
 
 export interface SoccerState extends SportState {
   readonly sport: 'soccer';
@@ -154,15 +174,144 @@ export interface SoccerState extends SportState {
 
 const roles = soccerRoles();
 
+/**
+ * What soccer sounds like (T-6.16).
+ *
+ * **A save is a cue and a shot on target is not**, which is the one place this mapping disagrees
+ * with basketball's instincts. Soccer scores about three times a match, so every attempt announcing
+ * itself would be noise; what carries the tension is the *outcome* — the ball hitting a keeper's
+ * hands, or the net. The referee is the other half: soccer stops play constantly, and a whistle is
+ * the most recognisable sound in the game, so every restart and every offside gets one.
+ *
+ * @spec-ref 06-game-design.md §9 — art and audio direction
+ */
+const audio: SportAudio = {
+  cue(sportEvent) {
+    switch (sportEvent.kind) {
+      case EventKind.SHOT:
+        return 'attempt';
+      case EventKind.SCORE:
+        return 'goal';
+      case EventKind.SAVE:
+        return 'save';
+      case EventKind.FOUL:
+        return 'whistle';
+      case EventKind.PERIOD_END:
+      case EventKind.MATCH_END:
+        return 'buzzer';
+      case EventKind.SPORT:
+        // The referee's whistle, for everything that actually stops play. A restart *completing* is
+        // not a stoppage and a kick-off is the whistle that starts one, so both are silent here.
+        return sportEvent.sportKind === SoccerEvent.OFFSIDE ||
+          sportEvent.sportKind === SoccerEvent.CARD ||
+          sportEvent.sportKind === SoccerEvent.OUT_OF_PLAY
+          ? 'whistle'
+          : null;
+      default:
+        return null;
+    }
+  },
+};
+
 const render: SportRenderer = {
   fieldKey: pitchKey,
   drawField(ctx, field) {
     drawPitch(ctx, field);
   },
-  drawOverlay() {
-    // Possession arrows, offside line, and zone highlights land with the art pass (T-6.16).
+
+  /**
+   * Bodies and kit (T-6.16).
+   *
+   * The keeper is looked up in the sport's own state and drawn in the keeper kit, which is the whole
+   * reason this member takes a state at all — see `SportRenderer.drawAthletes`.
+   */
+  drawAthletes(ctx, state, world, controlled) {
+    const soccerState = state as SoccerState;
+    const palette = paletteFor('dark');
+
+    world.forEach((id) => {
+      if (world.kind[id] === 1) return;
+      const team = world.team[id] === 1 ? 1 : 0;
+      const keeper = id === soccerState.keepers[0] || id === soccerState.keepers[1];
+      drawAthlete(
+        ctx,
+        world.x[id] as number,
+        world.y[id] as number,
+        world.facing[id] as number,
+        keeper ? palette.keeper : palette.teams[team],
+        Detail.FULL,
+        { team, controlled: id === controlled, radius: world.radius[id] as number, keeper },
+      );
+    });
+  },
+
+  drawBall(ctx, _state, world, ball) {
+    if (ball === NO_ENTITY) return;
+    drawBall(
+      ctx,
+      world.x[ball] as number,
+      world.y[ball] as number,
+      world.z[ball] as number,
+      paletteFor('dark'),
+      Detail.FULL,
+      { radius: world.radius[ball] as number },
+    );
+  },
+
+  /**
+   * The offside line — soccer's one overlay that is genuinely information rather than decoration.
+   *
+   * It is drawn only for the side *in possession*, and only in the attacking half, because that is
+   * when it constrains anything: the last defender's x is where a run becomes a flag, and a player
+   * who cannot see it is guessing at the rule the sim is enforcing. Nothing else about the offside
+   * model lives here — `offside.ts` owns it, and this reads `lastDefenderX` and draws a line.
+   */
+  drawOverlay(ctx, state, world) {
+    const soccerState = state as SoccerState;
+    const carrier = soccerState.ballState.carrier;
+    if (carrier === NO_ENTITY) return;
+    const attacking = soccerState.sides.get(carrier);
+    if (attacking !== 0 && attacking !== 1) return;
+
+    const defending = attacking === 1 ? 0 : 1;
+    const line = lastDefenderX(world, soccerState.squads[defending], defending);
+    if (line === null) return;
+
+    ctx.strokeStyle = OFFSIDE_LINE;
+    ctx.lineWidth = 0.12;
+    ctx.beginPath();
+    ctx.moveTo(line, 0);
+    ctx.lineTo(line, PITCH.width);
+    ctx.stroke();
   },
 };
+
+/** The offside line's colour. Dashed-thin and low-contrast: a hint, never a thing you read first. */
+const OFFSIDE_LINE = 'rgba(244, 241, 234, 0.28)';
+
+/**
+ * The second-last defender's x — the offside line, in the attacking side's direction of play.
+ *
+ * The law is "the second-last opponent", and the keeper is normally one of the two, so this is the
+ * defending side's second-deepest athlete rather than their deepest. Returns `null` for a side with
+ * fewer than two athletes on the pitch, which a red card can produce.
+ */
+function lastDefenderX(
+  world: World,
+  squad: readonly EntityId[],
+  defending: PitchSide,
+): number | null {
+  const deepest: number[] = [];
+  for (const id of squad) {
+    if (world.kind[id] === 1) continue;
+    deepest.push(world.x[id] as number);
+  }
+  if (deepest.length < 2) return null;
+
+  // Side 0 defends low x, so its second-last defender is the second *smallest*; side 1 the reverse.
+  deepest.sort((a, b) => (defending === 0 ? a - b : b - a));
+  return deepest[1] ?? null;
+}
 
 const hud: SportHudSpec = {
   // Soccer has no action clock, and `SportStatus.actionClock` returning null is how the HUD learns
@@ -249,6 +398,7 @@ export const soccer: SoccerModule = {
   ai,
   render,
   hud,
+  audio,
   playbook: soccerPlaybook,
   arcade: SOCCER_ARCADE,
 
@@ -820,7 +970,12 @@ function decide(state: SoccerState, world: World, step: number, rng: Rng): reado
   const distance = shotDistance(x, y, side);
   const pressure = pressureFor(state, world, carrier, side);
 
-  if (distance < SHOOTING_RANGE && (isInAttackingPenaltyArea(x, y, side) || pressure < 0.4)) {
+  const openness = goalOpenness(x, y, side);
+  if (
+    distance < SHOOTING_RANGE &&
+    openness > MIN_SHOOTING_OPENNESS &&
+    (isInAttackingPenaltyArea(x, y, side) || pressure < 0.4)
+  ) {
     return shoot(state, world, carrier, side, { kind: 'shoot', power: 1 }, step, rng);
   }
 

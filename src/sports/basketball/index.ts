@@ -156,7 +156,10 @@ import {
   shotZone,
   type Side as CourtSide,
 } from './court.ts';
+import { Detail } from '../../engine/render/renderer.ts';
+import type { SportAudio } from '../../modes/live/audio.ts';
 import { courtKey, drawCourt } from './court-render.ts';
+import { drawAthlete, drawBall, paletteFor } from './art.ts';
 import { BASKETBALL_PHYSICAL, BASKETBALL_POSITION_WEIGHTS, BASKETBALL_WEIGHTS } from './weights.ts';
 import { BASKETBALL_XP_AWARDS } from './xp.ts';
 import { rosterEntry } from './roster.ts';
@@ -299,11 +302,76 @@ const hud: SportHudSpec = {
   },
 };
 
+/**
+ * What basketball sounds like (T-2.12's mapping, moved out of `modes/live/audio.ts` by T-6.16 so
+ * that file stops importing a sport).
+ */
+const audio: SportAudio = {
+  cue(sportEvent) {
+    switch (sportEvent.kind) {
+      case EventKind.SHOT:
+        return 'attempt';
+      case EventKind.SCORE:
+        return 'swish';
+      case EventKind.REBOUND:
+        // @spec-ref 06-game-design.md §9 — "rim". There is no dedicated "miss" event on the bus:
+        // `EventKind.SHOT` fires at release regardless of outcome and a make is `EventKind.SCORE`,
+        // so a rebound — which only ever follows a miss — is the one observable proxy this stream
+        // offers for "the shot missed".
+        return 'clank';
+      case EventKind.FOUL:
+        return 'whistle';
+      case EventKind.PERIOD_END:
+      case EventKind.MATCH_END:
+        return 'buzzer';
+      case EventKind.SPORT:
+        return sportEvent.sportKind === BasketballEvent.CONTROL_SWITCH ? 'tick' : null;
+      default:
+        return null;
+    }
+  },
+};
+
 const render: SportRenderer = {
   fieldKey: courtKey,
   drawField(ctx, field) {
     drawCourt(ctx, field);
   },
+
+  /**
+   * Bodies and kit. **Moved here from `modes/live/screen.ts` by T-6.16**, which found the shared
+   * screen importing this module by name and therefore drawing soccer with basketball's art.
+   */
+  drawAthletes(ctx, _state, world, controlled) {
+    const palette = paletteFor('dark');
+    world.forEach((id) => {
+      if (world.kind[id] === 1) return;
+      const team = world.team[id] === 1 ? 1 : 0;
+      drawAthlete(
+        ctx,
+        world.x[id] as number,
+        world.y[id] as number,
+        world.facing[id] as number,
+        palette.teams[team],
+        Detail.FULL,
+        { team, controlled: id === controlled, radius: world.radius[id] as number },
+      );
+    });
+  },
+
+  drawBall(ctx, _state, world, ball) {
+    if (ball === NO_ENTITY) return;
+    drawBall(
+      ctx,
+      world.x[ball] as number,
+      world.y[ball] as number,
+      world.z[ball] as number,
+      paletteFor('dark'),
+      Detail.FULL,
+      { radius: world.radius[ball] as number },
+    );
+  },
+
   drawOverlay() {
     // Possession arrows and zone highlights land with the art pass (T-2.12).
   },
@@ -389,6 +457,7 @@ export const basketball: SportModule<BasketballState> = {
   ai,
   render,
   hud,
+  audio,
   arcade: BASKETBALL_ARCADE,
   playbook: basketballPlaybook,
 
