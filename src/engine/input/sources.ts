@@ -82,6 +82,18 @@ export class TouchInput {
   get active(): boolean {
     return this.stick.pointerId !== null || this.heldButtons.size > 0;
   }
+
+  /**
+   * Whether one specific button is down, by its `ButtonSpec.id`.
+   *
+   * `held` answers the same question as a mask, which is what the input router wants; the renderer
+   * wants it per button, and mapping an id back through `buttonMaskFor` at the call site would put
+   * the id→mask table in two places (T-6.29).
+   */
+  isHeld(id: number): boolean {
+    for (const held of this.heldButtons.values()) if (held === id) return true;
+    return false;
+  }
 }
 
 /** Button ids in `defaultButtons()` order map onto the abstract buttons. */

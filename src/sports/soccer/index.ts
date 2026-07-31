@@ -335,6 +335,19 @@ const hud: SportHudSpec = {
 };
 
 /**
+ * Which row of `hud.buttonLabels` applies right now (T-6.29). Soccer's counterpart to basketball's,
+ * and deliberately the same three states — the grip is a property of ball games, not of a sport.
+ *
+ * @spec-ref 06-game-design.md §2 — context-sensitive button labels
+ */
+function buttonContext(state: SoccerState): string {
+  const controlled = state.controlled;
+  if (controlled === NO_ENTITY) return 'defence';
+  if (state.ballState.carrier === controlled) return 'onBall';
+  return state.sides.get(controlled) === state.rules.possession ? 'offBall' : 'defence';
+}
+
+/**
  * Candidate actions and their scores. Enough for the framework to pick sensibly; the real thing is
  * Phase 7 (T-7.x), which is why the scores here are geometric rather than tactical.
  */
@@ -581,6 +594,7 @@ export const soccer: SoccerModule = {
       // restarts at 0:00 instead of running on to 90:00. Wrong, but far less wrong than counting
       // down; threading the period through the seam is its own change.
       periodElapsed: elapsedGameSeconds(state.elapsed, period),
+      buttonContext: buttonContext(state),
     };
   },
 

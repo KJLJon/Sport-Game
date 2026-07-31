@@ -51,7 +51,7 @@ import {
 import type { EntityId } from '../../engine/world.ts';
 import type { Side } from '../../engine/match/events.ts';
 import type { SportModule } from '../../sports/types.ts';
-import { LiveMatch } from './match.ts';
+import { LiveMatch, type MatchView } from './match.ts';
 import {
   boxRows,
   drawEdgeIndicators,
@@ -361,14 +361,47 @@ function draw(
       offScreenIndicators(world, view, (wx, wy) => camera.worldToScreen(wx, wy, point), layout),
     );
 
-    if (input.showTouchControls) drawTouchControls(c, controlLayout, touch);
+    if (input.showTouchControls) {
+      drawTouchControls(c, controlLayout, touch, buttonCaptions(sport, view));
+    }
   });
 
   renderer.render(ctx, transform);
 }
 
-/** The floating stick and the context buttons (`06` §2). Targets are ≥44 px by construction. */
-function drawTouchControls(ctx: Canvas2D, layout: ControlLayout, touch: TouchInput): void {
+/**
+ * What the three buttons currently do, in `defaultButtons()` order: A, B, then the modifier.
+ *
+ * The first two come from the sport, via `SportHudSpec.buttonLabels` keyed by the sport's own
+ * `SportStatus.buttonContext`. The third is Sprint in both sports and in the keymap, and it does not
+ * change with the situation, so it is not the sport's to name.
+ *
+ * An empty string means "draw no caption", which is what a sport that reports no context gets.
+ *
+ * @spec-ref 06-game-design.md §2 — context-sensitive button labels
+ */
+export function buttonCaptions(
+  sport: SportModule,
+  view: MatchView,
+): readonly [string, string, string] {
+  const context = view.status.buttonContext;
+  const pair = context === undefined ? undefined : sport.hud.buttonLabels[context];
+  return [pair?.[0] ?? '', pair?.[1] ?? '', 'Sprint'];
+}
+
+/**
+ * The floating stick and the context buttons (`06` §2). Targets are ≥44 px by construction.
+ *
+ * **The captions are the point (T-6.29).** Before them this drew three bare circles, and the first
+ * thing the user said after playing a deployed build was that they could not work out how to control
+ * it. `buttonLabels` had carried the right words for both sports since T-2.10 and nothing read them.
+ */
+function drawTouchControls(
+  ctx: Canvas2D,
+  layout: ControlLayout,
+  touch: TouchInput,
+  captions: readonly [string, string, string] = ['', '', ''],
+): void {
   const stick = stickVisual(touch.stick, layout);
   if (stick.visible) {
     ctx.strokeStyle = 'rgba(242, 237, 228, 0.45)';
@@ -383,12 +416,31 @@ function drawTouchControls(ctx: Canvas2D, layout: ControlLayout, touch: TouchInp
     ctx.fill();
   }
 
-  for (const button of defaultButtons(layout)) {
+  const buttons = defaultButtons(layout);
+  for (let i = 0; i < buttons.length; i++) {
+    const button = buttons[i];
+    if (button === undefined) continue;
+
+    const held = touch.isHeld(button.id);
+
+    // A held button fills rather than brightens: a shape change, not a shade change, so the
+    // feedback survives a colourblind player and a phone in sunlight alike (INV-11).
     ctx.strokeStyle = 'rgba(242, 237, 228, 0.5)';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = held ? 4 : 2;
     ctx.beginPath();
     ctx.arc(button.x, button.y, button.radius, 0, Math.PI * 2);
     ctx.stroke();
+
+    const caption = captions[i] ?? '';
+    if (caption === '') continue;
+
+    // Sized to the button so the longest caption either sport has ("Shoot", "Tackle", "Sprint")
+    // fits inside the smallest circle, and centred on it — a label beside the button reads as
+    // belonging to whatever else is under it.
+    ctx.fillStyle = 'rgba(242, 237, 228, 0.92)';
+    ctx.font = `600 ${Math.round(button.radius * 0.42)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(caption, button.x, button.y + button.radius * 0.15);
   }
 }
 

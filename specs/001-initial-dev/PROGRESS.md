@@ -12,10 +12,29 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.28 — HUD reads `SportHudSpec`. **`done`** and pushed. Phase 6 is 28 of 28.
-- **Branch:** `claude/playable-build-98n7aa`, PR #13 (draft).
-- **Next step:** **draw the touch buttons' labels** — see "the one that is still open" below. Then
-  **Phase 7**, starting at T-7.1.
+- **Task:** T-6.29 — touch-button captions. **`done`** and pushed. Phase 6 is 29 of 29.
+- **Branch:** `claude/playable-build-98n7aa`. PR #13 is **merged**, and **`v0.6.0` is tagged and
+  deployed** — the user has played it.
+- **Next step:** **Phase 7 — CPU AI depth**, starting at T-7.1. But read the user feedback below
+  first: two of the three things they asked for are not in Phase 7.
+
+### What the user said after playing v0.6.0
+
+Their words: *"not easy to control and some screens don't seem to work and I want it to work both
+vertically and horizontally but maybe that will come with bonus round of camera angle."*
+
+1. **"Not easy to control"** — T-6.29 addressed the half of this that was missing information: the
+   buttons now say `Shoot`/`Pass`/`Sprint`. Whether the *feel* is right — stick deadzone, auto-switch,
+   sprint on a held button rather than a toggle — is untested by anyone and is **T-7.8**'s (assists)
+   and Phase 9's. Ask before assuming the labels fixed it.
+2. **"Some screens don't seem to work"** — `#/store` and `#/progress` are the only stubs left, both
+   Phase 8, and both are **tabs in the bottom bar**, so they are the most tappable things in the app.
+   They say "Arrives in Phase 8", which reads as broken rather than as unbuilt. Cheap fix available
+   well before Phase 8 lands: make the placeholder say what it will be and link somewhere useful.
+3. **"Both vertically and horizontally"** — Live routes declare `orientation: 'landscape'`, so a
+   portrait phone gets "Turn your phone sideways to play" and nothing else. The user guessed this is
+   **Phase 12** (camera and framing) and they are right: a portrait match needs the camera to frame a
+   tall viewport, not just the CSS to allow one. Worth raising whether Phase 12 should move up.
 
 ### 🔴 Read this before repeating five gates' worth of a wrong assumption
 
@@ -42,137 +61,6 @@ unexpected disconnect`, on every retry), and the GitHub App has **no `actions: w
 `workflow_dispatch` returns 403. Both were tried on 2026-07-31. **Tagging is a user action, and it
 must be asked for explicitly at every gate** — not recorded as a blocker and left.
 
-### The one that is still open
-
-**The touch buttons have no labels, and that is why a new player cannot play.** `drawTouchControls`
-in `modes/live/screen.ts` strokes three bare circles. `SportHudSpec.buttonLabels` has carried the
-right words for both sports since T-2.10 — basketball `['Shoot', 'Pass']` / `['Call', 'Screen']` /
-`['Steal', 'Block']`, soccer `['Tackle', 'Slide']` — and, like the rest of that spec before T-6.28,
-**nothing reads it**. A player sees three unlabelled grey circles and a joystick.
-
-Drawing them needs one thing the seam does not yet carry: *which* of the three states applies. The
-sport knows (it knows who is carrying); `SportStatus` does not expose it. Suggested shape — an
-optional `buttonContext?: string` on `SportStatus`, keying into `hud.buttonLabels`, which is already
-a `Record<string, …>` precisely so a sport can name its own states.
-
-### What Phase 6 delivered
-
-**Soccer is complete in all three modes.** Live, Playbook, and all five of `09` §3.2's soccer
-mini-games — Penalty Shootout, Free Kick, One-on-One, Header, Last Line — registered,
-contract-tested, and wired into Playbook as key moments. `catalogue.ts` has no `pending` rows for
-either sport.
-
-### The one finding Phase 7 inherits
-
-**Live soccer scores 12.84 goals a match on 58.5 shots** (`pnpm balance:soccer`, 25 matches per
-mode), against Playbook's 2.44 on 9.5 and a plausible band of 1.2–5.5. Live's **conversion is inside
-band at 21.9%** — the shooting and keeper models are fine. It is shot *volume*, and volume is the
-placeholder CPU's: with no off-ball intelligence, every carrier reaching the final third with a metre
-of space shoots. **T-7.x is where this gets fixed**, and the harness now exists to fix it against.
-
-Do not reach for `SHOOTING.baseError`. T-6.18 tried; it took Live from 13.6 goals to 10.4 and
-Playbook from 2.58 to 0.92, because T-6.20 put Live's shooting model under both modes.
-
-### Rules this phase established, worth keeping
-
-1. **A game joins its sport's array in the commit that builds it**, never in a later registration
-   task — a game outside `SOCCER_ARCADE` is invisible to `games.test.ts`'s set-wide contract.
-2. **Tune every game against a probe, and probe with `humanPlayer`, not just `pressInBand`.** Three
-   of the four new games shipped with numbers that were wrong in ways no test could see, and the bot
-   helper — which presses the instant a band appears — was blind to all of them.
-3. **A better athlete's meter sweeps *slower*.** So any game that puts its band away from the middle
-   of the track *and* imposes a fixed per-stage clock can make specialists time out on chances
-   novices convert. T-6.25 hit it and its scoring curve inverted. Denominate the clock in sweeps.
-4. **Before adding or touching a sport-facing screen, grep `src/ui` and `src/modes` for a
-   sport-module import.** This bit four times: `#/play` (T-8.1), `playbook-match.ts` (T-6.21),
-   `arcade.ts` (T-6.15), and worst, `modes/live/screen.ts` drawing every soccer athlete with
-   `sports/basketball/art.ts` and playing basketball's audio cues (T-6.16). All four passed every
-   test they had. The fix is always the same: what the screen hardcoded becomes a `SportModule`
-   member.
-
-### Engine-core changes this phase — the Gate 6 list
-
-Gate 6 asks that `engine/` be touched only for genuine core improvements. Two so far, both justified
-in [the notes](./notes/phase-6.md):
-
-1. **`MatchStateMachine.extendPeriod(steps)`** + `extension` getter + optional
-   `MatchSnapshot.periodExtension` (T-6.2). Generic period lengthening; nothing in it knows what a
-   stoppage is. Soccer's added time had nowhere else to live.
-2. **`Camera.resize()` no longer clamps an explicit zoom floor down to fit-the-field** (T-6.12). A
-   real bug, not an accommodation: a rotation counts as a resize, so on a phone it silently undid any
-   request to stay zoomed in.
-
-3. **`MatchRules.maxOvertimePeriods`** (T-6.17). An optional cap on how many extra periods a tie may
-   go to; omitted is unbounded, so basketball's behaviour is unchanged. It had to be core because the
-   sport-level fix (overriding `adapter.isFinished`) works in Playbook and cannot work in Live.
-
-None of the three names a sport.
-
-### Known gaps, all deliberate and all logged
-
-1. **The chip is not modelled** (T-6.9). `interceptPoint` uses the chord, not the parabola, so a
-   lofted ball over an advanced keeper reads *lower* rather than higher. Fix = thread the launch
-   velocity through and evaluate the true arc.
-2. **The HUD is basketball-shaped**, and T-6.16 did not fix it. A soccer match shows `0 PF`
-   (personal fouls) and a clock counting *down*; soccer has team fouls and counts up.
-   `elapsedGameSeconds` exists and nothing calls it. `SportStatus.periodClock` is documented as
-   *remaining*, so the sport module is honouring the contract and the gap is the HUD's — which makes
-   it a `SportHudSpec` change rather than an art one. **Phase 9.**
-3. ~~**Soccer overtime is unbounded in Live**~~ — **fixed by T-6.17.**
-   `MatchRules.maxOvertimePeriods` caps a tie at the engine level, the default stays unbounded so
-   basketball is untouched, and `SOCCER_RULES` carries `2`. Both modes get it, which the previous
-   `isFinished` override could not do.
-4. **A drawn match is still a draw, and the shootout that should decide it is not wired.** This is
-   also where `09` §2.4's **penalty** moment belongs: soccer's Playbook model has no fouls, so
-   nothing can award a spot kick, and T-6.22 deliberately left the Penalty Shootout unwired rather
-   than inventing a foul roll inside a key-moment detector. Wiring the shootout needs *match-level*
-   support (a tiebreak phase), not a key moment. **Not in any Phase 6 row** — raise at Gate 6.
-5. **INV-11's cross-mode parity harness is basketball-only.** Soccer now has Live and Playbook, so a
-   soccer parity run is possible for the first time. **T-6.18** — parity is a balance measurement.
-6. **`pnpm balance` is basketball's Live harness only**, and there is no scored-run harness for the
-   arcade at all. **T-6.18** owns both: a soccer row in the balance tool, and the arcade equivalent.
-   The throwaway probes used through T-6.23–T-6.26 are what that tool should become.
-7. **Penalty Shootout (T-6.15) is badly under-tuned and its tests do not notice.** A **rating-90**
-   athlete averages **156** points against a **600** first-star threshold, makes 1.2 of 6 attempts,
-   and finishes in ~12 s against a declared 75. Not one star is reachable, let alone three. Every
-   test it has passes, because none of them assert what a good player actually scores. **T-6.18.**
-8. **Key-moment rates are a first pass, not a balance decision** (T-6.22). Across thirty simulated
-   matches: `last-line` 2.7/match, `header` 0.93, `free-kick` 0.90, `one-on-one` 0.73. The
-   goal-line save is three times either attacking moment, because the player defends half the time
-   and shots on target are common. Whether that is the right feel is **T-6.18** with a phone in hand.
-9. **Heading has no task of its own.** T-6.25 consumed `PASS_PROFILES.cross.arrivalHeight` (1.9 m)
-   for the Header mini-game's contact height, which was the hook; Live's heading model is still
-   whatever `06` §3.2 implies and nothing more.
-
-### Standing notes
-
-- **Session budget:** the user is near their weekly cap. Commit and push after every task, and leave
-  this block accurate every time. Do not run the full E2E suite unless a screen changed —
-  `pnpm -s verify` plus the targeted spec is enough.
-- **Two bonus phases added** at the user's request: **Phase 12** (camera and framing) and **Phase 13**
-  (visual overhaul: sprites or pseudo-3D). Both sit at the top of `03`'s cut order.
-- **Blockers:** the device matrix. **The deploy is not one** — see the red block above; it was never
-  blocked, it was never tagged. Ask the user to tag at every gate, in as many words.
-  The user can only test a deployed build (they are on mobile), so a LAN dev server is no help and
-  **the deploy is genuinely the only route to a real device**. `deploy.yml` runs on tagged releases.
-- **Things that need a phone, not the suite:** the 3 s advantage window; whether a slightly underhit
-  through ball reads as skill or noise; the 0.8 s shot-meter fill; the 1.9× sprint turn penalty;
-  keeper `softness` 0.45; whether committing to a slide tackle feels worth pressing; and now the
-  five soccer mini-games, none of which has been played by a human.
-- CI runs on `main` and `workflow_dispatch` only (user request, 2026-07-27). Verify branches locally
-  with `pnpm verify`, `pnpm bench`, `pnpm e2e`, `pnpm balance`, `pnpm build && pnpm budget`. In this
-  sandbox the E2E suite needs `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium` and a `pnpm build` first.
-- Formatting and auto-fixable lint are handled by hooks (`CLAUDE.md` §11); never spend a turn on
-  them. `src/athletes/**`, `src/storage/**`, `src/economy/**`, and `src/achievements/**` are held to
-  95% lines/functions/statements — write the tests with the code.
-- **`pnpm progress:check` does not reconcile the Summary table against the task rows.** It counted
-  104 done while the table said 97, for three phases. If you change a status, change the Summary too.
-- **Gate 5 was evaluated and did not pass** — see the Gate 5 record. Nothing since changes it.
-
-> **Resuming after an interruption:** read this block, `git log --oneline -20`, then continue from
-> **Next step**. Everything needed should be here — if it isn't, the previous session didn't follow
-> `CLAUDE.md` §3.1, and the fix is to reconstruct this block before writing any code.
-
 ---
 
 ## Summary
@@ -185,7 +73,7 @@ None of the three names a sport.
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 28 | 28 | `done` | v0.5 |
+| 6 | Soccer · all three modes | 29 | 29 | `done` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -193,7 +81,7 @@ None of the three names a sport.
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **201** | **114** | | |
+| | **Total** | **202** | **115** | | |
 
 ---
 
@@ -351,6 +239,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.26 | Soccer arcade: Last Line | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | One tap, one 45 s clock, no aiming — the set's only clocked run, and the marker crosses the track in exactly the athlete's `reactionSeconds`, which is the rating on screen undisguised. [notes](./notes/phase-6.md#t-626) |
 | T-6.27 | Soccer arcade: set registration, unlock wiring, and `calibrate()` tests | S | `done` | | `tests/unit/modes/arcade/launch-set.test.ts` | `auto` | Registration and unlock wiring needed no code (done per-commit; the hub's seam already worked), so the deliverable is the catalogue-level test neither sport's own file could make — 13 tests over both sets. [notes](./notes/phase-6.md#t-627) |
 | T-6.28 | HUD reads `SportHudSpec`: clock direction, foul label, action clock per sport | S | `done` | | `tests/unit/modes/live/hud.test.ts` | `auto` + both sports screenshotted at 844×390 from the production build | `SportHudSpec` had been part of the seam since T-2.10 and **nothing had ever read it**, so soccer was drawn with basketball's countdown and "0 PF"; the spec is now an argument to `drawHud`. [notes](./notes/phase-6.md#t-628) |
+| T-6.29 | Draw the touch buttons' captions from `SportHudSpec.buttonLabels` | S | `done` | | `tests/unit/modes/live/controls.test.ts` | `auto` + both sports screenshotted from the production build | The buttons were three bare circles and the user could not tell what they did; `buttonLabels` had the right words since T-2.10 and nothing read them. [notes](./notes/phase-6.md#t-629) |
 
 ### Phase 7 — CPU AI depth & difficulty ladder
 
