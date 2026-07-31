@@ -85,7 +85,11 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
   },
   {
     pattern: '/play',
-    value: stub('play', 'Play', 'Pick a sport and a way to play.', 'Phase 2'),
+    value: {
+      id: 'play',
+      title: 'Play',
+      load: async () => (await import('../ui/screens/play.ts')).playScreen(),
+    },
   },
   {
     pattern: '/play/live',

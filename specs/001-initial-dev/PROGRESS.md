@@ -14,12 +14,33 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 - **Task:** T-6.21 — Soccer Playbook: narration and animated pitch diagram for turn outcomes
 - **Status:** todo. **16 of 27 Phase 6 tasks `done`** (T-6.1 – T-6.14, T-6.19, T-6.20). Tree clean
-  and pushed.
-- **Branch:** `claude/phase-6-soccer-dev-mo0yec` — PR **#9**, draft. PR #8 was merged, so this
-  branch restarted from `main`; do not reopen or push to #8.
+  and pushed. **T-8.1 was pulled forward ahead of it and is `done`** — see below.
+- **Branch:** `claude/game-deployment-testing-aq85p9`. PR #9 (the Phase 6 branch) was merged, so
+  this branch restarted from `main`; do not reopen or push to #9.
+
+### T-8.1 was taken out of order, and why it matters to Phase 6
+
+The user could not start a game on the deployed site. The deploy pipeline was never broken — `v0.5.0`
+shipped from `main` on 2026-07-30 and succeeded — but `#/play` was still the Phase-0 placeholder, so
+**every mode built in Phases 2–6 was unreachable without typing a hash by hand**. The Play tab is now
+the real mode selector (`src/ui/screens/play.ts`) and the home button is Quick Play.
+
+Two pre-existing bugs surfaced while verifying it, both fixed:
+
+1. **"Start match" on the Playbook setup screen has 404'd since T-5.10** — a pre-assembled
+   `#/…?a=b` was handed to `navigate(path, query)`, which escapes the hash itself, so the whole
+   string became one unmatchable segment. `setupQuery` → `setupParams`.
+2. The sport radios had no positioned ancestor and floated over the page heading.
+
+The lesson for the rest of this phase: every mode passed its own deep-link E2E while none of them
+was reachable by tapping. `tests/e2e/play-hub.spec.ts` now starts at the home screen and uses only
+controls a thumb can find. **Add soccer's Playbook to `src/modes/catalogue.ts` as part of T-6.21** —
+until then the hub honestly says soccer coaching is still being built. Full write-up:
+[notes/phase-8.md](./notes/phase-8.md#t-81).
+
 - **Soccer is playable and legible.** `#/play/live/soccer` mounts a real 11v11 match with a camera
-  that follows the play. 2 612 unit/integration tests green (146 files); `pnpm bench` 0.036 ms mean
-  against a 4 ms budget. E2E untouched since T-6.12 — nothing since then has changed a screen.
+  that follows the play. 2 635 unit/integration tests green (148 files), 44 E2E green; `pnpm bench`
+  0.036 ms mean against a 4 ms budget.
 - **Soccer's Playbook is complete except for its screen.** `src/sports/soccer/playbook/` has the
   adapter (`index.ts`), the phase turn model (`phases.ts`), all five intents (`intents.ts`), the
   bridge to Live's own passing/shooting/keeper models (`model.ts`), the graph walker
@@ -38,8 +59,10 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
      `src/sports/basketball/playbook/diagram.ts` and `src/modes/playbook/diagram.ts` first.
 - **Then, in order:** T-6.22 (Playbook), T-6.15 + T-6.23 – T-6.27 (arcade), T-6.16 (art & audio),
   T-6.17 (engine-core refactor audit), T-6.18 (balance pass), then the Gate 6 record.
-- **T-6.21 is the tag point.** It is the first task that puts soccer's Playbook on a screen the user
-  can reach from a phone (`#/play/playbook`). Nothing before it is worth deploying.
+- **T-8.1 is the tag point, and it is reached.** It was going to be T-6.21, on the reasoning that
+  nothing before it was worth deploying. That reasoning was wrong in one direction: four modes were
+  already worth deploying and simply could not be opened. Tag and deploy as soon as this merges, so
+  the user can test what is already built; T-6.21 then adds soccer's Playbook to a hub that exists.
 
 ### Engine-core changes this phase — the Gate 6 list
 
@@ -309,7 +332,7 @@ there; this file is read at every session start and the notes file only when you
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-8.1 | Home screen, mode selector, Quick Play (two taps from cold launch) | M | `todo` | | | | |
+| T-8.1 | Home screen, mode selector, Quick Play (two taps from cold launch) | M | `done` | | `tests/unit/ui/play.test.ts`, `tests/unit/modes/last-played.test.ts`, `tests/e2e/play-hub.spec.ts` | auto+device | Pulled forward: the Play tab was still a Phase-0 placeholder, so no shipped mode was reachable by tapping — [notes](./notes/phase-8.md#t-81) |
 | T-8.2 | Match setup screens for Live and Playbook: sport, teams, difficulty, length, rules toggles | M | `todo` | | | | |
 | T-8.3 | Tournament mode: 4/8/16 bracket, persistence, results, rewards; playable in Live or Playbook | L | `todo` | | | | |
 | T-8.4 | Match checkpointing and resume-after-kill, all three modes | M | `todo` | | | | |

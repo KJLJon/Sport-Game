@@ -12,8 +12,10 @@
  * onwards. Each screen is mounted into a detached host and checked for the structure the design
  * calls for, including the accessibility properties a screenshot cannot assert.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ScreenContext } from '../../../src/app/screen.ts';
+import { forgetPlay, rememberPlay } from '../../../src/modes/last-played.ts';
+import { playMode } from '../../../src/modes/catalogue.ts';
 import { homeScreen } from '../../../src/ui/screens/home.ts';
 import { placeholderScreen } from '../../../src/ui/screens/placeholder.ts';
 import { settingsScreen } from '../../../src/ui/screens/settings.ts';
@@ -30,6 +32,10 @@ function context(overrides: Partial<ScreenContext> = {}): ScreenContext & { host
 }
 
 describe('home screen', () => {
+  beforeEach(() => {
+    forgetPlay();
+  });
+
   it('leads with a single primary action (`10` §2)', () => {
     const ctx = context();
     homeScreen().mount(ctx);
@@ -57,6 +63,39 @@ describe('home screen', () => {
     const links = [...(nav?.querySelectorAll('a') ?? [])];
     expect(links.map((a) => a.textContent)).toEqual(['Squad', 'Settings']);
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['#/squad', '#/settings']);
+  });
+
+  // ── Quick Play (T-8.1, `10` §8.2) ──────────────────────────────────────────
+
+  it('names the remembered match on the button, so one tap is never a surprise', () => {
+    rememberPlay('soccer', playMode('live')!);
+
+    const ctx = context();
+    homeScreen().mount(ctx);
+
+    expect(ctx.host.querySelector('.home__play')?.textContent).toBe('Quick Play · Live Soccer');
+  });
+
+  it('goes straight into the remembered match rather than back to the picker', () => {
+    rememberPlay('soccer', playMode('live')!);
+
+    const ctx = context();
+    homeScreen().mount(ctx);
+    ctx.host.querySelector<HTMLButtonElement>('.home__play')?.click();
+
+    // Router paths carry no `#`; that is the shell's business, not the screen's.
+    expect(ctx.navigate).toHaveBeenCalledWith('/play/live/soccer');
+  });
+
+  it('keeps a route to a different match once Quick Play has taken the primary slot', () => {
+    rememberPlay('basketball', playMode('arcade')!);
+
+    const ctx = context();
+    homeScreen().mount(ctx);
+
+    const links = [...ctx.host.querySelectorAll('nav.home__links a')];
+    expect(links.map((a) => a.textContent)).toEqual(['Choose a game', 'Squad', 'Settings']);
+    expect(links[0]?.getAttribute('href')).toBe('#/play');
   });
 
   it('says what the game is, so a cold install is not a blank page', () => {

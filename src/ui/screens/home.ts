@@ -2,50 +2,81 @@
  * @spec    001-initial-dev
  * @phase   0 — Foundation, PWA shell, update & offline lifecycle
  * @task    T-0.3 — App shell: canvas host, hash router, safe-area layout, orientation handling
+ * @task    T-8.1 — Home screen, mode selector, Quick Play (two taps from cold launch)
  * @story   US-1.1 — Install the game from a GitHub Pages URL
- * @design  10-ui-ux.md §2 (two taps to play), §8.2 (Quick Play)
+ * @story   US-10.1 — Jump straight into a game
+ * @design  10-ui-ux.md §2 (two taps to play), §8.1 (first launch), §8.2 (Quick Play)
  *
- * Purpose: the home screen. `10` §2 makes this the shortest path to a match, so the primary
- * action is one large button and everything else is secondary. The Quick Play target becomes
- * real in Phase 2; until then it routes to the Play screen.
+ * Purpose: the home screen, and the first of the two taps.
+ *
+ * **The button changes with what you have played.** `10` §8.2 wants one tap from cold launch into
+ * the last match you were playing; `10` §8.1 wants a first launch that asks which sport and which
+ * mode before it starts anything. Those want different buttons, so the screen shows different
+ * buttons: nothing remembered means the primary action is the picker, and something remembered
+ * means it is that match, named in full so a one-tap launch is never a surprise.
  */
 import type { Screen, ScreenContext } from '../../app/screen.ts';
+import { quickPlay, rememberPlay } from '../../modes/last-played.ts';
+import { playableSport } from '../../sports/playable.ts';
+import { button } from '../components/button.ts';
+import { el } from '../dom.ts';
 
 export function homeScreen(): Screen {
   return {
     mount({ host, navigate }: ScreenContext): void {
       const doc = host.ownerDocument;
+      const resume = quickPlay();
 
-      const section = doc.createElement('section');
-      section.className = 'home';
+      const primary =
+        resume === null
+          ? button(doc, {
+              label: 'Play',
+              variant: 'primary',
+              size: 'large',
+              onClick: () => navigate('/play'),
+            })
+          : button(doc, {
+              label: `Quick Play · ${resume.mode.name} ${playableSport(resume.sport).displayName}`,
+              variant: 'primary',
+              size: 'large',
+              onClick: () => {
+                // Re-recorded on the way out, so the timestamp-free memory still reflects a launch
+                // made from here rather than only ones made from the picker.
+                rememberPlay(resume.sport, resume.mode);
+                navigate(resume.mode.route(resume.sport).replace(/^#/, ''));
+              },
+            });
 
-      const lede = doc.createElement('p');
-      lede.className = 'home__lede';
-      lede.textContent =
-        'Build athletes once and play them in every sport. Install it, then play offline.';
+      // The class is the layout hook `components.css` already owns; `button()` sets its own.
+      primary.classList.add('home__play');
 
-      const play = doc.createElement('button');
-      play.type = 'button';
-      play.className = 'button button--primary home__play';
-      play.textContent = 'Play';
-      play.addEventListener('click', () => navigate('/play'));
+      const links = el(doc, 'nav', {
+        class: 'home__links',
+        attrs: { 'aria-label': 'More' },
+        children: [
+          // Always present, and the only route to a *different* match — which is why it is here
+          // even when the primary button is already the picker.
+          ...(resume === null
+            ? []
+            : [button(doc, { label: 'Choose a game', variant: 'ghost', href: '#/play' })]),
+          button(doc, { label: 'Squad', variant: 'ghost', href: '#/squad' }),
+          button(doc, { label: 'Settings', variant: 'ghost', href: '#/settings' }),
+        ],
+      });
 
-      const links = doc.createElement('nav');
-      links.className = 'home__links';
-      links.setAttribute('aria-label', 'More');
-      for (const [label, path] of [
-        ['Squad', '/squad'],
-        ['Settings', '/settings'],
-      ] as const) {
-        const anchor = doc.createElement('a');
-        anchor.className = 'button button--ghost';
-        anchor.href = `#${path}`;
-        anchor.textContent = label;
-        links.appendChild(anchor);
-      }
-
-      section.append(lede, play, links);
-      host.replaceChildren(section);
+      host.replaceChildren(
+        el(doc, 'section', {
+          class: 'home',
+          children: [
+            el(doc, 'p', {
+              class: 'home__lede',
+              text: 'Build athletes once and play them in every sport. Install it, then play offline.',
+            }),
+            primary,
+            links,
+          ],
+        }),
+      );
     },
   };
 }
