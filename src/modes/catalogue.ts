@@ -11,10 +11,12 @@
  *
  * **Why availability lives here and not in the sport module.** `SportModule.arcade` and
  * `.playbook` say whether the sport has supplied the mode's rules; they say nothing about whether
- * a *screen* can reach it. Soccer has a complete `PlaybookAdapter` and no Playbook screen yet
- * (T-6.21), so deriving the picker from the module would offer the player a route that dead-ends.
- * This list is what the app can honestly start right now, and each gap names the reason in the
- * player's own words rather than a task ID.
+ * a *screen* can reach it. That gap was real: soccer had a complete `PlaybookAdapter` for two tasks
+ * while the Playbook screen still imported basketball by name, so deriving the picker from the
+ * module would have offered a route that dead-ended. T-6.21 closed it for Playbook and T-6.15 opened
+ * soccer's arcade with its first game; both rows moved here rather than the rule changing. This list
+ * is what the app can honestly start right now, and each gap names the reason in the player's own
+ * words rather than a task ID.
  *
  * A mode is not a branch. Nothing downstream of a match reads these ids — progression, the economy,
  * achievements, and stats all see one `SportEvent` stream and cannot tell the modes apart (INV-9).
@@ -57,18 +59,19 @@ export const PLAY_MODE_CATALOGUE: readonly PlayMode[] = [
     name: 'Playbook',
     blurb: 'Coach it. Call a play each turn and play the moments that matter.',
     hint: 'One thumb, no reflexes needed. The easiest way in.',
-    sports: ['basketball'],
-    route: () => '#/play/playbook',
-    pending: () => 'Soccer coaching is still being built — its match screen lands next.',
+    sports: ['basketball', 'soccer'],
+    // The sport rides on the query rather than the path: `/play/playbook/match` already owns the
+    // segment after `playbook`, and a `:sport` pattern beside it would be two routes competing for
+    // one shape. `readSetup()` reads it back at both ends of the flow.
+    route: (sport) => `#/play/playbook?sport=${sport}`,
   },
   {
     id: 'arcade',
     name: 'Arcade',
     blurb: 'One skill at a time: shooting, dribbling, reactions. Twenty seconds a go.',
     hint: 'One thumb, either way up. Anyone can play it immediately.',
-    sports: ['basketball'],
-    route: () => '#/play/arcade',
-    pending: () => 'Soccer mini-games are still being built.',
+    sports: ['basketball', 'soccer'],
+    route: (sport) => `#/play/arcade?sport=${sport}`,
   },
 ];
 

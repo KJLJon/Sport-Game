@@ -69,18 +69,30 @@ test('switching sport switches what can be started, and says why not', async ({ 
 
   await page.locator('label[for="play-sport-soccer"]').click();
 
+  // Soccer reaches all three modes as of T-6.15; the routes have to change with the sport.
   await expect(page.locator('a.play-mode--ready[href="#/play/live/soccer"]')).toBeVisible();
-  // A mode soccer cannot start is present and explains itself, rather than silently vanishing.
+  await expect(
+    page.locator('a.play-mode--ready[href="#/play/playbook?sport=soccer"]'),
+  ).toBeVisible();
+  await expect(page.locator('a.play-mode--ready[href="#/play/arcade?sport=soccer"]')).toBeVisible();
+
+  // The "says why not" half is now conditional, because there is nothing left to say it about. It
+  // is kept rather than deleted: the moment a mode *does* go unavailable — Phase 11's hockey is the
+  // next one — a silently missing card must still fail this (`10` §10).
   const pending = page.locator('.play-mode__pending');
-  await expect(pending.first()).toBeVisible();
-  await expect(pending.first()).not.toBeEmpty();
+  for (let index = 0; index < (await pending.count()); index += 1) {
+    await expect(pending.nth(index)).not.toBeEmpty();
+  }
+  expect(await page.locator('a.play-mode--ready').count()).toBe(
+    await page.locator('.play-modes > li').count(),
+  );
 });
 
 test('a Playbook match starts from the setup screen (the hash the router can parse)', async ({
   page,
 }) => {
   await openHub(page);
-  await page.locator('a.play-mode--ready[href="#/play/playbook"]').click();
+  await page.locator('a.play-mode--ready[href="#/play/playbook?sport=basketball"]').click();
 
   await page.getByRole('button', { name: 'Start match' }).click();
 
@@ -89,6 +101,36 @@ test('a Playbook match starts from the setup screen (the hash the router can par
   await expect(page.locator('body')).not.toContainText("That screen doesn't exist");
   expect(page.url()).toContain('#/play/playbook/match?');
   await expect(page.locator('.play-call-sheet')).toBeVisible();
+});
+
+/**
+ * T-6.21 — soccer's Playbook, reached by tapping.
+ *
+ * The one property nothing else asserts: the sport picked on the hub survives two screens and a
+ * query string, and what comes up is a *soccer* match. Every unit test for these screens passed
+ * throughout the period when this route dead-ended, because the screens named basketball in their
+ * imports rather than in their behaviour.
+ */
+test('soccer Playbook is reachable from the hub, and it is a soccer match', async ({ page }) => {
+  await openHub(page);
+  await page.locator('label[for="play-sport-soccer"]').click();
+  await page.locator('a.play-mode--ready[href="#/play/playbook?sport=soccer"]').click();
+
+  await expect(page.locator('.playbook-setup__title')).toHaveText('Soccer Playbook');
+  await page.getByRole('button', { name: 'Start match' }).click();
+
+  await expect(page.locator('body')).not.toContainText("That screen doesn't exist");
+  expect(page.url()).toContain('sport=soccer');
+
+  // Halves of 45:00, not quarters of 12:00 — the clock is the sport module's.
+  await expect(page.locator('.playbook-match__clock')).toContainText('H1');
+  await expect(page.locator('.play-call-sheet')).toBeVisible();
+
+  // And a call resolves into a narrated turn on the diagram above it. The *label* is what a thumb
+  // hits — the radio itself is visually hidden behind it — and clicking it is what caught the
+  // board overflowing onto the sheet and swallowing the tap.
+  await page.locator('label.play-call').first().click();
+  await expect(page.locator('.playbook-match__narration')).not.toBeEmpty();
 });
 
 test('Quick Play remembers the last match and starts it in one tap', async ({ page }) => {

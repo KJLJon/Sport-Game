@@ -29,6 +29,7 @@
 import type { EntityId } from '../../engine/world.ts';
 import type { Side } from '../../engine/match/events.ts';
 import type { Canvas2D } from '../../engine/render/renderer.ts';
+import type { PlaybookAthlete } from './types.ts';
 
 /** A point in field fractions: `0–1` along the field, `0–1` across it. */
 export interface DiagramPoint {
@@ -46,6 +47,24 @@ export interface DiagramMarker {
   readonly to: DiagramPoint;
   /** The athlete the turn was about. Drawn larger, and named in the narration. */
   readonly primary?: boolean;
+}
+
+/**
+ * What goes inside a marker: the jersey number, or two initials when there is none.
+ *
+ * Shared because every sport's diagram wants the same answer and the constraint is the marker's
+ * size rather than the sport — three characters is what fits at 28 px on a phone, whether it is a
+ * point guard or a left back.
+ */
+export function markerLabel(player: PlaybookAthlete): string {
+  const number = player.athlete.jerseyNumber;
+  if (typeof number === 'number') return String(number);
+  const parts = player.athlete.displayName.trim().split(/\s+/);
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0] ?? '')
+    .join('')
+    .toUpperCase();
 }
 
 export const DIAGRAM_SHAPES = ['pass', 'shot', 'screen', 'drive'] as const;

@@ -93,6 +93,12 @@ export function fakeAdapter(options: FakeAdapterOptions = {}): PlaybookAdapter<F
     turnKind: 'possession',
     clock: { periodSeconds: 72, overtimeSeconds: 36, secondsPerStep: 1 },
 
+    // The fake has no roster to map: its squads are built directly by `squads()` above. The member
+    // exists because the seam requires it, and it returns the same three-a-side pair.
+    squads(): readonly [PlaybookSquad, PlaybookSquad] {
+      return squads();
+    },
+
     createState(): FakeDetail {
       return { resolutions: 0, lastCall: '' };
     },

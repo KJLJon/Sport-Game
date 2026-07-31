@@ -2,16 +2,24 @@
  * @spec    001-initial-dev
  * @phase   5 — Playbook (turn-based) + basketball Playbook
  * @task    T-5.10 — Playbook flow UI: setup, turn screen, key-moment transition, results
+ * @task    T-6.21 — Soccer Playbook: narration and animated pitch diagram for turn outcomes
  * @story   US-15.1 — Play a match as a series of tactical decisions
- * @design  10-ui-ux.md §8.4 (Playbook turn), §7 (screen map), 09-modes-and-arcade.md §2.1, §2.4, §4
+ * @design  10-ui-ux.md §8.4 (Playbook turn), §7 (screen map), §8.1 (pick a sport, then a mode),
+ *          09-modes-and-arcade.md §2.1, §2.4, §4
  * @invariant INV-5 (the screen renders a `PlaybookAdapter`, and names no sport rule)
  *
- * Purpose: the setup screen — who is playing, against whom, how hard, how fast, and how often the
- * game hands you a moment. One tap from here starts a match.
+ * Purpose: the setup screen — which sport, who is playing, against whom, how hard, how fast, and
+ * how often the game hands you a moment. One tap from here starts a match.
  *
  * **Every choice on this screen is a choice `09` names.** Difficulty is §2.5's one ladder, key
  * moments are §2.4's frequency setting, turn speed and Auto-call are §2.1's, and the opponent is
  * §4's hot seat or the CPU. Nothing has been invented to fill the screen out.
+ *
+ * **The sport arrives on the URL rather than as a control here** (T-6.21). `10` §8.1 puts the sport
+ * choice one screen earlier — the Play hub is "pick a sport, then pick how to play" — so repeating
+ * it here would be two places to change one thing. What this screen does is *honour* it: the squad
+ * size, the roster check, and the heading all come from the sport module, which is why the same
+ * screen sets up a five-a-side basketball match and an eleven-a-side soccer one.
  */
 import { el } from '../dom.ts';
 import { button } from '../components/button.ts';
@@ -24,11 +32,12 @@ import { DIFFICULTIES, DIFFICULTY_PROFILES, type Difficulty } from '../../modes/
 import { KEY_MOMENT_FREQUENCIES, type KeyMomentFrequency } from '../../modes/playbook/types.ts';
 import { TURN_SPEEDS, type TurnSpeed } from '../../modes/playbook/pace.ts';
 import { PARTY_LIMITS, seatPlayers } from '../../modes/local-players.ts';
-
-const SQUAD_SIZE = 5;
+import { DEFAULT_SPORT, isPlayable, loadSport } from '../../sports/playable.ts';
+import type { SportId } from '../../sports/types.ts';
 
 /** What the setup screen collects, and what the match screen reads back off the URL. */
 export interface PlaybookSetupChoice {
+  readonly sport: SportId;
   readonly difficulty: Difficulty;
   readonly keyMoments: KeyMomentFrequency;
   readonly speed: TurnSpeed;
@@ -36,6 +45,7 @@ export interface PlaybookSetupChoice {
 }
 
 export const DEFAULT_SETUP: PlaybookSetupChoice = {
+  sport: DEFAULT_SPORT,
   difficulty: 'pro',
   keyMoments: 'standard',
   speed: 'normal',
@@ -73,6 +83,7 @@ const KEY_MOMENT_BLURBS: Readonly<Record<KeyMomentFrequency, string>> = {
  */
 export function setupParams(choice: PlaybookSetupChoice): Record<string, string> {
   return {
+    sport: choice.sport,
     difficulty: choice.difficulty,
     moments: choice.keyMoments,
     speed: choice.speed,
@@ -82,10 +93,12 @@ export function setupParams(choice: PlaybookSetupChoice): Record<string, string>
 
 /** Reads it back, falling back to the defaults for anything a newer build wrote. */
 export function readSetup(query: Readonly<Record<string, string>>): PlaybookSetupChoice {
+  const sport = query['sport'];
   const difficulty = query['difficulty'];
   const moments = query['moments'];
   const speed = query['speed'];
   return {
+    sport: isPlayable(sport) ? (sport as SportId) : DEFAULT_SETUP.sport,
     difficulty: (DIFFICULTIES as readonly string[]).includes(difficulty ?? '')
       ? (difficulty as Difficulty)
       : DEFAULT_SETUP.difficulty,
@@ -99,15 +112,22 @@ export function readSetup(query: Readonly<Record<string, string>>): PlaybookSetu
   };
 }
 
-/** Enough athletes for two sides, or `null` with the reason. */
+/**
+ * Enough athletes for two sides, or `null` with the reason.
+ *
+ * `size` is the sport's own `meta.squadSize` (T-6.21) — five for basketball, eleven for soccer.
+ * It was a constant here while there was one Playbook sport, which is exactly the kind of hardcoded
+ * five that stops a second sport from reaching the screen.
+ */
 export function splitRoster(
   roster: readonly Athlete[],
+  size: number,
 ): { home: readonly Athlete[]; away: readonly Athlete[] } | null {
-  if (roster.length < SQUAD_SIZE) return null;
-  const home = roster.slice(0, SQUAD_SIZE);
+  if (roster.length < size) return null;
+  const home = roster.slice(0, size);
   // A short roster plays itself rather than refusing: `09` §2 does not promise two full squads, and
-  // "you need ten athletes" is a worse first Playbook experience than a mirror match.
-  const away = roster.length >= SQUAD_SIZE * 2 ? roster.slice(SQUAD_SIZE, SQUAD_SIZE * 2) : home;
+  // "you need twenty-two athletes" is a worse first Playbook experience than a mirror match.
+  const away = roster.length >= size * 2 ? roster.slice(size, size * 2) : home;
   return { home, away };
 }
 
@@ -116,6 +136,21 @@ export function playbookScreen(): Screen {
     async mount(context: ScreenContext): Promise<void> {
       const doc = context.host.ownerDocument;
       let choice = readSetup(context.query);
+      const module = await loadSport(choice.sport);
+      const squadSize = module.meta.squadSize;
+
+      // A sport reachable in Live but without a Playbook adapter is a real state — `catalogue.ts`
+      // is what stops the player arriving here, and a hand-typed hash is what gets past it.
+      if (module.playbook === undefined) {
+        context.host.replaceChildren(
+          emptyState(doc, {
+            heading: `${module.meta.displayName} coaching is not built yet`,
+            body: 'Pick another sport, or play this one live.',
+            action: { label: 'Back to Play', href: '#/play' },
+          }),
+        );
+        return;
+      }
 
       let roster: readonly Athlete[];
       try {
@@ -132,11 +167,11 @@ export function playbookScreen(): Screen {
         return;
       }
 
-      if (splitRoster(roster) === null) {
+      if (splitRoster(roster, squadSize) === null) {
         context.host.replaceChildren(
           emptyState(doc, {
             heading: 'Not enough athletes yet',
-            body: `Playbook needs ${SQUAD_SIZE} to field a side. Create a few, or restore a backup.`,
+            body: `${module.meta.displayName} Playbook needs ${squadSize} to field a side. Create a few, or restore a backup.`,
             action: { label: 'Go to the squad', href: '#/squad' },
           }),
         );
@@ -146,7 +181,12 @@ export function playbookScreen(): Screen {
       const render = (): void => {
         const root = el(doc, 'section', { class: 'playbook-setup' });
 
-        root.appendChild(el(doc, 'h1', { class: 'playbook-setup__title', text: 'Playbook' }));
+        root.appendChild(
+          el(doc, 'h1', {
+            class: 'playbook-setup__title',
+            text: `${module.meta.displayName} Playbook`,
+          }),
+        );
         root.appendChild(
           el(doc, 'p', {
             class: 'playbook-setup__blurb',

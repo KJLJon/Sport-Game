@@ -13,17 +13,14 @@
  * lists, drawn rather than described, and it is the whole reason the diagram is worth animating: a
  * player who has called Motion twice should be able to recognise it a third time without reading.
  */
-import type {
-  TurnDiagram,
-  DiagramMarker,
-  DiagramPoint,
-  DiagramShape,
+import {
+  markerLabel,
+  type TurnDiagram,
+  type DiagramMarker,
+  type DiagramPoint,
+  type DiagramShape,
 } from '../../../modes/playbook/diagram.ts';
-import type {
-  PlaybookAthlete,
-  PlaybookState,
-  TurnResolution,
-} from '../../../modes/playbook/types.ts';
+import type { PlaybookState, TurnResolution } from '../../../modes/playbook/types.ts';
 import { offensiveProfile } from './calls.ts';
 import type { BasketballPlaybookState } from './resolution.ts';
 
@@ -93,17 +90,6 @@ const SHAPES: Readonly<Record<string, readonly DiagramPoint[]>> = {
 /** `09` §2.1 — 4–8 seconds of resolution. A turnover is quicker because less happened. */
 const SECONDS = { normal: 5.5, quick: 4 } as const;
 
-function jerseyLabel(player: PlaybookAthlete): string {
-  const number = player.athlete.jerseyNumber;
-  if (typeof number === 'number') return String(number);
-  const parts = player.athlete.displayName.trim().split(/\s+/);
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0] ?? '')
-    .join('')
-    .toUpperCase();
-}
-
 function at(points: readonly DiagramPoint[], index: number): DiagramPoint {
   return points[index % points.length] ?? { x: 0.5, y: 0.5 };
 }
@@ -131,7 +117,7 @@ export function buildDiagram(
   const markers: DiagramMarker[] = ordered.map((player, index) => ({
     id: player.id,
     side: attacking,
-    label: jerseyLabel(player),
+    label: markerLabel(player),
     from: at(START, index),
     to: at(destinations, index),
     ...(player.id === resolution.actor ? { primary: true } : {}),

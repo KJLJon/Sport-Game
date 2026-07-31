@@ -900,3 +900,250 @@ chain. Watching a spell go save → corner → header wide, with the xG on each 
 tense in a way the flat table never was — and a 25-yard effort from a poor finisher now misses the
 frame entirely rather than being a slightly worse coin flip, which is exactly the difference between
 a probability and a physical model. Still no way to see it but a test log; T-6.21.
+
+### T-6.21
+
+Soccer Playbook: narration and the animated pitch diagram. Two pieces on paper, three in practice —
+the third one was the whole task.
+
+**The screen was the task.** `PROGRESS.md` framed this as "narration variety plus a diagram, and by
+the way the screen imports basketball by name". That ordering was backwards. Narration variety is
+strings and the diagram is geometry; both are an afternoon. What actually mattered is that
+`src/ui/screens/playbook-match.ts` imported `basketball`, `basketballSquads`, and
+`createBasketballPlaybook` at module scope, so **no amount of soccer Playbook code could be reached
+by a player**. T-6.14, T-6.19, and T-6.20 all shipped `done` with a complete adapter behind a screen
+that could not open it — the same shape as the T-8.1 bug, one layer down: every unit test passed
+because every unit test called the adapter directly.
+
+The fix is one seam member. `PlaybookAdapter.squads(home, away)` turns a roster into two squads, and
+it is the only thing the screen could not get from what it already had:
+
+- `module.playbook` — the adapter, already on `SportModule`.
+- `module.rules` — the clock, already on `SportModule`.
+- `module.meta.squadSize` — five or eleven, already on `SportModule`. `splitRoster`'s hardcoded
+  `SQUAD_SIZE = 5` became a parameter.
+- `module.meta.periodName` — `Q1` for basketball, `H1` for soccer. A soccer match showing `Q2` is
+  the sort of small wrongness that makes a whole screen read as a port of another one.
+- `module.arcade` — where a key moment's mini-game comes from.
+
+Everything else in the screen was already sport-agnostic, which is the part of T-5.10's design that
+did hold. The sport travels on the query string (`#/play/playbook?sport=soccer`) rather than a path
+segment, because `/play/playbook/match` already owns the segment after `playbook` and a `:sport`
+pattern beside it would be two routes competing for one shape.
+
+**Narration: the material was richer than it looked.** T-6.14 left one line per outcome, so a
+twenty-two-turn match said the same eight sentences. The variants are picked by a seeded hash — the
+same one basketball's T-5.3 wrote, now shared in `modes/playbook/narration.ts`, because a stability
+property implemented twice is a property that will eventually hold in one place only. Two decisions
+worth recording:
+
+1. **The lines read the events, not the state.** `turn-facts.ts` reads the phase, the pass kind and
+   count, the shot distance and its xG, and the marked flag back off the turn's own `SportEvent`
+   stream. Reading `state.detail.phase` — which is what T-6.14's narration did — is *wrong*, and
+   subtly: the turn engine commits a turn, calls `apply()`, and only then asks the screen to
+   narrate, so `detail.phase` is the phase the **next** turn will be played in. A build-up that
+   worked was being narrated as a progression.
+2. **Templates are keyed `outcome/phase` with a fallback to `outcome`.** An advance out of the back
+   is not an advance into the final third, and a set-piece goal is not an open-play one. Merging the
+   two lists instead of falling through would have diluted the specific lines on exactly the turns
+   they were written for.
+
+**The diagram reads the formation.** Basketball's diagram lists five hand-placed spots per call
+because a half-court set is a drawing. Soccer already has eleven positions written down, so
+`rolePoint()` averages a role's `x`/`y` across every formation that names it — the same choice
+`squad.ts`'s `channelOf` makes, and for the same reason: a `PlaybookSquad` carries role ids, not the
+formation they came from. A hand-placed table here would have been a second formation definition
+that nothing keeps in step with the first.
+
+The phase animates as a block moving up the pitch: `BLOCK.base` is what everybody follows the ball
+by, and `BLOCK.forward` is the extra share a role already playing high takes, so the shape stretches
+rather than collapsing onto the ball. At `chance` a striker closes about 60% of the distance and a
+centre back about a third — enough that eleven markers do not land on top of each other, and enough
+that a build-up and a chance are visibly different pictures. Ten outfielders plus the one defender
+the turn was resolved against; twenty-two markers on a phone is a crowd, and the attacking keeper is
+never the point of a phase turn.
+
+Shot arcs come from the `SHOT` events' own `x`/`y`, mirrored into a frame where the attacking side
+always runs left-to-right. One attempt, one arc, up to three — a phase of pressure reads as three
+shots rather than one, which is what `resolvePressure` actually simulated.
+
+**Feel note.** It is legible, and it is the first time soccer's Playbook has been *watchable*: the
+block sliding up the pitch tells you which phase you are in before you read the caption, and a
+match's worth of narration no longer repeats itself. It is not yet exciting — a phase turn is
+minutes wide, so the diagram is a diagram rather than a highlight, and the two-second gap between
+"chance" and the shot arc is where the tension should be and is not. T-6.22's key moments are the
+thing that fills it; until then the honest description is "clear", not "thrilling".
+
+**Not done here, deliberately:** the soccer arcade card on the hub still says its mini-games are
+being built, because they are (T-6.15, T-6.23–T-6.27). `catalogue.ts` keeps the rule it was written
+with — availability is what a *screen* can start, not what a module supplies — and only soccer's
+Playbook row moved.
+
+**A real layout bug, and only two sports could find it.** The E2E tap-through failed on the first
+call: `.playbook-match__board` had `min-height: 0` and no `overflow`, so when the call sheet grew
+taller than the space left over, the board's score row spilled out of its own box and sat on top of
+the sheet, swallowing the tap. Basketball's sheet is six cards and never grew far enough; soccer's
+is four rows of intent chips and does. The board now clips and holds a floor of 32%, and the stage
+scrolls instead of being pushed off the bottom. This is the second time in two tasks that a screen
+was verified only against the sport it was written for — see T-8.1.
+
+**A stale test, the third of its kind.** `tests/unit/modes/last-played.test.ts` used soccer +
+Playbook as its example of a pairing the hub does not offer. It is now a real pairing, so the test
+was re-pointed at soccer + arcade rather than deleted — the behaviour still matters. Expect more of
+these; the note in `PROGRESS.md` about Phase-3 tests using soccer as an unplayable sport is the same
+pattern, and it will keep happening as each sport is finished.
+
+### T-6.22
+
+Key moments → arcade, and the Playbook CPU's call selection. **The CPU half is done; the key-moment
+half is parked, and the parking is the decision worth recording.**
+
+**Why it is parked.** `09` §2.4's soccer row is five mini-games — penalty, direct free kick,
+one-on-one, header from a cross, goal-line save — and none of them exist. T-6.15 and T-6.23–T-6.27
+build them. `startKeyMoment()` already handles the "sport proposed a game this build does not have"
+case by taking the sim's outcome, so wiring `keyMoment()` now would *work*, in the sense of not
+crashing: it would interrupt the player on every shooting phase and then quietly resolve it for
+them. That is worse than not being offered a moment, and it would also make the feature look done
+when the thing it exists for is missing. `keyMoment()` keeps returning `null` and keeps explaining
+itself in its own comment.
+
+**`baselineCall` was not replaced — it was reclassified.** It moved to `adapter.coach` unchanged.
+T-6.14 wrote it as a stand-in for a CPU, but what it actually is is a *coach*: it scores its own
+squad's fit for each option and never looks at the opponent. That is precisely the line
+`modes/playbook/types.ts` draws — `coach` answers "what suits us" for a human who left Auto-call on,
+`autoCall` also reads the opponent — and soccer's Playbook now has both, where before it had one
+function doing the easier job under the harder name.
+
+**Four decisions, not one.** Basketball's CPU picks one call from a sheet and its whole design
+follows from that. Soccer's picks a value on each of four dimensions, scored and sampled
+independently. Bundling them into composite calls was the alternative and it is wrong twice: it
+invents thirty-six "calls" the player never sees, and it asserts a dependency between decisions that
+is not there — deciding to press high says nothing about how wide to play.
+
+**Three things the score is made of**, all in the same units the intent effects are written in
+(`INTENT_OPTIONS`' figures are 0.05-ish, deliberately):
+
+1. `phaseValue` — what the option is worth *in the phase actually being played*. A build-up is
+   decided by `climb` and nothing else, so an option chosen for what it does to a shot is a wasted
+   decision there. This is most of what separates the CPU from `baselineCall`, which scored every
+   option identically in every phase of the match.
+2. `squadFit` — a 20-point rating edge on what the option asks for is worth 0.05, so ratings and
+   tactics matter about equally (`09` §2.2).
+3. `clockValue` — the one piece of match awareness it has, and the one every real coach has: a side
+   in front wants the clock gone, a side behind wants turns. `duration` is the only effect about
+   time rather than probability, so it is priced separately.
+
+**The one counter table, and why there is exactly one.** `IntentEffect` says what an option is worth
+*on its own*. It has no way to say "against", and `09` §2.3 describes precisely one genuine
+counter in words: a high press wins the ball high against a side that plays out, and is bypassed by
+one that goes long. So `PRESS_COUNTERS` is written down as a table rather than smuggled into a
+number that means something else. It is symmetrical by construction — every row and column sums to
+zero, which a test asserts — so a read is a redistribution and never a free gain, and a CPU facing a
+balanced opponent chooses on the merits alone.
+
+**`READ_WEIGHT` was sized, not picked, and the first value was wrong.** At 0.06 the read never
+flipped a call: in a build-up, a high press denies `climb` 0.08 and a deep block concedes 0.05, so
+the intrinsic gap is **0.13**, while the counters at ±1 moved the two apart by only `2 × 0.06` =
+0.12. The test that caught it is the one asserting the CPU drops off against a direct-playing side,
+and it failed by 0.01 — a soft counter that can never actually change a decision is decoration.
+At **0.08** the spread is 0.16: enough to flip, and only when the tendency is near-total. A
+20-point rating edge is 0.1 across two options, so a side genuinely built to press still presses
+through a read telling it not to. That is the right way round, and it is what "ratings beat
+mind-games" has to mean numerically.
+
+**The read window is ten, not basketball's twelve.** A soccer Playbook match is 22 turns where a
+basketball one is near 200. Twelve turns would be half the match and no longer a *recent* tendency
+at all. Ten is about a half, which is the unit a coach actually adjusts on.
+
+**A test that could not be written the obvious way.** "A Legend CPU beats a Rookie one over a batch"
+is how basketball's ladder is asserted, and it is meaningless here: `simulatePlaybookMatch` puts one
+difficulty on the state and *both* sides read it, so a CPU-vs-CPU batch at Legend is Legend against
+Legend. What the ladder actually moves is the sampling temperature, so what the test measures is how
+often the CPU takes the option its own scoring rated best — monotone down the ladder, and 25
+percentage points between the ends. Paired with the INV-1 test that no rating on either side differs
+by difficulty, that is the real claim: it gets better by choosing better.
+
+**Feel note.** Not playable yet by a human against it — the turn screen exists, so it is, but I have
+only watched simulated matches. What is visible in those is that the CPU now *changes its mind*: a
+side that plays out from the back for a spell gets pressed, and stopping doing that stops the press
+within a few turns. That is the loop `09` §2.2 describes and it is legibly there. Whether it is fun
+to play against depends entirely on the key moments that are still missing.
+
+### T-6.15
+
+Penalty Shootout — soccer's first mini-game, and the dependency root of T-6.23–T-6.27.
+
+**Both roles, because `09` §3.2 asked for one.** "Aim + power + keeper read; **also the defending
+side**" is the only entry in the whole launch set that asks a game to swap roles, and it is right:
+a shootout *is* that alternation. Odd rounds you take, even rounds you keep. Taking five in a row
+would be Free Throw with a bigger target.
+
+**Aim and power on one meter.** `ArcadeGameView` exposes exactly one meter, deliberately — a HUD
+that grew a second axis for one game would carry that game's vocabulary into shared UI and the fifth
+game would break it. So the kick is two sequential passes of the same meter: stop the marker to
+place the shot, then stop it again to strike.
+
+**The keeper read went through one redesign, and the first version was wrong.** Originally the
+keeper was hidden during the aim stage and `ArcadeGameView.target` was `null` there. Two problems,
+one of which the shared test helper found immediately: `pressInBand` returns false when there is no
+band, so a competent player never pressed at all and every round timed out. The deeper problem was
+that "keeper read" with an invisible keeper is not a read — it is a coin flip with extra steps.
+
+The fix: on 55% of rounds the keeper commits early and visibly, and the aim band narrows onto the
+widest stretch of goal more than their reach away. On the rest they hold, and the band is the whole
+frame inside the posts — which is the *honest* band, because nothing you can see tells you more.
+Two draws are taken either way, so a round where the keeper holds consumes the same stream as one
+where they commit; otherwise the tell would shift every later draw in the run (INV-8).
+
+**A count, not a clock**, for the reason basketball's Free Throw records: a novice's meter runs
+faster, and under a clock that hands them more attempts per run than a specialist gets. Ten rounds.
+
+**Two hardcoded-basketball bugs in screens, both found by asking "can this game be reached?"**
+
+1. `arcade.ts` and `arcade-game.ts` both built their catalogue from `[basketball]`. A game added to
+   soccer's module simply would not have appeared. Same class as T-6.21's, third instance this
+   session.
+2. Worse, and it would not have shown up as a missing tile: `arcade-game.ts` passed
+   `basketball.xpAwards` to `arcadeProgression()` for **every** run. A penalty kick emits
+   `zone: 'penaltyArea'`, which basketball's table does not know, so it would have trained nothing —
+   or, with an unluckier zone name, trained the wrong rating. `09` §3.4's promise that the arcade
+   trains the same ratings the sim does would have been quietly false for half the build's games.
+   It now loads the award table of the game's *own* sport.
+
+Both now go through `PLAYABLE_SPORTS`, which is the one place a sport's import path is written down.
+
+**The drawing helpers moved.** `ARCADE_COLOURS`, `drawMeter`, `label`, `bar`, and `mirrorX` were in
+`sports/basketball/arcade/shared.ts` and are now in `modes/arcade/draw.ts`. None of it is about
+basketball: a release meter is a release meter, and the mirroring rule (T-4.12) and the
+never-colour-alone rule (`10` §11) are app-wide promises that should not hold in one sport because
+that sport was written first. Basketball's file re-exports them, so nothing there changed.
+
+**A test that could not be written the obvious way, again.** "Ten rounds, so five shots" is wrong:
+a three-life run usually ends before ten rounds. The alternation is asserted as
+`shots === ceil(attempts / 2)` against the run's own attempt count, which holds for a run of any
+length and would fail immediately if the game ever took two rounds in a row.
+
+**A "flake" that was not one.** After T-6.21, `pwa-lifecycle.spec.ts` PWA-1 began failing in full
+E2E runs. The cheap reading was CPU contention, and it was wrong. Bisecting by spec file: PWA-1
+passes alone, passes after `a11y-and-smoke`, passes after `live-match`, and fails after
+`play-hub` — and passes again with T-6.21's soccer Playbook test excluded from `play-hub`. So it
+was caused by this branch, and worth finding.
+
+The bug was in PWA-1 all along. It called `waitForWaitingWorker()` — which resolves only once a
+second worker reaches the waiting state, and *is* the assertion — and then read
+`registration.waiting` a second time. A waiting worker activates the moment nothing is controlling
+the page, so between the two calls it can legitimately move on, and the test then fails because the
+update was applied **too promptly**: the opposite of what it guards. It survived for two phases
+because every spec before it was fast. The soccer Playbook test is slower than its neighbours and
+lost that race on every run. The redundant re-read is gone; what is re-read now is
+`waiting || installing`, both of which mean the update was seen.
+
+The lesson is not about service workers: *a test that waits for a condition and then re-checks it
+has two chances to be wrong and only one to be right.*
+
+**Feel note.** The swap is the whole thing, and standing in goal is the better half — which
+surprised me. Taking is a solved problem once you have the read; keeping is a genuine flinch test,
+and the tell shortening as the run goes on is what makes rounds seven through ten feel different
+from one through four. The one thing that is not right yet: a round you lose to a keeper who
+guessed correctly reads as unfair rather than unlucky, because nothing on screen distinguishes
+"they read you" from "they got lucky". T-6.16's audio pass is probably where that gets fixed.

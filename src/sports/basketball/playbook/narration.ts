@@ -27,6 +27,10 @@ import type {
   PlaybookState,
   TurnResolution,
 } from '../../../modes/playbook/types.ts';
+import {
+  pickLine as pickFrom,
+  shortName as familyName,
+} from '../../../modes/playbook/narration.ts';
 import type { BasketballPlaybookState } from './resolution.ts';
 
 /** Templates per outcome. `{a}` is the athlete the turn was about, `{d}` the defender. */
@@ -67,9 +71,7 @@ const TONES: Readonly<Record<string, NarrationTone>> = {
 
 /** Family name where there is one, so a line reads like commentary rather than like a database. */
 export function shortName(athlete: PlaybookAthlete | undefined): string {
-  if (athlete === undefined) return 'the ball-handler';
-  const parts = athlete.athlete.displayName.trim().split(/\s+/);
-  return parts.length > 1 ? (parts.at(-1) as string) : (parts[0] ?? 'the ball-handler');
+  return familyName(athlete, 'the ball-handler');
 }
 
 /**
@@ -78,9 +80,7 @@ export function shortName(athlete: PlaybookAthlete | undefined): string {
  */
 export function pickLine(options: readonly string[], turn: number, outcome: string): string {
   if (options.length === 0) return FALLBACK[0] as string;
-  let hash = turn * 2654435761;
-  for (let i = 0; i < outcome.length; i += 1) hash = (hash ^ outcome.charCodeAt(i)) * 16777619;
-  return options[Math.abs(hash) % options.length] as string;
+  return pickFrom(options, turn, outcome);
 }
 
 function find(

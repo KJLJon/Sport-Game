@@ -1011,7 +1011,12 @@
 .playbook-match__board {
   position: relative;
   flex: 1 1 auto;
-  min-height: 0;
+  /* The diagram shrinks to make room for the call sheet, but never to nothing, and never *past*
+     its own box: without `overflow: hidden` the score row spilled onto the sheet below it and ate
+     the taps meant for the first chip. Found by T-6.21's E2E — soccer's sheet is four rows of
+     intent chips where basketball's is six cards, so the overflow only appeared with two sports. */
+  min-height: 32%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1055,7 +1060,11 @@
 }
 
 .playbook-match__stage {
-  flex: 0 0 auto;
+  /* Shrinkable and scrollable: a call sheet taller than the space left over is scrolled to, not
+     pushed off the bottom of the screen. */
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-12);

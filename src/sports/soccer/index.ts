@@ -113,6 +113,7 @@ import {
 import { rollRatings, rosterEntry, type SoccerRatings } from './roster.ts';
 import { SOCCER_PHYSICAL, SOCCER_POSITION_WEIGHTS, SOCCER_WEIGHTS } from './weights.ts';
 import { SOCCER_XP_AWARDS } from './xp.ts';
+import { SOCCER_ARCADE } from './arcade/index.ts';
 import { soccerPlaybook } from './playbook/index.ts';
 import { SHOOTING, takeShot, type ShotInFlight } from './shooting.ts';
 import {
@@ -249,6 +250,7 @@ export const soccer: SoccerModule = {
   render,
   hud,
   playbook: soccerPlaybook,
+  arcade: SOCCER_ARCADE,
 
   createState(setup: MatchSetup, world: World, rng: Rng): SoccerState {
     const squadSize = Math.min(setup.squadSize ?? SQUAD, roles.roles.length);

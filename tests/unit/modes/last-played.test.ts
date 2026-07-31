@@ -89,10 +89,20 @@ describe('what Quick Play remembers', () => {
   });
 
   it('falls back to an available mode when the stored one is not offered for that sport', () => {
-    // Soccer's Playbook screen has not landed, so a build that once stored it must not hand it back.
-    prefs.set('play.lastMode.soccer', 'playbook');
+    // **Asserted against a synthetic pairing, on purpose.** This test was written with soccer +
+    // Playbook, then re-pointed at soccer + arcade when T-6.21 made the first one real, and T-6.15
+    // made the second one real too — both inside one session. There is no longer *any* real
+    // unavailable pairing to illustrate it with, and there will not be one again until Phase 11's
+    // hockey. The behaviour still matters, so the example is now a mode id no catalogue row has,
+    // which exercises the same branch and cannot go stale when a sport gets finished.
+    prefs.set('play.lastMode.soccer', 'shuffleboard');
 
     expect(lastMode('soccer')).toBe(live);
+
+    // And the availability check itself, stated directly rather than through a pairing that keeps
+    // becoming true: a mode that does not list the sport is not handed back.
+    expect(isModeAvailable({ ...arcade, sports: ['basketball'] }, 'soccer')).toBe(false);
+    expect(isModeAvailable(arcade, 'soccer')).toBe(true);
   });
 
   it('survives a value that is not JSON at all', () => {

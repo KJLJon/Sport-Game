@@ -22,6 +22,16 @@ import { ArcadeRepository } from '../../../src/modes/arcade/records.ts';
 import { newSportSkill } from '../../../src/athletes/types.ts';
 import { athlete, attributes } from '../../helpers/athletes.ts';
 import { forgetPlayers, loadPlayers } from '../../../src/modes/local-players.ts';
+import { BASKETBALL_ARCADE } from '../../../src/sports/basketball/arcade/index.ts';
+import { SOCCER_ARCADE } from '../../../src/sports/soccer/arcade/index.ts';
+
+/**
+ * Games in this build: basketball's five plus soccer's set. Counted from the modules rather than
+ * written down, because the hub's whole job after T-6.15 is to show *every* sport's games — a
+ * literal here would pass while the hub silently dropped a sport, which is the bug it exists to
+ * catch.
+ */
+const ARCADE_GAME_COUNT = BASKETBALL_ARCADE.length + SOCCER_ARCADE.length;
 
 function context(navigate = vi.fn()) {
   const host = document.createElement('div');
@@ -55,7 +65,7 @@ describe('the arcade hub', () => {
     const ctx = context();
     await arcadeScreen().mount(ctx);
 
-    expect(tiles(ctx.host)).toHaveLength(5);
+    expect(tiles(ctx.host)).toHaveLength(ARCADE_GAME_COUNT);
     for (const tile of tiles(ctx.host)) expect(tile.tagName).toBe('BUTTON');
   });
 
@@ -67,7 +77,7 @@ describe('the arcade hub', () => {
     await arcadeScreen().mount(ctx);
 
     const lines = hints(ctx.host);
-    expect(lines).toHaveLength(5);
+    expect(lines).toHaveLength(ARCADE_GAME_COUNT);
     for (const line of lines) expect(line).toMatch(/window —/);
   });
 
