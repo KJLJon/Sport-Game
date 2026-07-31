@@ -104,6 +104,9 @@ const ai: SportAiAdapter = {
   },
 };
 
+/** One turn, in radians. */
+const TAU = Math.PI * 2;
+
 const render: SportRenderer = {
   fieldKey: (field, view) =>
     `testsport:${field.width}x${field.height}:${view.width}x${view.height}`,
@@ -114,6 +117,28 @@ const render: SportRenderer = {
     ctx.lineWidth = 0.1;
     ctx.strokeRect(0, 0, field.width, field.height);
   },
+  /**
+   * A dot per athlete and a dot for the ball. The fixture draws the least it can get away with —
+   * what it is here to prove is that the *seam* is satisfiable by a sport with no art at all.
+   */
+  drawAthletes(ctx, _state, world, controlled) {
+    world.forEach((id) => {
+      if (world.kind[id] === 1) return;
+      ctx.fillStyle = id === controlled ? '#ffffff' : world.team[id] === 1 ? '#c8553d' : '#3f9d6a';
+      ctx.beginPath();
+      ctx.arc(world.x[id] as number, world.y[id] as number, world.radius[id] as number, 0, TAU);
+      ctx.fill();
+    });
+  },
+
+  drawBall(ctx, _state, world, ball) {
+    if (ball === NO_ENTITY) return;
+    ctx.fillStyle = '#f4f1ea';
+    ctx.beginPath();
+    ctx.arc(world.x[ball] as number, world.y[ball] as number, world.radius[ball] as number, 0, TAU);
+    ctx.fill();
+  },
+
   drawOverlay(ctx, state, world) {
     const s = state as TestSportState;
     if (s.ballState.carrier === NO_ENTITY) return;

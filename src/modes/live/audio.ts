@@ -2,11 +2,13 @@
  * @spec    001-initial-dev
  * @phase   2 — Basketball · Live
  * @task    T-2.12 — Basketball art & audio pass
+ * @task    T-6.16 — Soccer art & audio pass
  * @story   US-13.3 — Control audio
  * @design  06-game-design.md §9 (art and audio direction), 10-ui-ux.md §11 (accessibility — no
  *          essential information by sound alone)
- * @invariant INV-9 (all three modes emit the same `SportEvent` shapes; this layer reads only the
- *            shared envelope and `basketball.controlSwitch`, never a mode), INV-14 (no runtime
+ * @invariant INV-5 (no sport-specific branching outside a sport module — the event→cue mapping is
+ *            supplied by the sport, never switched on here), INV-9 (all three modes emit the same
+ *            `SportEvent` shapes; this layer reads only the shared envelope), INV-14 (no runtime
  *            network request outside configured STUN — every sound here is synthesised, never
  *            fetched)
  *
@@ -30,10 +32,17 @@
  * the background waiting to be unmuted. `reducedAudio` (10 §11's "no essential information by sound
  * alone", mirrored from Reduced Motion) trims decoration rather than cutting output: the
  * controlled-athlete switch tick — pure flavour, already backed by the HUD and the ring marker in
- * `sports/basketball/art.ts` — drops out, and the remaining cues shorten instead of layering.
+ * each sport's `art.ts` — drops out, and the remaining cues shorten instead of layering.
+ *
+ * **The sport chooses the cue; this file chooses the sound (T-6.16).** It used to be
+ * `BasketballAudio`, switching on `EventKind` with basketball's vocabulary hardcoded — so soccer's
+ * Live screen, which constructs this class unconditionally, answered a goal with a rim clank and a
+ * save with nothing at all. The mapping now comes from the sport module as a `SportAudio`, and what
+ * stays here is the *synthesis*: one voicing per cue, so two sports sound like one game rather than
+ * like two engines. A sport with no `audio` member is silent, which is a better default than
+ * borrowing somebody else's.
  */
-import { EventKind, type SportEvent } from '../../engine/match/events.ts';
-import { BasketballEvent } from '../../sports/basketball/rules.ts';
+import type { SportEvent } from '../../engine/match/events.ts';
 
 /** The oscillator waveform names every real and fake `OscillatorLike` shares. */
 export type ToneType = 'sine' | 'square' | 'sawtooth' | 'triangle';
@@ -99,13 +108,54 @@ interface ToneSpec {
  * convenience wiring, `handleEvent()` is the whole contract, so a test can drive it one event at a
  * time without a real match running.
  */
-export class BasketballAudio {
+/**
+ * The sounds a match can make. Small on purpose: a vocabulary a sport picks from is what keeps two
+ * sports sounding like one game, and a sport that wanted its own timbre would be asking for a second
+ * audio identity rather than a second sport.
+ */
+export const AUDIO_CUES = [
+  /** The ball leaves the hand or the boot. */
+  'attempt',
+  /** Basketball's make — bright and clean. */
+  'swish',
+  /** Soccer's goal — the one cue in the set allowed to be an event rather than a noise. */
+  'goal',
+  /** Denied by the equipment: a rim, a post. */
+  'clank',
+  /** Denied by a person: a keeper's hands. */
+  'save',
+  /** The referee. */
+  'whistle',
+  /** A period or the match ending. */
+  'buzzer',
+  /** Decoration — the controlled-athlete switch. The one cue Reduced Audio drops entirely. */
+  'tick',
+] as const;
+export type AudioCue = (typeof AUDIO_CUES)[number];
+
+/**
+ * A sport's own answer to "what does this event sound like".
+ *
+ * The whole of the sport-specific half of this module, and the reason `audio.ts` no longer imports a
+ * sport (INV-5). Returning `null` is a real answer: most events make no sound.
+ */
+export interface SportAudio {
+  cue(event: SportEvent): AudioCue | null;
+}
+
+export class MatchAudio {
   private context: AudioContextLike | null;
   private settings: AudioSettings;
+  private readonly sport: SportAudio | null;
 
-  constructor(context: AudioContextLike | null, settings: Partial<AudioSettings> = {}) {
+  constructor(
+    context: AudioContextLike | null,
+    settings: Partial<AudioSettings> = {},
+    sport: SportAudio | null = null,
+  ) {
     this.context = context;
     this.settings = { ...DEFAULT_AUDIO_SETTINGS, ...settings };
+    this.sport = sport;
   }
 
   /** Swaps in the real `AudioContext` once the user's first gesture makes it legal to create one. */
@@ -139,41 +189,35 @@ export class BasketballAudio {
   }
 
   /**
-   * The whole event → sound mapping. Silent and side-effect-free (no node created, nothing
-   * scheduled) whenever `canPlay()` is false — see header on why that is not "volume zero".
+   * Plays whatever the sport says this event sounds like. Silent and side-effect-free (no node
+   * created, nothing scheduled) whenever `canPlay()` is false — see the header on why that is not
+   * "volume zero" — and equally silent for a sport that supplied no mapping.
    */
   handleEvent(event: SportEvent): void {
     if (!this.canPlay()) return;
+    const cue = this.sport?.cue(event) ?? null;
+    if (cue !== null) this.playCue(cue);
+  }
 
-    switch (event.kind) {
-      case EventKind.SHOT:
-        this.playShotRelease();
-        return;
-      case EventKind.SCORE:
-        this.playSwish();
-        return;
-      case EventKind.REBOUND:
-        // @spec-ref 06-game-design.md §9 — "rim". There is no dedicated "miss" event on the bus
-        // (`sports/basketball/rules.ts`'s `EventKind.SHOT` fires at release regardless of outcome,
-        // and a make is `EventKind.SCORE`); a rebound only ever follows a miss
-        // (`sports/basketball/index.ts`'s `takeLooseBall(..., rebound: true)` has exactly one call
-        // site, reached only after `resolveFlight` finds `!shot.made`), so it is the one observable
-        // proxy for "the shot missed" this stream offers. Resolved this way rather than adding a new
-        // `SportEvent` kind, which is outside this task's file ownership (`engine/match/events.ts`).
-        this.playRimMiss();
-        return;
-      case EventKind.FOUL:
-        this.playWhistle();
-        return;
-      case EventKind.PERIOD_END:
-      case EventKind.MATCH_END:
-        this.playBuzzer();
-        return;
-      case EventKind.SPORT:
-        if (event.sportKind === BasketballEvent.CONTROL_SWITCH) this.playControlTick();
-        return;
-      default:
-        return;
+  /** One voicing per cue. The sport chose *which*; this is *what it sounds like*. */
+  private playCue(cue: AudioCue): void {
+    switch (cue) {
+      case 'attempt':
+        return this.playShotRelease();
+      case 'swish':
+        return this.playSwish();
+      case 'goal':
+        return this.playGoal();
+      case 'clank':
+        return this.playRimMiss();
+      case 'save':
+        return this.playSave();
+      case 'whistle':
+        return this.playWhistle();
+      case 'buzzer':
+        return this.playBuzzer();
+      case 'tick':
+        return this.playControlTick();
     }
   }
 
@@ -190,6 +234,31 @@ export class BasketballAudio {
   private playSwish(): void {
     this.play({ type: 'triangle', startFreq: 880, endFreq: 660, duration: 0.22, peakGain: 0.3 });
     this.play({ type: 'sine', startFreq: 1320, duration: 0.14, peakGain: 0.12, delay: 0.02 });
+  }
+
+  /**
+   * A goal: a rising two-note figure, longer than anything else in the set.
+   *
+   * Soccer scores about three times a match against basketball's eighty, so this is the one cue that
+   * is allowed to be an *event*. Under Reduced Audio it keeps both notes and shortens — the cue that
+   * tells you the score changed is not decoration (`10` §11).
+   */
+  private playGoal(): void {
+    const long = this.settings.reducedAudio ? 0.18 : 0.32;
+    this.play({ type: 'triangle', startFreq: 520, endFreq: 780, duration: long, peakGain: 0.3 });
+    this.play({
+      type: 'sine',
+      startFreq: 780,
+      endFreq: 1040,
+      duration: long,
+      peakGain: 0.18,
+      delay: long * 0.55,
+    });
+  }
+
+  /** A keeper's hands: a soft, low thud that stops rather than rings. Denied by a person, not a rim. */
+  private playSave(): void {
+    this.play({ type: 'sine', startFreq: 300, endFreq: 140, duration: 0.1, peakGain: 0.24 });
   }
 
   /** A dull, slightly detuned clank — two close pitches beating against each other reads as metal. */

@@ -13,12 +13,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 ## In-flight
 
 - **Task:** none. **T-6.22 closed**, and with it every mini-game and key-moment row in the phase.
-- **Status:** **24 of 27 Phase 6 tasks `done`.** Three left: **T-6.16** (art & audio), **T-6.17**
-  (engine-core refactor audit), **T-6.18** (balance pass) — then the **Gate 6** record.
+- **Status:** **25 of 27 Phase 6 tasks `done`.** Two left: **T-6.17** (engine-core refactor audit)
+  and **T-6.18** (balance pass) — then the **Gate 6** record.
 - **Branch:** `claude/phase-7-continuation-xd93ve`, PR #12 (draft). PRs #9–#11 are merged. The branch
   name says phase 7; **the work is Phase 6**, whose gate has not been evaluated (`CLAUDE.md` §2).
-- **Next step:** **T-6.16 — soccer art and audio.** Known input: the HUD is basketball-shaped (gap 2
-  below), and T-6.16 or Phase 9 owns it.
+- **Next step:** **T-6.17 — engine-core refactor audit.** Known inputs: gap 3 below
+  (`maxOvertimePeriods` on `MatchRules`), and the question of whether the two sports' `art.ts` should
+  share a body primitive — T-6.16 deliberately left that call here, and the honest answer is probably
+  "not until a third sport asks".
 
 ### Where Phase 6 is
 
@@ -43,12 +45,16 @@ imposes a fixed per-stage clock can make specialists time out on chances novices
 it and its scoring curve inverted (rating 55 beating rating 90). Fix: denominate the clock in sweeps,
 `DIRECT_SWEEPS * BASE_SWEEP_SECONDS / meter.sweepRate`. Check any new timed stage against this.
 
-**A pattern from the earlier session, still worth stating as a rule.** Every screen written while one
-sport existed named that sport in its imports, and every one of them passed its own tests while being
-unreachable for the second sport: `#/play` (T-8.1), `playbook-match.ts` importing `basketballSquads`
-(T-6.21), and `arcade.ts` building its catalogue from `[basketball]` — the last of which paid *every*
-arcade run's XP into basketball's award table, so a soccer penalty trained `threePoint` (T-6.15).
-**Before adding another sport-facing screen, grep `src/ui` for a sport-module import.**
+**The pattern that has now bitten four times, and the rule that follows.** Every screen written while
+one sport existed named that sport in its imports, and every one of them passed its own tests while
+being wrong for the second sport: `#/play` (T-8.1); `playbook-match.ts` importing `basketballSquads`
+(T-6.21); `arcade.ts` building its catalogue from `[basketball]`, which paid *every* arcade run's XP
+into basketball's award table so a soccer penalty trained `threePoint` (T-6.15); and **T-6.16's**,
+the worst of them — `modes/live/screen.ts` drew every soccer athlete and every soccer ball with
+`sports/basketball/art.ts` and played basketball's audio cues, so a soccer match was basketball
+players chasing an orange ball to a rim clank. **Before adding or touching a sport-facing screen,
+grep `src/ui` and `src/modes` for a sport-module import.** The fix is always the same: the thing the
+screen was hardcoding becomes a `SportModule` member.
 
 ### Engine-core changes this phase — the Gate 6 list
 
@@ -69,10 +75,11 @@ T-6.17 will likely add a third — see gap 4.
 1. **The chip is not modelled** (T-6.9). `interceptPoint` uses the chord, not the parabola, so a
    lofted ball over an advanced keeper reads *lower* rather than higher. Fix = thread the launch
    velocity through and evaluate the true arc.
-2. **The HUD is basketball-shaped.** A soccer match shows `0 PF` (personal fouls) and a clock
-   counting *down*; soccer has team fouls and counts up. `elapsedGameSeconds` exists and nothing
-   calls it. `SportStatus.periodClock` is documented as *remaining*, so the sport module is honouring
-   the contract and the gap is the HUD's. **T-6.16 or Phase 9.**
+2. **The HUD is basketball-shaped**, and T-6.16 did not fix it. A soccer match shows `0 PF`
+   (personal fouls) and a clock counting *down*; soccer has team fouls and counts up.
+   `elapsedGameSeconds` exists and nothing calls it. `SportStatus.periodClock` is documented as
+   *remaining*, so the sport module is honouring the contract and the gap is the HUD's — which makes
+   it a `SportHudSpec` change rather than an art one. **Phase 9.**
 3. **Soccer overtime is unbounded in Live** (found by T-6.14). `MatchStateMachine` offers another
    overtime period for as long as the score is level and `MatchRules.overtimeSteps` is set — right
    for basketball, wrong for soccer, which plays two extra halves and then takes penalties. A level
@@ -141,7 +148,7 @@ T-6.17 will likely add a third — see gap 4.
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 27 | 24 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 27 | 25 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
@@ -149,7 +156,7 @@ T-6.17 will likely add a third — see gap 4.
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **200** | **110** | | |
+| | **Total** | **200** | **111** | | |
 
 ---
 
@@ -294,7 +301,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.13 | Soccer derivation weights, sub-skills, familiarity tuning | M | `done` | | `tests/unit/sports/soccer/weights-and-xp.test.ts` | `auto` | The weights shipped in Phase 3; this adds the position table (`goalkeeping: 0.6` for the keeper and zero elsewhere) and the XP table. Familiarity needed **no** soccer-specific tuning — a positive seam result. [notes](./notes/phase-6.md#t-613) |
 | T-6.14 | Soccer Playbook: `PlaybookAdapter` + phase turns | L | `done` | | `tests/unit/sports/soccer/playbook/phases.test.ts`, `tests/unit/sports/soccer/playbook/adapter.test.ts` | `auto` — headless, no screen reaches it yet | **The seam held: zero engine changes.** Turns are phases of play with a derived 18–24 turn budget (measured 20.6). Found and capped a real defect — soccer overtime ran to period 15 because nothing bounds it; **Live has it too**, root fix logged for T-6.17. [notes](./notes/phase-6.md#t-614) |
 | T-6.15 | Soccer arcade: Penalty Shootout | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | Both roles, alternating — the only launch-set game that swaps sides. Found and fixed **two hardcoded-basketball bugs in the arcade screens**, one of which would have paid every soccer run's XP into `threePoint`. [notes](./notes/phase-6.md#t-615) |
-| T-6.16 | Soccer art & audio pass | L | `todo` | | | | |
+| T-6.16 | Soccer art & audio pass | L | `done` | | `tests/unit/sports/soccer/art.test.ts`, `tests/unit/modes/live/audio.test.ts` | `auto` | A bug fix, not polish: the Live screen imported basketball's art and audio by name, so soccer was played by basketball players chasing an orange ball to a rim clank. Three new sport-module members; the screen now names no sport. [notes](./notes/phase-6.md#t-616) |
 | T-6.17 | Engine-core refactor: extract anything basketball-shaped that leaked into core | M | `todo` | | | | |
 | T-6.18 | Balance pass #2: goals, possession, conversion across Live and Playbook | M | `todo` | | | | |
 | T-6.19 | Soccer Playbook: intent controls — tempo, width, risk, press, focus | M | `done` | | `tests/unit/sports/soccer/playbook/intents.test.ts` | `auto` — headless, no screen reaches it yet | Five dimensions, and **each side holds all five** — what changes with possession is which of them speak. Settled T-6.14's open question with an optional `intents` map on `PlaybookCall`, not a composite id. Every middle option is exactly neutral, which is what keeps the turn budget true. [notes](./notes/phase-6.md#t-619) |

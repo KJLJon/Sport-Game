@@ -1472,3 +1472,67 @@ events `resolution.ts` builds, and a rename on either side would zero a moment o
 match is three times either attacking moment, because the player defends half the time and shots on
 target are common; whether that is the right feel is a question for the balance pass with a phone in
 hand, not for a unit test.
+
+---
+
+### T-6.16
+
+Soccer art and audio — and it turned out to be a **bug fix**, not a polish pass.
+
+**A soccer match was being played by basketball players chasing an orange ball with seams on it.**
+`modes/live/screen.ts` imported `sports/basketball/art.ts` by name and drew every athlete and every
+ball with it. Its own comment explained why that was fine — "entities are drawn generically here…
+because a top-down athlete is not sport-specific" — and that sentence is exactly what made it
+invisible for a whole phase. The *body* is generic. The **kit** is not.
+
+The same file constructed `BasketballAudio` unconditionally, so a soccer goal played a basketball
+swish, a save played nothing at all, and the "denied" cue was wired to `EventKind.REBOUND` — an event
+soccer never emits. **This is the fourth instance of the pattern the In-flight block warns about**,
+after `#/play`, `playbook-match.ts`, and `arcade.ts`. All four passed every test they had.
+
+**Three seam changes, all of them the sport module gaining a member it should always have had:**
+
+1. **`SportRenderer.drawAthletes(ctx, state, world, controlled)`** and **`.drawBall(...)`**. They
+   take the sport's *state*, which is the interesting part: soccer's goalkeeper wears a different
+   kit, that is a rule of the game rather than a decoration, and **only soccer knows which entity
+   the keeper is** (`SoccerState.keepers`). A signature that passed a colour could not have
+   expressed it. Basketball's implementation is the code moved verbatim out of the screen.
+2. **`SportModule.audio?: SportAudio`** — one method, `cue(event): AudioCue | null`. The sport
+   chooses *which* cue; `modes/live/audio.ts` keeps the *synthesis*, one voicing per cue, so two
+   sports sound like one game rather than like two engines. `BasketballAudio` became `MatchAudio` and
+   the file no longer imports a sport at all (INV-5). **A sport with no mapping is silent**, which is
+   a better default than borrowing somebody else's.
+3. `modes/live/screen.ts` now names **no sport anywhere**.
+
+**Soccer's own art**, in `sports/soccer/art.ts`:
+
+- **Three kits, not two.** Both outfield sides plus the keeper, and the keeper is told apart by
+  *shape* as well as hue — a band across the shoulders that neither outfield kit has — because a
+  colour nobody can resolve on a 105 m pitch shrunk to a phone is not an answer to "which dot is the
+  keeper" (`10` §11).
+- **A football, not a disc.** White with three dark panels and no seam line. The seam was the single
+  most visible symptom of the borrowed art, and the radius was the second: 0.11 m against a
+  basketball's 0.24.
+- **Not shared with basketball's art, deliberately.** The two draw a similar body and will not stay
+  similar. Two implementations of a hundred lines is not duplication worth an abstraction; a third
+  sport wanting the same body is, and **T-6.17 owns that call** when Phase 11 arrives.
+- `Canvas2D` has no `ellipse` — it is the slice of the real context the renderer actually uses
+  (T-1.7), which is what makes all of this testable with no browser. Shadows are circles. At this
+  size nobody can tell.
+
+**Soccer's `drawOverlay` draws the offside line**, which was `null` before. The second-last
+defender's x, drawn only for the side in possession, because that is when it constrains anything. It
+is soccer's one overlay that is information rather than decoration: a player who cannot see the line
+is guessing at a rule the sim is enforcing against them. `offside.ts` still owns the model; this
+reads a position and draws a line.
+
+**Soccer's cue mapping disagrees with basketball's instincts in one place, and that is the point.** A
+*save* is a cue and a shot on target is not. Soccer scores about three times a match against
+basketball's eighty, so every attempt announcing itself would be noise; what carries the tension is
+the outcome. The goal cue is the only one in the vocabulary allowed to be an event rather than a
+noise — a rising two-note figure, longer than anything else — and it keeps both notes under Reduced
+Audio, because the cue that tells you the score changed is not decoration.
+
+**Not verified on a device.** Every claim here is asserted against the recording canvas; whether the
+keeper actually reads as a keeper at phone size, and whether the goal cue is satisfying rather than
+twee, are both questions for the deploy that has been blocked since Gate 2.
