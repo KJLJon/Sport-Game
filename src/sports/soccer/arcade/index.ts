@@ -9,16 +9,19 @@
  * newcomer taps is the one that needs the least explaining (US-16.1: "a kid who's never played
  * before").
  *
- * **One game so far, and the array says so honestly.** Free Kick, One-on-One, Header, and Last Line
- * are T-6.23–T-6.26, and **T-6.27** is the row that registers all five and checks their
- * `calibrate()`. Until then this list is what soccer can actually be played at, which is the same
- * discipline `modes/catalogue.ts` applies one level up: an absent thing is absent, not stubbed.
+ * **The array is what has actually been built, and nothing else.** One-on-One, Header, and Last Line
+ * are T-6.24–T-6.26, and **T-6.27** is the row that closes the set — unlock wiring and a
+ * `calibrate()` sweep across all five. A game joins this list in the commit that builds it, which is
+ * what makes `games.test.ts`'s set-wide contract cover it from the first minute; until then it is
+ * absent rather than stubbed, the same discipline `modes/catalogue.ts` applies one level up.
  */
 import type { ArcadeGameDef } from '../../../modes/arcade/types.ts';
 import { penaltyShootoutGame } from './penalty-shootout.ts';
+import { freeKickGame } from './free-kick.ts';
 
-export const SOCCER_ARCADE: readonly ArcadeGameDef[] = [penaltyShootoutGame];
+export const SOCCER_ARCADE: readonly ArcadeGameDef[] = [penaltyShootoutGame, freeKickGame];
 
-export { penaltyShootoutGame };
+export { penaltyShootoutGame, freeKickGame };
 export { ROUNDS_PER_RUN, pickSide } from './penalty-shootout.ts';
+export { FREE_KICK_ROUNDS, FREE_KICK_DISTANCE, windLabel } from './free-kick.ts';
 export { SOCCER_ARCADE_SPORT, saveEvent, shotEvents, soccerCalibration } from './shared.ts';

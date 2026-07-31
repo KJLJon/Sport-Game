@@ -1147,3 +1147,74 @@ and the tell shortening as the run goes on is what makes rounds seven through te
 from one through four. The one thing that is not right yet: a round you lose to a keeper who
 guessed correctly reads as unfair rather than unlucky, because nothing on screen distinguishes
 "they read you" from "they got lucky". T-6.16's audio pass is probably where that gets fixed.
+
+---
+
+### T-6.23
+
+Free Kick — soccer's second mini-game, and the first one where the interesting decision is not a
+timing decision.
+
+**Two gates, two taps, and one axis each.** `09` §3.2 asks for four things — curve, aim, wind,
+distance — and the obvious way to build that is one blob of "shot quality" that all four feed. That
+would have been a worse Penalty Shootout. Instead the wall and the keeper were split into two
+different kinds of obstacle:
+
+- The **wall is a height gate**, and height is the strike meter. Under the band the kick never
+  clears the wall; over it, it clears the bar. Distance moves the band *up* and narrows it.
+- The **keeper is a width gate**, and width is the aim meter. Where the marker stops is the line,
+  and the wind then drags the ball off it.
+
+So each tap answers one question, and a miss can say which one you got wrong: "Into the wall",
+"Over the bar", "Wide", "Keeper saves". That wording is the whole of the game's teaching.
+
+**The band shows where to aim, not where to score, and that is the design.** The aim band is the
+unguarded stretch of goal *shifted back by the wind*. A band drawn on the target itself would be an
+instrument that lies about the only decision in the game — you would aim at it, the wind would take
+the ball off it, and the HUD would have set you up. Showing the compensated line is the same honesty
+the Shootout's aim band keeps when the keeper has not committed. It also means the wind is legible
+without any arithmetic: the band moves, you follow it.
+
+**Both gaps stay live.** The band shows whichever of the two stretches either side of the keeper
+survives the wind shift wider, but scoring is judged against the real frame — posts and keeper reach
+— so the smaller gap still works for anyone who wants it. A band is a recommendation.
+
+**Registered on landing, not at T-6.27.** `index.ts` previously said T-6.27 would register all five
+games. That is now the wrong order: a game that is not in `SOCCER_ARCADE` is not covered by
+`games.test.ts`'s set-wide contract, which is the file that exists specifically so five games cannot
+quietly disagree. Free Kick joins the array in the commit that builds it, and T-6.27's job narrows
+to the unlock wiring and the cross-set `calibrate()` sweep. The array's comment now says "what has
+actually been built" rather than naming a future task.
+
+**Tuned against a measurement, not a guess — and the first numbers were wrong three ways.** A
+throwaway probe drove twenty seeded runs per rating with both `pressInBand` and `humanPlayer`:
+
+1. **Eight rounds ran 14–17 s**, under `09` §3.1's twenty-second floor. Ten rounds puts a competent
+   run at 20–24 s.
+2. **Three stars were arithmetically unreachable.** Eight perfect rounds topped out around 2,276
+   against a 2,300 threshold. Ten rounds caps near 3,160, so 2,300 is now a genuinely good run
+   rather than an impossible one.
+3. **Every miss cost a life**, which is not the split the rest of the set draws. A life is now spent
+   only on a *player* error — the height, the line, or the corner — and never on the athlete's
+   outcome band coming up short. That is `09` §2.4 applied to run length: a novice's ceiling should
+   be a lower score, not a shorter run.
+
+`durationSeconds` is **35**, which is what a run measurably takes rather than a round number.
+
+The human-model curve after tuning, mean score over twenty seeds: rating 30 → 313, 55 → 1,031,
+75 → 1,353, 90 → 1,869. Monotonic and well separated, which is the claim `09` §2.4 actually makes.
+
+**A finding that is not this task's to fix: Penalty Shootout is badly under-tuned.** The same probe
+pointed at T-6.15's game gives a rating-90 athlete a mean score of **156 against a 600 first-star
+threshold** — three stars are unreachable, one star is unreachable, and a run lasts ~12 s against a
+declared 75. Nothing about it is broken, and every test it has still passes, because none of them
+assert what a good player actually scores. It belongs to **T-6.18**, and it is the strongest argument
+yet that the balance pass needs a scored-run harness (the equivalent of `pnpm balance` for arcade)
+rather than a read-through.
+
+Feel note: the wind is the thing. Aiming a post's width outside the frame and watching it curl back
+inside is the best moment in soccer's arcade set so far, and it is better than anything in the
+Shootout. The rounds where the wind draws near zero are noticeably flatter — if the range is ever
+tuned, tune it *up*. The one thing not yet right is that the wall is invisible as an obstacle: it is
+drawn, but the failure "Into the wall" happens on the meter, so the picture and the reason live in
+two different places on the screen. T-6.16's art pass is where that gets joined up.

@@ -14,9 +14,18 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 - **Task:** T-6.22 — Soccer Playbook: key moments → arcade, and the Playbook CPU's call selection
 - **Status:** `in_progress`. **CPU half done; key-moment half still blocked**, but the block is
-  smaller than it was. **18 of 27 Phase 6 tasks `done`** (T-6.1 – T-6.15, T-6.19 – T-6.21). Tree
-  clean and pushed.
-- **Branch:** `claude/phase-6-completion-ivvo6c`, PR #11 (draft). PRs #9 and #10 are merged.
+  smaller than it was: two of the five games it needs now exist. **19 of 27 Phase 6 tasks `done`**
+  (T-6.1 – T-6.15, T-6.19 – T-6.21, T-6.23). Tree clean and pushed.
+- **Two bookkeeping corrections made in T-6.23's commit**, both found by counting the table instead
+  of trusting the summary: **T-6.12's row was `todo`** while its work, its notes section, and its
+  entry in the Gate 6 engine-change list all said otherwise — flipped to `done`. And the **Summary
+  table undercounted by seven** (it read 97 against 104 actual rows), because Phase 6 and the
+  pulled-forward T-8.1 were never rolled up. `pnpm progress:check` counts statuses but does *not*
+  reconcile them against the Summary table, which is how this drifted for three phases.
+- **Branch:** `claude/phase-7-continuation-xd93ve`. PRs #9, #10, and #11 are merged, so this branch
+  starts from `main` at the merge of #11. **The branch name says phase 7; the work is Phase 6** —
+  Phase 6 has eight tasks left and its gate has not been evaluated, so there is nothing in Phase 7
+  to continue yet (`CLAUDE.md` §2: no skipping ahead of a gate).
 
 ### Where Phase 6 actually is
 
@@ -26,7 +35,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 **T-6.22 is half done.** Its CPU (`playbook/cpu.ts`) scores four dimensions, reads the opponent over
 a ten-turn window, and samples per difficulty; `baselineCall` moved to `adapter.coach`, which is
 what it always was. Its **key moments** still return `null`: `09` §2.4's soccer row wants penalty,
-free kick, one-on-one, header, and goal-line save, and only the **penalty** now has a mini-game.
+free kick, one-on-one, header, and goal-line save, and the **penalty** (T-6.15) and the **free kick**
+(T-6.23) now have mini-games. Three to go.
+
+**A rule the arcade set now follows: a game joins `SOCCER_ARCADE` in the commit that builds it.**
+`index.ts` used to say T-6.27 would register all five at the end. That is the wrong order — a game
+outside the array is invisible to `games.test.ts`'s set-wide contract, which is the one file that
+stops five games quietly disagreeing. T-6.27's remaining job is the unlock wiring and the cross-set
+`calibrate()` sweep.
 
 **A pattern this session hit three times and worth stating as a rule.** Every screen written while
 one sport existed named that sport in its imports, and every one of them passed its own tests while
@@ -41,16 +57,29 @@ being unreachable for the second sport:
 **Before adding a sixth sport-facing screen, grep `src/ui` for a sport module import.** The seam is
 fine; the screens were the problem, every time.
 
-- **Next step:** **T-6.23 — Free Kick**, then T-6.24 One-on-One, T-6.25 Header, T-6.26 Last Line,
-  then **T-6.27** (registration + `calibrate()` tests), then **close T-6.22** by wiring
+- **Next step:** **T-6.24 — One-on-One**, then T-6.25 Header, T-6.26 Last Line, then **T-6.27**
+  (unlock wiring + the cross-set `calibrate()` sweep), then **close T-6.22** by wiring
   `keyMoment()`/`applyKeyMoment()` now that the games exist. Build each against `ArcadeGameDef`;
-  `src/sports/soccer/arcade/{shared,penalty-shootout}.ts` is the pattern and
+  `src/sports/soccer/arcade/{shared,penalty-shootout,free-kick}.ts` is the pattern and
   `tests/unit/sports/soccer/arcade/games.test.ts` is a set-wide contract that a new game joins by
   being added to the array. The unlock ids already exist in `achievements/ids.ts`
-  (`allStarWin`, `twentyGoals`, `headerScored`, `cleanSheet`).
+  (`twentyGoals`, `headerScored`, `cleanSheet`).
+- **Tune each new game against a measurement, not a guess.** T-6.23's first numbers were wrong three
+  ways — the run was under `09` §3.1's twenty-second floor, three stars were *arithmetically*
+  unreachable, and every miss cost a life. A throwaway probe (twenty seeded runs per rating through
+  `pressInBand` and `humanPlayer`, printing mean score, attempts, and seconds) found all three in one
+  pass. Write it, read it, delete it — it is ten minutes and it is the difference between a game that
+  passes its tests and a game that is playable.
 - **Then:** T-6.16 (art & audio), T-6.17 (engine-core refactor audit — `maxOvertimePeriods` is the
   known one), T-6.18 (balance pass, which is where INV-11's soccer parity run belongs), then the
   Gate 6 record.
+- **Note for T-6.18 — Penalty Shootout is badly under-tuned, and its tests do not notice.** The probe
+  above, pointed at T-6.15's game: a **rating-90** athlete averages **156** points against a **600**
+  first-star threshold, makes 1.2 of 6 attempts, and finishes in ~12 s against a declared 75. Not one
+  star is reachable, let alone three. Every test it has still passes, because none of them assert
+  what a good player actually scores — which is the gap. T-6.18 should build a scored-run harness for
+  the arcade (the equivalent of `pnpm balance`) and re-tune both games against it, rather than
+  eyeballing constants.
 - **Note for T-6.18:** `pnpm balance` is **basketball's Live harness only**. Soccer's Playbook turn
   budget is asserted in `tests/unit/sports/soccer/playbook/adapter.test.ts` instead. A soccer row in
   the balance tool is part of T-6.18's job, not something already there.
@@ -84,9 +113,9 @@ Gate 6 asks that `engine/` be touched only for genuine core improvements. Two, b
    counting *down*; soccer has team fouls and counts up. `elapsedGameSeconds` exists and nothing
    calls it. `SportStatus.periodClock` is documented as *remaining*, so the sport module is honouring
    the contract and the gap is the HUD's. In no Phase 6 row — T-6.16 or Phase 9.
-3. **`/play` is a Phase-2 placeholder**, so Home → Play is a dead end and every mode is deep-link
-   only. T-8.1's modes hub fixes it. This matters because the user tests on a phone against a
-   deployed build: `#/play/live/soccer`, `#/play/live/basketball`, `#/play/playbook`, `#/play/arcade`.
+3. ~~**`/play` is a Phase-2 placeholder**~~ — **fixed**: T-8.1 was pulled forward and is `done`, so
+   Home → Play reaches every shipped mode by tapping. The deep links still work if a phone test wants
+   them: `#/play/live/soccer`, `#/play/live/basketball`, `#/play/playbook`, `#/play/arcade`.
 4. **Soccer overtime is unbounded in Live** (found by T-6.14). `MatchStateMachine` offers another
    overtime period for as long as the score is level and `MatchRules.overtimeSteps` is set — right
    for basketball, wrong for soccer, which plays two extra halves and then takes penalties. A level
@@ -145,15 +174,15 @@ Gate 6 asks that `engine/` be touched only for genuine core improvements. Two, b
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
-| 6 | Soccer · all three modes | 27 | 16 | `in_progress` | v0.5 |
+| 6 | Soccer · all three modes | 27 | 19 | `in_progress` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
-| 8 | Modes hub, progression, achievements, economy | 16 | 0 | `todo` | — |
+| 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **200** | **97** | | |
+| | **Total** | **200** | **105** | | |
 
 ---
 
@@ -294,7 +323,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.9 | Goalkeeper AI: positioning, shot-stopping, claims, distribution; manual on penalties | L | `done` | | `tests/unit/sports/soccer/keeper.test.ts` | `auto` — **needs a phone** for whether `softness` 0.45 reads as reflexes or as flapping | A save is a race, not a dice roll; the first dive-speed tuning had an average keeper saving 58% of top corners and a failing test fixed it. **Known gap:** the chip is not modelled — intercept height is the chord, not the arc. [notes](./notes/phase-6.md#t-69) |
 | T-6.10 | Formations 4-4-2 / 4-3-3 / 3-5-2, data-driven roles, shape by phase | L | `done` | | `tests/unit/sports/soccer/formations.test.ts`, `tests/integration/sports/soccer-match.test.ts`, `tests/e2e/soccer-match.spec.ts` | `auto` + Playwright screenshot | Formations are data with `push`/`drop`/`tuck`, and **the `SportModule` assembly was folded in here** (raised with the user first) — soccer is now playable at `#/play/live/soccer`. [notes](./notes/phase-6.md#t-610) |
 | T-6.11 | 22-entity performance work: LOD, culling, spatial-hash tuning, zero-allocation hot path | L | `done` | | `tests/unit/sports/soccer/formations.test.ts`, `pnpm bench` | `auto` + bench | The bench was measuring the *test* sport; it now measures soccer too. Speed was never the problem — jank was: worst step 0.98 ms → 0.35 ms by caching shapes and pooling scratch arrays. LOD/culling deferred to T-12.8 with a reason. [notes](./notes/phase-6.md#t-611) |
-| T-6.12 | Camera and minimap tuning for the larger pitch | M | `todo` | | | | |
+| T-6.12 | Camera and minimap tuning for the larger pitch | M | `done` | | `tests/unit/engine/camera.test.ts` | `auto` | Row flipped in T-6.23's commit — the work landed earlier in the phase and the status was never updated. Keeps `VISIBLE_SPAN` (45 m) on screen rather than fitting the field, which leaves basketball's framing untouched. [notes](./notes/phase-6.md#t-612) |
 | T-6.13 | Soccer derivation weights, sub-skills, familiarity tuning | M | `done` | | `tests/unit/sports/soccer/weights-and-xp.test.ts` | `auto` | The weights shipped in Phase 3; this adds the position table (`goalkeeping: 0.6` for the keeper and zero elsewhere) and the XP table. Familiarity needed **no** soccer-specific tuning — a positive seam result. [notes](./notes/phase-6.md#t-613) |
 | T-6.14 | Soccer Playbook: `PlaybookAdapter` + phase turns | L | `done` | | `tests/unit/sports/soccer/playbook/phases.test.ts`, `tests/unit/sports/soccer/playbook/adapter.test.ts` | `auto` — headless, no screen reaches it yet | **The seam held: zero engine changes.** Turns are phases of play with a derived 18–24 turn budget (measured 20.6). Found and capped a real defect — soccer overtime ran to period 15 because nothing bounds it; **Live has it too**, root fix logged for T-6.17. [notes](./notes/phase-6.md#t-614) |
 | T-6.15 | Soccer arcade: Penalty Shootout | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | Both roles, alternating — the only launch-set game that swaps sides. Found and fixed **two hardcoded-basketball bugs in the arcade screens**, one of which would have paid every soccer run's XP into `threePoint`. [notes](./notes/phase-6.md#t-615) |
@@ -305,7 +334,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.20 | Soccer Playbook: resolution model, reusing Live's shooting and passing | L | `done` | | `tests/unit/sports/soccer/playbook/model.test.ts` | `auto` — headless, no screen reaches it yet | Soccer's Live models have no probability to borrow, so the reuse is **composition** — `placementError`, `shotSpeed`, `keeperSpot`, `saveOutcome`, `passError`. **`MODEL_CALIBRATION` came out zero**: the Live passing model lands the turn count in `09` §2.3's band on its own. [notes](./notes/phase-6.md#t-620) |
 | T-6.21 | Soccer Playbook: narration and animated pitch diagram for turn outcomes | M | `done` | | `tests/unit/sports/soccer/playbook/{narration,diagram}.test.ts`, `tests/unit/ui/playbook-screens.test.ts`, `tests/e2e/play-hub.spec.ts` | `auto` + E2E from the hub, by tapping | **The screen was the task.** `playbook-match.ts` imported basketball by name, so `#/play/playbook` could not reach soccer at all; `PlaybookAdapter.squads()` is the seam change that fixed it. The diagram reads its shape from `formations.ts`, so a 4-3-3 draws as one. [notes](./notes/phase-6.md#t-621) |
 | T-6.22 | Soccer Playbook: key moments → arcade, and the Playbook CPU's call selection | M | `in_progress` | | `tests/unit/sports/soccer/playbook/cpu.test.ts` | `auto` | **CPU half done**, key-moment half **blocked on the arcade set** (T-6.15, T-6.23–T-6.27) and deliberately not faked. Four dimensions scored and sampled independently; one counter table (press × tempo) because `IntentEffect` cannot say "against". [notes](./notes/phase-6.md#t-622) |
-| T-6.23 | Soccer arcade: Free Kick | M | `todo` | | | | |
+| T-6.23 | Soccer arcade: Free Kick | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | Wall = a height gate on the strike meter, keeper = a width gate on the aim meter, and the aim band is the gap *shifted back by the wind* so the HUD never lies about the only decision in the game. [notes](./notes/phase-6.md#t-623) |
 | T-6.24 | Soccer arcade: One-on-One | M | `todo` | | | | |
 | T-6.25 | Soccer arcade: Header | M | `todo` | | | | |
 | T-6.26 | Soccer arcade: Last Line | M | `todo` | | | | |

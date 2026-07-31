@@ -7,8 +7,14 @@
  * deliberate: these are claims about `ArcadeGameDef`, so every set has to make them.
  */
 import { describe, expect, it } from 'vitest';
-import { SOCCER_ARCADE } from '../../../../../src/sports/soccer/arcade/index.ts';
-import { ROUNDS_PER_RUN, pickSide } from '../../../../../src/sports/soccer/arcade/index.ts';
+import {
+  FREE_KICK_DISTANCE,
+  FREE_KICK_ROUNDS,
+  ROUNDS_PER_RUN,
+  SOCCER_ARCADE,
+  pickSide,
+  windLabel,
+} from '../../../../../src/sports/soccer/arcade/index.ts';
 import { SOCCER_XP_AWARDS } from '../../../../../src/sports/soccer/xp.ts';
 import { SOCCER_WEIGHTS } from '../../../../../src/sports/soccer/weights.ts';
 import { soccer } from '../../../../../src/sports/soccer/index.ts';
@@ -35,9 +41,12 @@ function soccerAthlete(rating: number): ReturnType<typeof athlete> {
 
 describe('the set', () => {
   it('is what has actually been built, and says nothing about what has not', () => {
-    // T-6.23–T-6.27 add Free Kick, One-on-One, Header, and Last Line. Until they exist, the array
-    // is one game — an absent thing is absent, not stubbed.
-    expect(SOCCER_ARCADE.map((game) => game.id)).toEqual(['soccer.penalty-shootout']);
+    // T-6.24–T-6.26 add One-on-One, Header, and Last Line. Until they exist, the array is the two
+    // that do — an absent thing is absent, not stubbed.
+    expect(SOCCER_ARCADE.map((game) => game.id)).toEqual([
+      'soccer.penalty-shootout',
+      'soccer.free-kick',
+    ]);
     expect(soccer.arcade).toBe(SOCCER_ARCADE);
   });
 
@@ -296,6 +305,92 @@ describe('Penalty Shootout in particular', () => {
         const run = startRun(
           game,
           arcadeConfig({ seed: `r${seed}`, athlete: soccerAthlete(rating) }),
+        );
+        drive(run, { press: pressInBand, steps: 8000 });
+        run.finish();
+        total += run.result()?.score ?? 0;
+      }
+      return total;
+    };
+    expect(score(90)).toBeGreaterThan(score(30));
+  });
+});
+
+describe('Free Kick in particular', () => {
+  const game = SOCCER_ARCADE[1]!;
+
+  it('says what the wind is doing in words, not in an arrow alone', () => {
+    // `10` §11 — nothing in an arcade game is conveyed by a glyph or a colour on its own.
+    expect(windLabel(0)).toBe('still');
+    expect(windLabel(0.01)).toBe('still');
+    expect(windLabel(-0.05)).toContain('←');
+    expect(windLabel(0.05)).toContain('→');
+    expect(windLabel(0.1)).toContain('strong');
+    expect(windLabel(-0.1)).toContain('strong');
+    expect(windLabel(0.04)).toContain('light');
+  });
+
+  it('keeps the aim band inside the meter whatever the wind and the keeper do', () => {
+    // The band is the gap *shifted back by the wind*, so it is the one thing in the game that can be
+    // pushed off the end of the track. Sampled while the run advances, because both inputs are
+    // redrawn every round.
+    let sampled = 0;
+    const run = startRun(game, arcadeConfig({ seed: 'fk-band', athlete: soccerAthlete(70) }));
+    drive(run, {
+      steps: 4000,
+      press: (current) => {
+        const target = current.view().game.target;
+        if (target !== null) {
+          sampled += 1;
+          expect(target.from).toBeGreaterThanOrEqual(0);
+          expect(target.to).toBeLessThanOrEqual(1);
+          expect(target.to).toBeGreaterThan(target.from);
+        }
+        return false;
+      },
+    });
+    expect(sampled).toBeGreaterThan(100);
+  });
+
+  it('pays for the distance, so the long ones are worth wanting', () => {
+    // Kicks are drawn across `FREE_KICK_DISTANCE`, and a goal from the far end is worth more than
+    // one from the near end. Asserted against the range rather than against a single kick, because
+    // which distance a round draws is the run's business.
+    expect(FREE_KICK_DISTANCE.max).toBeGreaterThan(FREE_KICK_DISTANCE.min);
+
+    const distances = new Set<number>();
+    for (let seed = 0; seed < 6; seed += 1) {
+      const run = startRun(
+        game,
+        arcadeConfig({ seed: `fk-dist-${seed}`, athlete: soccerAthlete(80) }),
+      );
+      drive(run, { press: pressInBand, steps: 6000 });
+      for (const event of run.events()) {
+        if (event.kind === EventKind.SHOT && event.value !== undefined) distances.add(event.value);
+      }
+    }
+
+    expect(distances.size).toBeGreaterThan(3);
+    for (const distance of distances) {
+      expect(distance).toBeGreaterThanOrEqual(FREE_KICK_DISTANCE.min);
+      expect(distance).toBeLessThanOrEqual(FREE_KICK_DISTANCE.max);
+    }
+  });
+
+  it('never runs past its own kick count, however well it is played', () => {
+    const run = startRun(game, arcadeConfig({ seed: 'fk-rounds', athlete: soccerAthlete(95) }));
+    drive(run, { press: pressInBand, steps: 12_000 });
+    run.finish();
+    expect(run.result()?.attempts ?? 0).toBeLessThanOrEqual(FREE_KICK_ROUNDS);
+  });
+
+  it('rewards a competent player and still lets a poor one finish', () => {
+    const score = (rating: number): number => {
+      let total = 0;
+      for (let seed = 0; seed < 8; seed += 1) {
+        const run = startRun(
+          game,
+          arcadeConfig({ seed: `fk-${seed}`, athlete: soccerAthlete(rating) }),
         );
         drive(run, { press: pressInBand, steps: 8000 });
         run.finish();
