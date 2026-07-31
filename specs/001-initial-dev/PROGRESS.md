@@ -13,85 +13,55 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 ## In-flight
 
 - **Task:** T-6.22 — Soccer Playbook: key moments → arcade, and the Playbook CPU's call selection
-- **Status:** `in_progress`. **Its CPU half is done and pushed; its key-moment half is blocked.**
-  **17 of 27 Phase 6 tasks `done`** (T-6.1 – T-6.14, T-6.19 – T-6.21). Tree clean and pushed.
+- **Status:** `in_progress`. **CPU half done; key-moment half still blocked**, but the block is
+  smaller than it was. **18 of 27 Phase 6 tasks `done`** (T-6.1 – T-6.15, T-6.19 – T-6.21). Tree
+  clean and pushed.
 - **Branch:** `claude/phase-6-completion-ivvo6c`, PR #11 (draft). PRs #9 and #10 are merged.
 
-### T-6.22, and why it is parked half-finished rather than marked done
+### Where Phase 6 actually is
 
-**Done: the CPU** (`src/sports/soccer/playbook/cpu.ts`). It replaces `baselineCall`, which set each
-dimension to whatever its own squad was built for and never looked across the halfway line. The new
-one scores each of the four dimensions its role is asked about, reads the opponent over a ten-turn
-window, and samples at its difficulty's temperature. `baselineCall` was not deleted — it moved to
-`adapter.coach`, which is exactly the shape `modes/playbook/types.ts` asks a coach to be, and the
-distinction is the point: Auto-call must not quietly out-think the opponent the player is facing.
+**Soccer is now reachable in all three modes by tapping.** Live, Playbook (T-6.21), and the arcade
+(T-6.15's Penalty Shootout). `catalogue.ts` has no `pending` rows left for either sport.
 
-**Blocked: the key moments.** `09` §2.4's soccer row is penalty, direct free kick, one-on-one,
-header from a cross, goal-line save — **five arcade games, none of which exist**. T-6.15 and
-T-6.23–T-6.27 build them. `soccerPlaybook.keyMoment()` still returns `null` and still says why in
-its own comment: `startKeyMoment` falling back to the sim on every single turn is a worse experience
-than never being offered a moment at all, so proposing one now would be a regression dressed as
-progress.
+**T-6.22 is half done.** Its CPU (`playbook/cpu.ts`) scores four dimensions, reads the opponent over
+a ten-turn window, and samples per difficulty; `baselineCall` moved to `adapter.coach`, which is
+what it always was. Its **key moments** still return `null`: `09` §2.4's soccer row wants penalty,
+free kick, one-on-one, header, and goal-line save, and only the **penalty** now has a mini-game.
 
-- **Next step, and it is a straight line:** **T-6.15 — Penalty Shootout** (`M`, size-checked, and
-  the dependency root of T-6.23–T-6.27). Build it against `ArcadeGameDef` in
-  `src/modes/arcade/types.ts`; `calibrate(athlete, difficulty)` is the whole of INV-10 and the
-  signature deliberately has nowhere for a personal best to arrive. Basketball's set in
-  `src/sports/basketball/arcade/` is the model. Then T-6.23–T-6.26 (Free Kick, One-on-One, Header,
-  Last Line), then **T-6.27** registers them, and **only then** finish T-6.22 by wiring
-  `keyMoment()`/`applyKeyMoment()` and closing this row.
+**A pattern this session hit three times and worth stating as a rule.** Every screen written while
+one sport existed named that sport in its imports, and every one of them passed its own tests while
+being unreachable for the second sport:
+
+1. `#/play` was a Phase-0 placeholder (T-8.1).
+2. `playbook-match.ts` imported `basketballSquads` (T-6.21).
+3. `arcade.ts` and `arcade-game.ts` built their catalogue from `[basketball]`, and the second paid
+   *every* run's XP into basketball's award table — a soccer penalty would have trained
+   `threePoint` (T-6.15).
+
+**Before adding a sixth sport-facing screen, grep `src/ui` for a sport module import.** The seam is
+fine; the screens were the problem, every time.
+
+- **Next step:** **T-6.23 — Free Kick**, then T-6.24 One-on-One, T-6.25 Header, T-6.26 Last Line,
+  then **T-6.27** (registration + `calibrate()` tests), then **close T-6.22** by wiring
+  `keyMoment()`/`applyKeyMoment()` now that the games exist. Build each against `ArcadeGameDef`;
+  `src/sports/soccer/arcade/{shared,penalty-shootout}.ts` is the pattern and
+  `tests/unit/sports/soccer/arcade/games.test.ts` is a set-wide contract that a new game joins by
+  being added to the array. The unlock ids already exist in `achievements/ids.ts`
+  (`allStarWin`, `twentyGoals`, `headerScored`, `cleanSheet`).
 - **Then:** T-6.16 (art & audio), T-6.17 (engine-core refactor audit — `maxOvertimePeriods` is the
-  known one), T-6.18 (balance pass, which is also where INV-11's soccer parity run belongs), then
-  the Gate 6 record.
+  known one), T-6.18 (balance pass, which is where INV-11's soccer parity run belongs), then the
+  Gate 6 record.
 - **Note for T-6.18:** `pnpm balance` is **basketball's Live harness only**. Soccer's Playbook turn
   budget is asserted in `tests/unit/sports/soccer/playbook/adapter.test.ts` instead. A soccer row in
   the balance tool is part of T-6.18's job, not something already there.
-
-### T-6.21 is done, and it was not the task it looked like
-
-The row said "narration and animated pitch diagram". Those were an afternoon. The task was the
-**screen**: `src/ui/screens/playbook-match.ts` imported `basketball`, `basketballSquads`, and
-`createBasketballPlaybook` at module scope, so `#/play/playbook` could not reach soccer at all —
-three tasks' worth of adapter behind a door that did not open. Exactly T-8.1's bug, one layer down,
-and every unit test passed throughout because they all called the adapter directly.
-
-**What that cost, in one seam member.** `PlaybookAdapter.squads(home, away)` is the only thing the
-screen could not already get from `SportModule`: `playbook` is the adapter, `rules` the clock,
-`meta.squadSize` five or eleven, `meta.periodName` `Q` or `H`, `arcade` the key-moment games. The
-sport now travels on the query (`#/play/playbook?sport=soccer`), because `/play/playbook/match`
-already owns the segment after `playbook`.
-
-**Both sports are now reachable in Playbook by tapping**, and `tests/e2e/play-hub.spec.ts` asserts
-it from the home screen. `catalogue.ts`'s soccer Playbook row moved to available; its **arcade** row
-still says the mini-games are being built, because they are.
-
-That E2E immediately found a **real layout bug** two sports were needed to see: the turn screen's
-board had no `overflow`, so a call sheet taller than the space left over got the score row painted
-on top of it and the first chip could not be tapped. Basketball's six cards never grew far enough;
-soccer's four rows of intent chips do. Fixed in `components.css` — the board clips and keeps a 32%
-floor, the stage scrolls.
-
-- **Next step:** **T-6.22** — `09` §2.4's soccer key moments (penalty, direct free kick,
-  one-on-one, header from a cross, goal-line save) and the Playbook CPU. Read the two files it
-  replaces first: `soccerPlaybook.keyMoment()` returns `null` today and says why, and
-  `baselineCall()` is a deliberately unobservant coach where T-6.22 wants an opponent that reads
-  tendencies per difficulty (basketball's `playbook/cpu.ts` is the model to follow, `READ_WINDOW`
-  included). **T-6.22 depends on arcade games that do not exist** — `MOMENT_GAMES` has nothing to
-  point at until T-6.15 and T-6.23–T-6.27 land, and `startKeyMoment` falling back to the sim on
-  every turn is worse than never offering. So either take **T-6.15 (Penalty Shootout) first** and
-  wire the penalty moment only, or do T-6.22's CPU half now and its key-moment half after the
-  arcade set. **The CPU half is the honest one to do first** — it has no dependency and it is what
-  makes a Playbook match worth playing twice.
-- **Then, in order:** T-6.15 + T-6.23 – T-6.27 (arcade), T-6.16 (art & audio), T-6.17 (engine-core
-  refactor audit), T-6.18 (balance pass), then the Gate 6 record.
-- **Soccer is playable and legible in two modes.** `#/play/live/soccer` mounts a real 11v11 match
-  with a camera that follows the play; `#/play/playbook?sport=soccer` coaches one, eleven a side, on
-  a 45:00 half, with an animated pitch diagram whose shape comes from `formations.ts`. **2 666
-  unit/integration tests green (150 files); 45 E2E green.**
-- **One flake worth knowing about, not a regression.** `pwa-lifecycle.spec.ts` PWA-1 (waiting worker
-  after a v2 deploy) failed once when the E2E suite and `pnpm verify` were run *concurrently* in
-  this sandbox, and passes every time on its own — it is a timing race on the waiting worker under
-  CPU contention, not a change from this task. Don't run the two suites at once here.
+- **A race in PWA-1, found and fixed — it was not a flake.** `pwa-lifecycle.spec.ts` PWA-1 started
+  failing after T-6.21, and the first read was "flaky under CPU contention". It was not: bisecting
+  by spec file showed it failed **only** when `play-hub.spec.ts` ran first, and only with T-6.21's
+  soccer Playbook test in it. The cause was in PWA-1 itself — it waited for a waiting worker and
+  then *re-read* `registration.waiting`, and a waiting worker activates as soon as nothing is
+  controlling the page, so the test could fail because the update was applied **too promptly**. The
+  slower soccer test shifted the timing enough to lose that race every run. The redundant re-read is
+  gone. **Full E2E is green: 45 passed.**
 
 ### Engine-core changes this phase — the Gate 6 list
 
@@ -327,7 +297,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.12 | Camera and minimap tuning for the larger pitch | M | `todo` | | | | |
 | T-6.13 | Soccer derivation weights, sub-skills, familiarity tuning | M | `done` | | `tests/unit/sports/soccer/weights-and-xp.test.ts` | `auto` | The weights shipped in Phase 3; this adds the position table (`goalkeeping: 0.6` for the keeper and zero elsewhere) and the XP table. Familiarity needed **no** soccer-specific tuning — a positive seam result. [notes](./notes/phase-6.md#t-613) |
 | T-6.14 | Soccer Playbook: `PlaybookAdapter` + phase turns | L | `done` | | `tests/unit/sports/soccer/playbook/phases.test.ts`, `tests/unit/sports/soccer/playbook/adapter.test.ts` | `auto` — headless, no screen reaches it yet | **The seam held: zero engine changes.** Turns are phases of play with a derived 18–24 turn budget (measured 20.6). Found and capped a real defect — soccer overtime ran to period 15 because nothing bounds it; **Live has it too**, root fix logged for T-6.17. [notes](./notes/phase-6.md#t-614) |
-| T-6.15 | Soccer arcade: Penalty Shootout | M | `todo` | | | | |
+| T-6.15 | Soccer arcade: Penalty Shootout | M | `done` | | `tests/unit/sports/soccer/arcade/games.test.ts` | `auto` | Both roles, alternating — the only launch-set game that swaps sides. Found and fixed **two hardcoded-basketball bugs in the arcade screens**, one of which would have paid every soccer run's XP into `threePoint`. [notes](./notes/phase-6.md#t-615) |
 | T-6.16 | Soccer art & audio pass | L | `todo` | | | | |
 | T-6.17 | Engine-core refactor: extract anything basketball-shaped that leaked into core | M | `todo` | | | | |
 | T-6.18 | Balance pass #2: goals, possession, conversion across Live and Playbook | M | `todo` | | | | |

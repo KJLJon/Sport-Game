@@ -1068,3 +1068,82 @@ only watched simulated matches. What is visible in those is that the CPU now *ch
 side that plays out from the back for a spell gets pressed, and stopping doing that stops the press
 within a few turns. That is the loop `09` §2.2 describes and it is legibly there. Whether it is fun
 to play against depends entirely on the key moments that are still missing.
+
+### T-6.15
+
+Penalty Shootout — soccer's first mini-game, and the dependency root of T-6.23–T-6.27.
+
+**Both roles, because `09` §3.2 asked for one.** "Aim + power + keeper read; **also the defending
+side**" is the only entry in the whole launch set that asks a game to swap roles, and it is right:
+a shootout *is* that alternation. Odd rounds you take, even rounds you keep. Taking five in a row
+would be Free Throw with a bigger target.
+
+**Aim and power on one meter.** `ArcadeGameView` exposes exactly one meter, deliberately — a HUD
+that grew a second axis for one game would carry that game's vocabulary into shared UI and the fifth
+game would break it. So the kick is two sequential passes of the same meter: stop the marker to
+place the shot, then stop it again to strike.
+
+**The keeper read went through one redesign, and the first version was wrong.** Originally the
+keeper was hidden during the aim stage and `ArcadeGameView.target` was `null` there. Two problems,
+one of which the shared test helper found immediately: `pressInBand` returns false when there is no
+band, so a competent player never pressed at all and every round timed out. The deeper problem was
+that "keeper read" with an invisible keeper is not a read — it is a coin flip with extra steps.
+
+The fix: on 55% of rounds the keeper commits early and visibly, and the aim band narrows onto the
+widest stretch of goal more than their reach away. On the rest they hold, and the band is the whole
+frame inside the posts — which is the *honest* band, because nothing you can see tells you more.
+Two draws are taken either way, so a round where the keeper holds consumes the same stream as one
+where they commit; otherwise the tell would shift every later draw in the run (INV-8).
+
+**A count, not a clock**, for the reason basketball's Free Throw records: a novice's meter runs
+faster, and under a clock that hands them more attempts per run than a specialist gets. Ten rounds.
+
+**Two hardcoded-basketball bugs in screens, both found by asking "can this game be reached?"**
+
+1. `arcade.ts` and `arcade-game.ts` both built their catalogue from `[basketball]`. A game added to
+   soccer's module simply would not have appeared. Same class as T-6.21's, third instance this
+   session.
+2. Worse, and it would not have shown up as a missing tile: `arcade-game.ts` passed
+   `basketball.xpAwards` to `arcadeProgression()` for **every** run. A penalty kick emits
+   `zone: 'penaltyArea'`, which basketball's table does not know, so it would have trained nothing —
+   or, with an unluckier zone name, trained the wrong rating. `09` §3.4's promise that the arcade
+   trains the same ratings the sim does would have been quietly false for half the build's games.
+   It now loads the award table of the game's *own* sport.
+
+Both now go through `PLAYABLE_SPORTS`, which is the one place a sport's import path is written down.
+
+**The drawing helpers moved.** `ARCADE_COLOURS`, `drawMeter`, `label`, `bar`, and `mirrorX` were in
+`sports/basketball/arcade/shared.ts` and are now in `modes/arcade/draw.ts`. None of it is about
+basketball: a release meter is a release meter, and the mirroring rule (T-4.12) and the
+never-colour-alone rule (`10` §11) are app-wide promises that should not hold in one sport because
+that sport was written first. Basketball's file re-exports them, so nothing there changed.
+
+**A test that could not be written the obvious way, again.** "Ten rounds, so five shots" is wrong:
+a three-life run usually ends before ten rounds. The alternation is asserted as
+`shots === ceil(attempts / 2)` against the run's own attempt count, which holds for a run of any
+length and would fail immediately if the game ever took two rounds in a row.
+
+**A "flake" that was not one.** After T-6.21, `pwa-lifecycle.spec.ts` PWA-1 began failing in full
+E2E runs. The cheap reading was CPU contention, and it was wrong. Bisecting by spec file: PWA-1
+passes alone, passes after `a11y-and-smoke`, passes after `live-match`, and fails after
+`play-hub` — and passes again with T-6.21's soccer Playbook test excluded from `play-hub`. So it
+was caused by this branch, and worth finding.
+
+The bug was in PWA-1 all along. It called `waitForWaitingWorker()` — which resolves only once a
+second worker reaches the waiting state, and *is* the assertion — and then read
+`registration.waiting` a second time. A waiting worker activates the moment nothing is controlling
+the page, so between the two calls it can legitimately move on, and the test then fails because the
+update was applied **too promptly**: the opposite of what it guards. It survived for two phases
+because every spec before it was fast. The soccer Playbook test is slower than its neighbours and
+lost that race on every run. The redundant re-read is gone; what is re-read now is
+`waiting || installing`, both of which mean the update was seen.
+
+The lesson is not about service workers: *a test that waits for a condition and then re-checks it
+has two chances to be wrong and only one to be right.*
+
+**Feel note.** The swap is the whole thing, and standing in goal is the better half — which
+surprised me. Taking is a solved problem once you have the read; keeping is a genuine flinch test,
+and the tell shortening as the run goes on is what makes rounds seven through ten feel different
+from one through four. The one thing that is not right yet: a round you lose to a keeper who
+guessed correctly reads as unfair rather than unlucky, because nothing on screen distinguishes
+"they read you" from "they got lucky". T-6.16's audio pass is probably where that gets fixed.

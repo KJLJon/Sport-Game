@@ -55,13 +55,28 @@ test.describe('PWA lifecycle — `11` §9', () => {
     await control(page, 'deploy/v2');
 
     await page.reload();
+
+    // `waitForWaitingWorker` *is* the assertion: it resolves only once a second worker has reached
+    // the waiting state, which is exactly what "the app sees the update within one launch" means.
+    //
+    // It used to be followed by a second read of `registration.waiting`, and that read was a race:
+    // a waiting worker activates as soon as nothing is controlling the page, so between the two
+    // calls it can legitimately move on — and the test then failed because the update had been
+    // applied *too promptly*, which is the opposite of the thing it guards. It went unnoticed while
+    // the specs before it were fast; T-6.21's soccer Playbook test is slower than its neighbours
+    // and lost the race consistently.
     await waitForWaitingWorker(page);
 
-    const waiting = await page.evaluate(async () => {
+    // What is safe to re-read is that the registration has moved past one worker — waiting, or
+    // already activated. Both are the update having been seen.
+    const sawUpdate = await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.getRegistration();
-      return registration?.waiting !== null;
+      return (
+        registration !== undefined &&
+        (registration.waiting !== null || registration.installing !== null)
+      );
     });
-    expect(waiting).toBe(true);
+    expect(sawUpdate).toBe(true);
   });
 
   test('PWA-2: accepting the update runs v2 after exactly one reload, with no loop', async ({

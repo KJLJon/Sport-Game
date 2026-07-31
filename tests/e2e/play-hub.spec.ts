@@ -69,11 +69,23 @@ test('switching sport switches what can be started, and says why not', async ({ 
 
   await page.locator('label[for="play-sport-soccer"]').click();
 
+  // Soccer reaches all three modes as of T-6.15; the routes have to change with the sport.
   await expect(page.locator('a.play-mode--ready[href="#/play/live/soccer"]')).toBeVisible();
-  // A mode soccer cannot start is present and explains itself, rather than silently vanishing.
+  await expect(
+    page.locator('a.play-mode--ready[href="#/play/playbook?sport=soccer"]'),
+  ).toBeVisible();
+  await expect(page.locator('a.play-mode--ready[href="#/play/arcade?sport=soccer"]')).toBeVisible();
+
+  // The "says why not" half is now conditional, because there is nothing left to say it about. It
+  // is kept rather than deleted: the moment a mode *does* go unavailable — Phase 11's hockey is the
+  // next one — a silently missing card must still fail this (`10` §10).
   const pending = page.locator('.play-mode__pending');
-  await expect(pending.first()).toBeVisible();
-  await expect(pending.first()).not.toBeEmpty();
+  for (let index = 0; index < (await pending.count()); index += 1) {
+    await expect(pending.nth(index)).not.toBeEmpty();
+  }
+  expect(await page.locator('a.play-mode--ready').count()).toBe(
+    await page.locator('.play-modes > li').count(),
+  );
 });
 
 test('a Playbook match starts from the setup screen (the hash the router can parse)', async ({
