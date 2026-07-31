@@ -36,6 +36,12 @@ already owns the segment after `playbook`.
 it from the home screen. `catalogue.ts`'s soccer Playbook row moved to available; its **arcade** row
 still says the mini-games are being built, because they are.
 
+That E2E immediately found a **real layout bug** two sports were needed to see: the turn screen's
+board had no `overflow`, so a call sheet taller than the space left over got the score row painted
+on top of it and the first chip could not be tapped. Basketball's six cards never grew far enough;
+soccer's four rows of intent chips do. Fixed in `components.css` — the board clips and keeps a 32%
+floor, the stage scrolls.
+
 - **Next step:** **T-6.22** — `09` §2.4's soccer key moments (penalty, direct free kick,
   one-on-one, header from a cross, goal-line save) and the Playbook CPU. Read the two files it
   replaces first: `soccerPlaybook.keyMoment()` returns `null` today and says why, and
@@ -51,8 +57,12 @@ still says the mini-games are being built, because they are.
   refactor audit), T-6.18 (balance pass), then the Gate 6 record.
 - **Soccer is playable and legible in two modes.** `#/play/live/soccer` mounts a real 11v11 match
   with a camera that follows the play; `#/play/playbook?sport=soccer` coaches one, eleven a side, on
-  a 45:00 half, with an animated pitch diagram whose shape comes from `formations.ts`. 2 690
-  unit/integration tests green (152 files).
+  a 45:00 half, with an animated pitch diagram whose shape comes from `formations.ts`. **2 666
+  unit/integration tests green (150 files); 45 E2E green.**
+- **One flake worth knowing about, not a regression.** `pwa-lifecycle.spec.ts` PWA-1 (waiting worker
+  after a v2 deploy) failed once when the E2E suite and `pnpm verify` were run *concurrently* in
+  this sandbox, and passes every time on its own — it is a timing race on the waiting worker under
+  CPU contention, not a change from this task. Don't run the two suites at once here.
 
 ### Engine-core changes this phase — the Gate 6 list
 

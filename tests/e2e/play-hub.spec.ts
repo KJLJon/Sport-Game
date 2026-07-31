@@ -114,8 +114,10 @@ test('soccer Playbook is reachable from the hub, and it is a soccer match', asyn
   await expect(page.locator('.playbook-match__clock')).toContainText('H1');
   await expect(page.locator('.play-call-sheet')).toBeVisible();
 
-  // And a call resolves into a narrated turn on the diagram above it.
-  await page.locator('.play-call__input').first().click();
+  // And a call resolves into a narrated turn on the diagram above it. The *label* is what a thumb
+  // hits — the radio itself is visually hidden behind it — and clicking it is what caught the
+  // board overflowing onto the sheet and swallowing the tap.
+  await page.locator('label.play-call').first().click();
   await expect(page.locator('.playbook-match__narration')).not.toBeEmpty();
 });
 

@@ -979,6 +979,14 @@ being built, because they are (T-6.15, T-6.23–T-6.27). `catalogue.ts` keeps th
 with — availability is what a *screen* can start, not what a module supplies — and only soccer's
 Playbook row moved.
 
+**A real layout bug, and only two sports could find it.** The E2E tap-through failed on the first
+call: `.playbook-match__board` had `min-height: 0` and no `overflow`, so when the call sheet grew
+taller than the space left over, the board's score row spilled out of its own box and sat on top of
+the sheet, swallowing the tap. Basketball's sheet is six cards and never grew far enough; soccer's
+is four rows of intent chips and does. The board now clips and holds a floor of 32%, and the stage
+scrolls instead of being pushed off the bottom. This is the second time in two tasks that a screen
+was verified only against the sport it was written for — see T-8.1.
+
 **A stale test, the third of its kind.** `tests/unit/modes/last-played.test.ts` used soccer +
 Playbook as its example of a pairing the hub does not offer. It is now a real pairing, so the test
 was re-pointed at soccer + arcade rather than deleted — the behaviour still matters. Expect more of
