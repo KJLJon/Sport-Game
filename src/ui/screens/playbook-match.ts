@@ -3,7 +3,9 @@
  * @phase   5 — Playbook (turn-based) + basketball Playbook
  * @task    T-5.10 — Playbook flow UI: setup, turn screen, key-moment transition, results
  * @task    T-5.9 — Playbook hot-seat: pass-the-device screens, hidden calls, local player names
+ * @task    T-6.21 — Soccer Playbook: narration and animated pitch diagram for turn outcomes
  * @story   US-15.1 — Play a match as a series of tactical decisions
+ * @story   US-15.3 — See what happened, not read about it
  * @story   US-17.1 — Play against someone else on one device
  * @design  10-ui-ux.md §8.4 (Playbook turn), 09-modes-and-arcade.md §2.1, §2.4, §4
  * @invariant INV-5 (no sport rule here), INV-9 (the screen reads the match, never a mode flag)
@@ -17,11 +19,20 @@
  * **The screen owns the frame loop and nothing else.** Every decision it presents comes from the
  * match: the calls from `match.calls(side)`, the animation from `match.diagram(turn)`, the words
  * from `match.narrate(turn)`, the moment from `match.keyMoment()`. That is what keeps it honest
- * about INV-5 — it renders a `PlaybookAdapter` and could render soccer's tomorrow.
+ * about INV-5 — it renders a `PlaybookAdapter`, whichever sport supplied it.
  *
  * **A key moment is a phase, not a route.** Navigating away and back would lose the match, so the
  * arcade challenge is mounted into the same host and torn down again. `09` §2.4 calls it an
  * interruption, and an interruption returns you to where you were.
+ *
+ * **The sport is a parameter now** (T-6.21). This screen used to import `basketball`,
+ * `basketballSquads`, and `createBasketballPlaybook` by name, which read as harmless while there
+ * was one Playbook sport and was in fact the reason `#/play/playbook` could not reach soccer at
+ * all — the claim above that it "could render soccer's tomorrow" was true of every line except its
+ * imports. It now loads the module named on the URL and builds the match from the seam:
+ * `module.playbook` is the adapter, `adapter.squads()` turns the roster into two squads,
+ * `module.rules` is the clock, and `module.arcade` is where a key moment's mini-game comes from.
+ * Nothing below reads a sport id.
  */
 import { CanvasHost } from '../../app/canvas-host.ts';
 import { createLoop, type Loop } from '../../engine/loop.ts';
@@ -34,13 +45,8 @@ import { switchControl } from '../components/controls.ts';
 import { emptyState, errorState } from '../components/states.ts';
 import { callSheet, type CallSheetHandle } from '../components/play-call.ts';
 import { appDatabase } from '../../storage/app-db.ts';
-import { basketball } from '../../sports/basketball/index.ts';
-import {
-  basketballSquads,
-  createBasketballPlaybook,
-} from '../../sports/basketball/playbook/index.ts';
-import type { BasketballPlaybookState } from '../../sports/basketball/playbook/resolution.ts';
-import type { PlaybookMatch } from '../../modes/playbook/match.ts';
+import { loadSport } from '../../sports/playable.ts';
+import { PlaybookMatch } from '../../modes/playbook/match.ts';
 import { drawDiagram, type TurnDiagram } from '../../modes/playbook/diagram.ts';
 import { TurnPlayback, coachTakesTurn, type PacePrefs } from '../../modes/playbook/pace.ts';
 import { outcomeOf, startKeyMoment } from '../../modes/playbook/key-moment.ts';
@@ -57,7 +63,13 @@ import { reducedMotion as motionReduced } from '../../modes/arcade/accessibility
 import type { Side } from '../../engine/match/events.ts';
 import { readSetup, splitRoster } from './playbook.ts';
 
-type Match = PlaybookMatch<BasketballPlaybookState>;
+/**
+ * The match, with the sport's own between-turn state erased.
+ *
+ * Every use of it here hands the state straight back to the adapter that made it, which is exactly
+ * the contract `PlaybookState.detail` documents — the screen never reads inside it.
+ */
+type Match = PlaybookMatch<unknown>;
 
 /** What the screen is showing right now. */
 type Stage = 'calling' | 'handover' | 'moment' | 'resolving' | 'over';
@@ -72,10 +84,22 @@ export function playbookMatchScreen(): Screen {
       const view = doc.defaultView;
       const setup = readSetup(context.query);
 
+      const module = await loadSport(setup.sport);
+      const adapter = module.playbook;
+      if (adapter === undefined) {
+        context.host.replaceChildren(
+          errorState(doc, {
+            heading: 'That match could not be set up',
+            body: `${module.meta.displayName} has no Playbook yet. Pick another sport from Play.`,
+          }),
+        );
+        return;
+      }
+
       let roster;
       try {
         const { athletes } = await appDatabase();
-        roster = splitRoster(await athletes.getAll());
+        roster = splitRoster(await athletes.getAll(), module.meta.squadSize);
       } catch (error) {
         context.host.replaceChildren(
           errorState(doc, {
@@ -91,16 +115,19 @@ export function playbookMatchScreen(): Screen {
         context.host.replaceChildren(
           emptyState(doc, {
             heading: 'Not enough athletes yet',
-            body: 'Playbook needs five to field a side.',
+            body: `Playbook needs ${module.meta.squadSize} to field a side.`,
             action: { label: 'Go to the squad', href: '#/squad' },
           }),
         );
         return;
       }
 
-      const match: Match = createBasketballPlaybook({
+      const match: Match = new PlaybookMatch<unknown>({
         seed: `playbook-${Date.now()}`,
-        squads: basketballSquads(roster.home, roster.away),
+        adapter,
+        sport: module.id,
+        rules: module.rules,
+        squads: adapter.squads(roster.home, roster.away),
         playerSide: 0,
         difficulty: setup.difficulty,
         keyMoments: setup.keyMoments,
@@ -157,7 +184,8 @@ export function playbookMatchScreen(): Screen {
               el(doc, 'span', { class: 'playbook-match__points', text: `${state.score[1]}` }),
               el(doc, 'span', {
                 class: 'playbook-match__clock',
-                text: `Q${state.period} · ${clockText(state.periodClock)}`,
+                // The sport names its own period: a soccer match counts halves, not quarters.
+                text: `${periodLabel(module.meta.periodName, state.period)} · ${clockText(state.periodClock)}`,
               }),
             ],
           }),
@@ -318,7 +346,7 @@ export function playbookMatchScreen(): Screen {
           beginPlayback(match.turns.at(-1) as never);
           return;
         }
-        run = startKeyMoment(basketball.arcade ?? [], match.state, invocation, 'moment');
+        run = startKeyMoment(module.arcade ?? [], match.state, invocation, 'moment');
         if (run === null) {
           // The sport proposed a game this build does not have. Taking the sim's outcome is the
           // honest fallback; inventing one would be worse than the interruption never happening.
@@ -419,6 +447,16 @@ export function playbookMatchScreen(): Screen {
 /** A press frame while the screen is held, so an arcade moment sees a real input. */
 function inputFrame(holding: boolean, previous: InputFrame): InputFrame {
   return makeFrame(0, 0, holding ? Button.A : 0, previous);
+}
+
+/**
+ * `Q3`, `H2` — the sport's own period name, initialled to fit a scoreboard.
+ *
+ * A basketball quarter and a soccer half are the same field on `PlaybookState`, and showing `Q2` in
+ * a soccer match was the sort of small wrongness that makes a whole screen read as a port.
+ */
+export function periodLabel(periodName: string, period: number): string {
+  return `${(periodName[0] ?? 'P').toUpperCase()}${period}`;
 }
 
 /** `M:SS`, as a scoreboard shows it. */

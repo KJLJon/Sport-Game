@@ -89,8 +89,11 @@ describe('what Quick Play remembers', () => {
   });
 
   it('falls back to an available mode when the stored one is not offered for that sport', () => {
-    // Soccer's Playbook screen has not landed, so a build that once stored it must not hand it back.
-    prefs.set('play.lastMode.soccer', 'playbook');
+    // Soccer's arcade set has not landed (T-6.15, T-6.23–T-6.27), so a build that once stored it
+    // must not hand it back. This was soccer's Playbook until T-6.21 made that pairing real — the
+    // third Phase-3-style example to go stale as a sport gets finished, and it is worth expecting
+    // the rest: the behaviour is what matters, not which pairing illustrates it.
+    prefs.set('play.lastMode.soccer', 'arcade');
 
     expect(lastMode('soccer')).toBe(live);
   });

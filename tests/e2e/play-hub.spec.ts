@@ -80,7 +80,7 @@ test('a Playbook match starts from the setup screen (the hash the router can par
   page,
 }) => {
   await openHub(page);
-  await page.locator('a.play-mode--ready[href="#/play/playbook"]').click();
+  await page.locator('a.play-mode--ready[href="#/play/playbook?sport=basketball"]').click();
 
   await page.getByRole('button', { name: 'Start match' }).click();
 
@@ -89,6 +89,34 @@ test('a Playbook match starts from the setup screen (the hash the router can par
   await expect(page.locator('body')).not.toContainText("That screen doesn't exist");
   expect(page.url()).toContain('#/play/playbook/match?');
   await expect(page.locator('.play-call-sheet')).toBeVisible();
+});
+
+/**
+ * T-6.21 — soccer's Playbook, reached by tapping.
+ *
+ * The one property nothing else asserts: the sport picked on the hub survives two screens and a
+ * query string, and what comes up is a *soccer* match. Every unit test for these screens passed
+ * throughout the period when this route dead-ended, because the screens named basketball in their
+ * imports rather than in their behaviour.
+ */
+test('soccer Playbook is reachable from the hub, and it is a soccer match', async ({ page }) => {
+  await openHub(page);
+  await page.locator('label[for="play-sport-soccer"]').click();
+  await page.locator('a.play-mode--ready[href="#/play/playbook?sport=soccer"]').click();
+
+  await expect(page.locator('.playbook-setup__title')).toHaveText('Soccer Playbook');
+  await page.getByRole('button', { name: 'Start match' }).click();
+
+  await expect(page.locator('body')).not.toContainText("That screen doesn't exist");
+  expect(page.url()).toContain('sport=soccer');
+
+  // Halves of 45:00, not quarters of 12:00 — the clock is the sport module's.
+  await expect(page.locator('.playbook-match__clock')).toContainText('H1');
+  await expect(page.locator('.play-call-sheet')).toBeVisible();
+
+  // And a call resolves into a narrated turn on the diagram above it.
+  await page.locator('.play-call__input').first().click();
+  await expect(page.locator('.playbook-match__narration')).not.toBeEmpty();
 });
 
 test('Quick Play remembers the last match and starts it in one tap', async ({ page }) => {

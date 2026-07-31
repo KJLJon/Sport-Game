@@ -900,3 +900,87 @@ chain. Watching a spell go save → corner → header wide, with the xG on each 
 tense in a way the flat table never was — and a 25-yard effort from a poor finisher now misses the
 frame entirely rather than being a slightly worse coin flip, which is exactly the difference between
 a probability and a physical model. Still no way to see it but a test log; T-6.21.
+
+### T-6.21
+
+Soccer Playbook: narration and the animated pitch diagram. Two pieces on paper, three in practice —
+the third one was the whole task.
+
+**The screen was the task.** `PROGRESS.md` framed this as "narration variety plus a diagram, and by
+the way the screen imports basketball by name". That ordering was backwards. Narration variety is
+strings and the diagram is geometry; both are an afternoon. What actually mattered is that
+`src/ui/screens/playbook-match.ts` imported `basketball`, `basketballSquads`, and
+`createBasketballPlaybook` at module scope, so **no amount of soccer Playbook code could be reached
+by a player**. T-6.14, T-6.19, and T-6.20 all shipped `done` with a complete adapter behind a screen
+that could not open it — the same shape as the T-8.1 bug, one layer down: every unit test passed
+because every unit test called the adapter directly.
+
+The fix is one seam member. `PlaybookAdapter.squads(home, away)` turns a roster into two squads, and
+it is the only thing the screen could not get from what it already had:
+
+- `module.playbook` — the adapter, already on `SportModule`.
+- `module.rules` — the clock, already on `SportModule`.
+- `module.meta.squadSize` — five or eleven, already on `SportModule`. `splitRoster`'s hardcoded
+  `SQUAD_SIZE = 5` became a parameter.
+- `module.meta.periodName` — `Q1` for basketball, `H1` for soccer. A soccer match showing `Q2` is
+  the sort of small wrongness that makes a whole screen read as a port of another one.
+- `module.arcade` — where a key moment's mini-game comes from.
+
+Everything else in the screen was already sport-agnostic, which is the part of T-5.10's design that
+did hold. The sport travels on the query string (`#/play/playbook?sport=soccer`) rather than a path
+segment, because `/play/playbook/match` already owns the segment after `playbook` and a `:sport`
+pattern beside it would be two routes competing for one shape.
+
+**Narration: the material was richer than it looked.** T-6.14 left one line per outcome, so a
+twenty-two-turn match said the same eight sentences. The variants are picked by a seeded hash — the
+same one basketball's T-5.3 wrote, now shared in `modes/playbook/narration.ts`, because a stability
+property implemented twice is a property that will eventually hold in one place only. Two decisions
+worth recording:
+
+1. **The lines read the events, not the state.** `turn-facts.ts` reads the phase, the pass kind and
+   count, the shot distance and its xG, and the marked flag back off the turn's own `SportEvent`
+   stream. Reading `state.detail.phase` — which is what T-6.14's narration did — is *wrong*, and
+   subtly: the turn engine commits a turn, calls `apply()`, and only then asks the screen to
+   narrate, so `detail.phase` is the phase the **next** turn will be played in. A build-up that
+   worked was being narrated as a progression.
+2. **Templates are keyed `outcome/phase` with a fallback to `outcome`.** An advance out of the back
+   is not an advance into the final third, and a set-piece goal is not an open-play one. Merging the
+   two lists instead of falling through would have diluted the specific lines on exactly the turns
+   they were written for.
+
+**The diagram reads the formation.** Basketball's diagram lists five hand-placed spots per call
+because a half-court set is a drawing. Soccer already has eleven positions written down, so
+`rolePoint()` averages a role's `x`/`y` across every formation that names it — the same choice
+`squad.ts`'s `channelOf` makes, and for the same reason: a `PlaybookSquad` carries role ids, not the
+formation they came from. A hand-placed table here would have been a second formation definition
+that nothing keeps in step with the first.
+
+The phase animates as a block moving up the pitch: `BLOCK.base` is what everybody follows the ball
+by, and `BLOCK.forward` is the extra share a role already playing high takes, so the shape stretches
+rather than collapsing onto the ball. At `chance` a striker closes about 60% of the distance and a
+centre back about a third — enough that eleven markers do not land on top of each other, and enough
+that a build-up and a chance are visibly different pictures. Ten outfielders plus the one defender
+the turn was resolved against; twenty-two markers on a phone is a crowd, and the attacking keeper is
+never the point of a phase turn.
+
+Shot arcs come from the `SHOT` events' own `x`/`y`, mirrored into a frame where the attacking side
+always runs left-to-right. One attempt, one arc, up to three — a phase of pressure reads as three
+shots rather than one, which is what `resolvePressure` actually simulated.
+
+**Feel note.** It is legible, and it is the first time soccer's Playbook has been *watchable*: the
+block sliding up the pitch tells you which phase you are in before you read the caption, and a
+match's worth of narration no longer repeats itself. It is not yet exciting — a phase turn is
+minutes wide, so the diagram is a diagram rather than a highlight, and the two-second gap between
+"chance" and the shot arc is where the tension should be and is not. T-6.22's key moments are the
+thing that fills it; until then the honest description is "clear", not "thrilling".
+
+**Not done here, deliberately:** the soccer arcade card on the hub still says its mini-games are
+being built, because they are (T-6.15, T-6.23–T-6.27). `catalogue.ts` keeps the rule it was written
+with — availability is what a *screen* can start, not what a module supplies — and only soccer's
+Playbook row moved.
+
+**A stale test, the third of its kind.** `tests/unit/modes/last-played.test.ts` used soccer +
+Playbook as its example of a pairing the hub does not offer. It is now a real pairing, so the test
+was re-pointed at soccer + arcade rather than deleted — the behaviour still matters. Expect more of
+these; the note in `PROGRESS.md` about Phase-3 tests using soccer as an unplayable sport is the same
+pattern, and it will keep happening as each sport is finished.

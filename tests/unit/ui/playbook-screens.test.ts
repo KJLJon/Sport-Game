@@ -4,11 +4,17 @@
  * @spec    001-initial-dev
  * @phase   5 — Playbook (turn-based) + basketball Playbook
  * @task    T-5.10 — Playbook flow UI: setup, turn screen, key-moment transition, results
+ * @task    T-6.21 — Soccer Playbook: narration and animated pitch diagram for turn outcomes
  * @story   US-15.1 — Play a match as a series of tactical decisions
  * @design  10-ui-ux.md §8.4, 09-modes-and-arcade.md §2.1, §2.4, §4
  *
  * The screens' states: an empty roster, a setup that round-trips through the URL, a turn screen
  * that shows the score and a call sheet, and a match that can be played to its result.
+ *
+ * T-6.21 added the half these tests could not previously see: the same two screens, with soccer on
+ * the URL, fielding eleven a side against a soccer clock. Every basketball assertion below passed
+ * throughout the period when `#/play/playbook` could not reach soccer at all, because the screens
+ * named their sport in their imports.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -20,7 +26,11 @@ import {
 } from '../../../src/ui/screens/playbook.ts';
 import { ROUTES } from '../../../src/app/routes.ts';
 import { buildHash, parseHash, resolveRoute } from '../../../src/app/router.ts';
-import { clockText, playbookMatchScreen } from '../../../src/ui/screens/playbook-match.ts';
+import {
+  clockText,
+  periodLabel,
+  playbookMatchScreen,
+} from '../../../src/ui/screens/playbook-match.ts';
 import { appDatabase, closeAppDatabase } from '../../../src/storage/app-db.ts';
 import { deleteDatabase } from '../../../src/storage/idb.ts';
 import { athlete } from '../../helpers/athletes.ts';
@@ -63,6 +73,7 @@ afterEach(async () => {
 describe('the setup choice round-trips', () => {
   it('survives the URL it is written to', () => {
     const choice = {
+      sport: 'soccer' as const,
       difficulty: 'legend' as const,
       keyMoments: 'clutch' as const,
       speed: 'fast' as const,
@@ -81,10 +92,16 @@ describe('the setup choice round-trips', () => {
   });
 
   it('falls back to the defaults for anything a newer build wrote', () => {
-    expect(readSetup({ difficulty: 'impossible', moments: 'always', speed: 'warp' })).toEqual(
-      DEFAULT_SETUP,
-    );
+    expect(
+      readSetup({ sport: 'curling', difficulty: 'impossible', moments: 'always', speed: 'warp' }),
+    ).toEqual(DEFAULT_SETUP);
     expect(readSetup({})).toEqual(DEFAULT_SETUP);
+  });
+
+  it('carries the sport, so the hub’s choice survives to the match screen', () => {
+    expect(readSetup({ sport: 'soccer' }).sport).toBe('soccer');
+    expect(readSetup({ sport: 'basketball' }).sport).toBe('basketball');
+    expect(setupParams({ ...DEFAULT_SETUP, sport: 'soccer' })['sport']).toBe('soccer');
   });
 
   it('leaves hot seat off unless it was asked for', () => {
@@ -94,21 +111,38 @@ describe('the setup choice round-trips', () => {
 });
 
 describe('splitting a roster', () => {
-  it('refuses fewer than five', () => {
-    expect(splitRoster([])).toBeNull();
-    expect(splitRoster(Array.from({ length: 4 }, () => athlete()))).toBeNull();
+  it('refuses a roster too short for one side', () => {
+    expect(splitRoster([], 5)).toBeNull();
+    expect(
+      splitRoster(
+        Array.from({ length: 4 }, () => athlete()),
+        5,
+      ),
+    ).toBeNull();
+    // Eleven a side: ten athletes field a basketball match and not a soccer one.
+    expect(
+      splitRoster(
+        Array.from({ length: 10 }, () => athlete()),
+        11,
+      ),
+    ).toBeNull();
   });
 
   it('plays a short roster against itself rather than refusing', () => {
     const five = Array.from({ length: 5 }, () => athlete());
-    expect(splitRoster(five)?.away).toEqual(splitRoster(five)?.home);
+    expect(splitRoster(five, 5)?.away).toEqual(splitRoster(five, 5)?.home);
   });
 
-  it('gives two distinct sides once there are ten', () => {
+  it('gives two distinct sides once there are enough for both', () => {
     const ten = Array.from({ length: 10 }, (_, i) => athlete({ id: `t${i}` }));
-    const split = splitRoster(ten);
+    const split = splitRoster(ten, 5);
     expect(split?.home).toHaveLength(5);
     expect(split?.away[0]?.id).toBe('t5');
+
+    const twentyTwo = Array.from({ length: 22 }, (_, i) => athlete({ id: `s${i}` }));
+    const eleven = splitRoster(twentyTwo, 11);
+    expect(eleven?.home).toHaveLength(11);
+    expect(eleven?.away[0]?.id).toBe('s11');
   });
 });
 
@@ -246,6 +280,12 @@ describe('the turn screen', () => {
     screen.unmount?.();
   });
 
+  it('counts the sport’s own periods, not basketball’s', () => {
+    expect(periodLabel('Quarter', 1)).toBe('Q1');
+    expect(periodLabel('Half', 2)).toBe('H2');
+    expect(periodLabel('', 3)).toBe('P3');
+  });
+
   it('unmounts cleanly, and twice does not throw', async () => {
     await seedRoster(10);
     const ctx = context();
@@ -265,5 +305,67 @@ describe('the scoreboard clock', () => {
     expect(clockText(9.2)).toBe('0:10');
     expect(clockText(0)).toBe('0:00');
     expect(clockText(-4)).toBe('0:00');
+  });
+});
+
+describe('the same two screens, with soccer on the URL (T-6.21)', () => {
+  it('sets up an eleven-a-side match and says whose sport it is', async () => {
+    await seedRoster(22);
+    const ctx = context({ sport: 'soccer' });
+    await playbookScreen().mount(ctx);
+
+    expect(ctx.host.querySelector('.playbook-setup__title')?.textContent).toBe('Soccer Playbook');
+    // The same four choices `09` names — the sport is not a fifth one on this screen.
+    const legends = [...ctx.host.querySelectorAll('legend')].map((node) => node.textContent);
+    expect(legends).toEqual(['Difficulty', 'Key moments', 'Turn speed', 'Opponent']);
+  });
+
+  it('asks for eleven rather than five before it will start', async () => {
+    await seedRoster(10);
+    const ctx = context({ sport: 'soccer' });
+    await playbookScreen().mount(ctx);
+    expect(ctx.host.textContent).toContain('Not enough athletes yet');
+    expect(ctx.host.textContent).toContain('11');
+  });
+
+  it('keeps the sport on the link it starts the match from', async () => {
+    await seedRoster(22);
+    const ctx = context({ sport: 'soccer' });
+    await playbookScreen().mount(ctx);
+
+    [...ctx.host.querySelectorAll('button')]
+      .find((node) => node.textContent?.includes('Start match'))
+      ?.click();
+
+    const location = parseHash(ctx.navigated[0]!);
+    expect(resolveRoute(ROUTES, location)?.route.id).toBe('play-playbook-match');
+    expect(readSetup(location.query).sport).toBe('soccer');
+  });
+
+  it('runs a soccer turn screen on a soccer clock, with a soccer call sheet', async () => {
+    await seedRoster(22);
+    const ctx = context({ sport: 'soccer', moments: 'off' });
+    const screen = playbookMatchScreen();
+    await screen.mount(ctx);
+
+    // Halves of 45:00, not quarters of 12:00 — the clock comes from the sport module.
+    expect(ctx.host.querySelector('.playbook-match__clock')?.textContent).toMatch(/H1 · 45:00/);
+    // And the calls are soccer's intent chips, which basketball has none of.
+    expect(ctx.host.querySelectorAll('.play-call__input').length).toBeGreaterThan(3);
+    screen.unmount?.();
+  });
+
+  it('plays a turn through, and narrates it', async () => {
+    await seedRoster(22);
+    const ctx = context({ sport: 'soccer', moments: 'off', speed: 'instant' });
+    const screen = playbookMatchScreen();
+    await screen.mount(ctx);
+
+    ctx.host.querySelector<HTMLInputElement>('.play-call__input')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(ctx.host.querySelector('.playbook-match__clock')?.textContent).toBeDefined();
+    expect(ctx.host.querySelector('[aria-live="polite"]')).not.toBeNull();
+    screen.unmount?.();
   });
 });

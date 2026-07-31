@@ -62,7 +62,7 @@ describe('the play hub', () => {
     const links = [...ctx.host.querySelectorAll<HTMLAnchorElement>('a.play-mode--ready')];
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '#/play/live/basketball',
-      '#/play/playbook',
+      '#/play/playbook?sport=basketball',
       '#/play/arcade',
     ]);
   });
@@ -74,11 +74,16 @@ describe('the play hub', () => {
     soccer!.checked = true;
     soccer!.dispatchEvent(new Event('change'));
 
+    // Soccer reaches Live and Playbook; its arcade set is T-6.15 and T-6.23–T-6.27, and the card
+    // for it says so rather than disappearing (`10` §10).
     const links = [...ctx.host.querySelectorAll<HTMLAnchorElement>('a.play-mode--ready')];
-    expect(links.map((link) => link.getAttribute('href'))).toEqual(['#/play/live/soccer']);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '#/play/live/soccer',
+      '#/play/playbook?sport=soccer',
+    ]);
 
     const pending = [...ctx.host.querySelectorAll('.play-mode__pending')];
-    expect(pending).toHaveLength(2);
+    expect(pending).toHaveLength(1);
     expect(pending.every((node) => (node.textContent ?? '').length > 0)).toBe(true);
   });
 
