@@ -1414,3 +1414,61 @@ be one game with five pictures.
    an honest temporary shortcut. Rather than work around it, there is now a test asserting the
    shortcut *is still in force*, so the commit that flips the flag has to come here and invert this
    test rather than discovering the change in the hub.
+
+---
+
+### T-6.22 — closed
+
+The key-moment half, written once all five mini-games existed. The CPU half is above, from the
+earlier session; this is what finished the row.
+
+**Four of `09` §2.4's five soccer moments are wired, and the fifth has no trigger to give it.**
+
+| Moment | Game | What it reads |
+|---|---|---|
+| Direct free kick | `soccer.free-kick` | a shot from the `setPiece` phase, played *without* width |
+| Header from a cross | `soccer.header` | a shot with the attacking side's width intent set to `wide` |
+| One-on-one | `soccer.one-on-one` | a `chance`-phase shot the shooting model rates ≥ 0.18 xG |
+| Goal-line save | `soccer.last-line` | the **defending** player, and the shot was on target |
+| Penalty | — | **nothing.** See below. |
+
+**Why the penalty stays unwired, and where it actually belongs.** Soccer's Playbook resolves a phase
+into `advance · chance · corner · goal · saved · off-target · blocked · lost`. There are **no fouls
+in the model**, so nothing can award a spot kick. The available fake was to invent a foul roll inside
+the key-moment detector, which would have put a rules change in the wrong file and made Playbook and
+Live disagree about how often penalties happen. The Penalty Shootout's real home is the shootout that
+decides a match still level after extra time — which `index.ts`'s `isFinished` has named as missing
+since T-6.14 and which needs match-level support, not a moment. There is a test asserting the
+mapping table does *not* contain it, so the gap is a decision rather than an oversight.
+
+**Width outranks phase, deliberately.** A cross swung into the box from a corner is a header, not a
+free kick, and the player *asked for the cross* — reading a call they made beats reading a hidden
+roll. The ordering has its own test because it is the one thing about detection that is not obvious
+from the table.
+
+**The defending moment inverts `made`, and that is the most breakable line in the file.** `made`
+always means "the player did their job". Attacking, that is a goal; in goal, it is a shot **kept
+out**. Getting it backwards would score the entire defending half of the mode exactly wrong, every
+test in the project would still pass, and the symptom — conceding when you save — would look like a
+bug in the mini-game. It has its own test that says so in as many words.
+
+**Tuned against a probe, like the mini-games.** Detection fired on synthetic resolutions but the
+real question is what a real match produces. Thirty simulated matches, ~25 turns each:
+
+| | before | after |
+|---|---|---|
+| `last-line` | 2.70 / match | 2.70 |
+| `header` | 0.93 | 0.93 |
+| `free-kick` | 0.90 | 0.90 |
+| `one-on-one` | **0.13** | **0.73** |
+
+`CLEAR_CHANCE` started at 0.3 xG, which made the marquee soccer moment appear roughly **once every
+eight matches**. At 0.18 the whole set is about one moment every five turns, which is what "Standard"
+should feel like. A trimmed version of that probe is now a test: it asserts all four moments actually
+fire across twelve simulated matches, because detection reads `detail.phase` and `detail.chance` off
+events `resolution.ts` builds, and a rename on either side would zero a moment out in total silence.
+
+**A note for T-6.18.** The rates above are a first pass, not a balance decision. `last-line` at 2.7 a
+match is three times either attacking moment, because the player defends half the time and shots on
+target are common; whether that is the right feel is a question for the balance pass with a phone in
+hand, not for a unit test.

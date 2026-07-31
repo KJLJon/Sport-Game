@@ -40,6 +40,7 @@ import type {
   CallOption,
   CallPair,
   KeyMomentFrequency,
+  KeyMomentOutcome,
   NarrationLine,
   PlaybookAdapter,
   PlaybookCall,
@@ -61,6 +62,7 @@ import {
   type SoccerIntents,
 } from './intents.ts';
 import { cpuCall } from './cpu.ts';
+import { applyKeyMomentOutcome, detectKeyMoment } from './key-moments.ts';
 import { buildDiagram } from './diagram.ts';
 import { narrateTurn } from './narration.ts';
 import { OPENING_PHASE, nextPhase, type SoccerPhase } from './phases.ts';
@@ -190,13 +192,28 @@ export const soccerPlaybook: SoccerPlaybook = {
   },
 
   /**
-   * No key moments yet. **T-6.22 owns them** and `09` §2.4's soccer row — penalty, direct free
-   * kick, one-on-one, header from a cross, goal-line save — needs the arcade games T-6.15 and
-   * T-6.23–T-6.26 build, none of which exist. Proposing a moment whose mini-game is missing would
-   * make the screen fall back to the sim's outcome on every turn, which is worse than not asking.
+   * `09` §2.4's soccer row (T-6.22), now that T-6.15 and T-6.23–T-6.26 have built the games.
+   *
+   * **Four of the five, and the fifth has no trigger to give it.** The Playbook model has no fouls,
+   * so it can never award a penalty; inventing one inside a key-moment detector would put a rules
+   * change in the wrong file and make Playbook and Live disagree about how often penalties happen.
+   * The Penalty Shootout's real home is the shootout that decides a match still level after extra
+   * time — see `isFinished` below, and `PROGRESS.md`.
    */
-  keyMoment(): ArcadeInvocation | null {
-    return null;
+  keyMoment(
+    state: PlaybookState<SoccerPlaybookState>,
+    resolution: TurnResolution,
+  ): ArcadeInvocation | null {
+    return detectKeyMoment(state, resolution);
+  },
+
+  /** The mini-game's result, back into the turn — rebuilt rather than patched (INV-9). */
+  applyKeyMoment(
+    state: PlaybookState<SoccerPlaybookState>,
+    resolution: TurnResolution,
+    outcome: KeyMomentOutcome,
+  ): TurnResolution {
+    return applyKeyMomentOutcome(state, resolution, outcome);
   },
 
   /**
