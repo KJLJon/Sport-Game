@@ -13,10 +13,39 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 ## In-flight
 
 - **Task:** T-6.22 — Soccer Playbook: key moments → arcade, and the Playbook CPU's call selection
-- **Status:** todo. **17 of 27 Phase 6 tasks `done`** (T-6.1 – T-6.14, T-6.19 – T-6.21). Tree clean
-  and pushed.
-- **Branch:** `claude/phase-6-completion-ivvo6c`. PRs #9 and #10 are merged; this branch started
-  from `main` at `a43b5e7`.
+- **Status:** `in_progress`. **Its CPU half is done and pushed; its key-moment half is blocked.**
+  **17 of 27 Phase 6 tasks `done`** (T-6.1 – T-6.14, T-6.19 – T-6.21). Tree clean and pushed.
+- **Branch:** `claude/phase-6-completion-ivvo6c`, PR #11 (draft). PRs #9 and #10 are merged.
+
+### T-6.22, and why it is parked half-finished rather than marked done
+
+**Done: the CPU** (`src/sports/soccer/playbook/cpu.ts`). It replaces `baselineCall`, which set each
+dimension to whatever its own squad was built for and never looked across the halfway line. The new
+one scores each of the four dimensions its role is asked about, reads the opponent over a ten-turn
+window, and samples at its difficulty's temperature. `baselineCall` was not deleted — it moved to
+`adapter.coach`, which is exactly the shape `modes/playbook/types.ts` asks a coach to be, and the
+distinction is the point: Auto-call must not quietly out-think the opponent the player is facing.
+
+**Blocked: the key moments.** `09` §2.4's soccer row is penalty, direct free kick, one-on-one,
+header from a cross, goal-line save — **five arcade games, none of which exist**. T-6.15 and
+T-6.23–T-6.27 build them. `soccerPlaybook.keyMoment()` still returns `null` and still says why in
+its own comment: `startKeyMoment` falling back to the sim on every single turn is a worse experience
+than never being offered a moment at all, so proposing one now would be a regression dressed as
+progress.
+
+- **Next step, and it is a straight line:** **T-6.15 — Penalty Shootout** (`M`, size-checked, and
+  the dependency root of T-6.23–T-6.27). Build it against `ArcadeGameDef` in
+  `src/modes/arcade/types.ts`; `calibrate(athlete, difficulty)` is the whole of INV-10 and the
+  signature deliberately has nowhere for a personal best to arrive. Basketball's set in
+  `src/sports/basketball/arcade/` is the model. Then T-6.23–T-6.26 (Free Kick, One-on-One, Header,
+  Last Line), then **T-6.27** registers them, and **only then** finish T-6.22 by wiring
+  `keyMoment()`/`applyKeyMoment()` and closing this row.
+- **Then:** T-6.16 (art & audio), T-6.17 (engine-core refactor audit — `maxOvertimePeriods` is the
+  known one), T-6.18 (balance pass, which is also where INV-11's soccer parity run belongs), then
+  the Gate 6 record.
+- **Note for T-6.18:** `pnpm balance` is **basketball's Live harness only**. Soccer's Playbook turn
+  budget is asserted in `tests/unit/sports/soccer/playbook/adapter.test.ts` instead. A soccer row in
+  the balance tool is part of T-6.18's job, not something already there.
 
 ### T-6.21 is done, and it was not the task it looked like
 
@@ -305,7 +334,7 @@ there; this file is read at every session start and the notes file only when you
 | T-6.19 | Soccer Playbook: intent controls — tempo, width, risk, press, focus | M | `done` | | `tests/unit/sports/soccer/playbook/intents.test.ts` | `auto` — headless, no screen reaches it yet | Five dimensions, and **each side holds all five** — what changes with possession is which of them speak. Settled T-6.14's open question with an optional `intents` map on `PlaybookCall`, not a composite id. Every middle option is exactly neutral, which is what keeps the turn budget true. [notes](./notes/phase-6.md#t-619) |
 | T-6.20 | Soccer Playbook: resolution model, reusing Live's shooting and passing | L | `done` | | `tests/unit/sports/soccer/playbook/model.test.ts` | `auto` — headless, no screen reaches it yet | Soccer's Live models have no probability to borrow, so the reuse is **composition** — `placementError`, `shotSpeed`, `keeperSpot`, `saveOutcome`, `passError`. **`MODEL_CALIBRATION` came out zero**: the Live passing model lands the turn count in `09` §2.3's band on its own. [notes](./notes/phase-6.md#t-620) |
 | T-6.21 | Soccer Playbook: narration and animated pitch diagram for turn outcomes | M | `done` | | `tests/unit/sports/soccer/playbook/{narration,diagram}.test.ts`, `tests/unit/ui/playbook-screens.test.ts`, `tests/e2e/play-hub.spec.ts` | `auto` + E2E from the hub, by tapping | **The screen was the task.** `playbook-match.ts` imported basketball by name, so `#/play/playbook` could not reach soccer at all; `PlaybookAdapter.squads()` is the seam change that fixed it. The diagram reads its shape from `formations.ts`, so a 4-3-3 draws as one. [notes](./notes/phase-6.md#t-621) |
-| T-6.22 | Soccer Playbook: key moments → arcade, and the Playbook CPU's call selection | M | `todo` | | | | |
+| T-6.22 | Soccer Playbook: key moments → arcade, and the Playbook CPU's call selection | M | `in_progress` | | `tests/unit/sports/soccer/playbook/cpu.test.ts` | `auto` | **CPU half done**, key-moment half **blocked on the arcade set** (T-6.15, T-6.23–T-6.27) and deliberately not faked. Four dimensions scored and sampled independently; one counter table (press × tempo) because `IntentEffect` cannot say "against". [notes](./notes/phase-6.md#t-622) |
 | T-6.23 | Soccer arcade: Free Kick | M | `todo` | | | | |
 | T-6.24 | Soccer arcade: One-on-One | M | `todo` | | | | |
 | T-6.25 | Soccer arcade: Header | M | `todo` | | | | |

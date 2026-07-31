@@ -992,3 +992,79 @@ Playbook as its example of a pairing the hub does not offer. It is now a real pa
 was re-pointed at soccer + arcade rather than deleted — the behaviour still matters. Expect more of
 these; the note in `PROGRESS.md` about Phase-3 tests using soccer as an unplayable sport is the same
 pattern, and it will keep happening as each sport is finished.
+
+### T-6.22
+
+Key moments → arcade, and the Playbook CPU's call selection. **The CPU half is done; the key-moment
+half is parked, and the parking is the decision worth recording.**
+
+**Why it is parked.** `09` §2.4's soccer row is five mini-games — penalty, direct free kick,
+one-on-one, header from a cross, goal-line save — and none of them exist. T-6.15 and T-6.23–T-6.27
+build them. `startKeyMoment()` already handles the "sport proposed a game this build does not have"
+case by taking the sim's outcome, so wiring `keyMoment()` now would *work*, in the sense of not
+crashing: it would interrupt the player on every shooting phase and then quietly resolve it for
+them. That is worse than not being offered a moment, and it would also make the feature look done
+when the thing it exists for is missing. `keyMoment()` keeps returning `null` and keeps explaining
+itself in its own comment.
+
+**`baselineCall` was not replaced — it was reclassified.** It moved to `adapter.coach` unchanged.
+T-6.14 wrote it as a stand-in for a CPU, but what it actually is is a *coach*: it scores its own
+squad's fit for each option and never looks at the opponent. That is precisely the line
+`modes/playbook/types.ts` draws — `coach` answers "what suits us" for a human who left Auto-call on,
+`autoCall` also reads the opponent — and soccer's Playbook now has both, where before it had one
+function doing the easier job under the harder name.
+
+**Four decisions, not one.** Basketball's CPU picks one call from a sheet and its whole design
+follows from that. Soccer's picks a value on each of four dimensions, scored and sampled
+independently. Bundling them into composite calls was the alternative and it is wrong twice: it
+invents thirty-six "calls" the player never sees, and it asserts a dependency between decisions that
+is not there — deciding to press high says nothing about how wide to play.
+
+**Three things the score is made of**, all in the same units the intent effects are written in
+(`INTENT_OPTIONS`' figures are 0.05-ish, deliberately):
+
+1. `phaseValue` — what the option is worth *in the phase actually being played*. A build-up is
+   decided by `climb` and nothing else, so an option chosen for what it does to a shot is a wasted
+   decision there. This is most of what separates the CPU from `baselineCall`, which scored every
+   option identically in every phase of the match.
+2. `squadFit` — a 20-point rating edge on what the option asks for is worth 0.05, so ratings and
+   tactics matter about equally (`09` §2.2).
+3. `clockValue` — the one piece of match awareness it has, and the one every real coach has: a side
+   in front wants the clock gone, a side behind wants turns. `duration` is the only effect about
+   time rather than probability, so it is priced separately.
+
+**The one counter table, and why there is exactly one.** `IntentEffect` says what an option is worth
+*on its own*. It has no way to say "against", and `09` §2.3 describes precisely one genuine
+counter in words: a high press wins the ball high against a side that plays out, and is bypassed by
+one that goes long. So `PRESS_COUNTERS` is written down as a table rather than smuggled into a
+number that means something else. It is symmetrical by construction — every row and column sums to
+zero, which a test asserts — so a read is a redistribution and never a free gain, and a CPU facing a
+balanced opponent chooses on the merits alone.
+
+**`READ_WEIGHT` was sized, not picked, and the first value was wrong.** At 0.06 the read never
+flipped a call: in a build-up, a high press denies `climb` 0.08 and a deep block concedes 0.05, so
+the intrinsic gap is **0.13**, while the counters at ±1 moved the two apart by only `2 × 0.06` =
+0.12. The test that caught it is the one asserting the CPU drops off against a direct-playing side,
+and it failed by 0.01 — a soft counter that can never actually change a decision is decoration.
+At **0.08** the spread is 0.16: enough to flip, and only when the tendency is near-total. A
+20-point rating edge is 0.1 across two options, so a side genuinely built to press still presses
+through a read telling it not to. That is the right way round, and it is what "ratings beat
+mind-games" has to mean numerically.
+
+**The read window is ten, not basketball's twelve.** A soccer Playbook match is 22 turns where a
+basketball one is near 200. Twelve turns would be half the match and no longer a *recent* tendency
+at all. Ten is about a half, which is the unit a coach actually adjusts on.
+
+**A test that could not be written the obvious way.** "A Legend CPU beats a Rookie one over a batch"
+is how basketball's ladder is asserted, and it is meaningless here: `simulatePlaybookMatch` puts one
+difficulty on the state and *both* sides read it, so a CPU-vs-CPU batch at Legend is Legend against
+Legend. What the ladder actually moves is the sampling temperature, so what the test measures is how
+often the CPU takes the option its own scoring rated best — monotone down the ladder, and 25
+percentage points between the ends. Paired with the INV-1 test that no rating on either side differs
+by difficulty, that is the real claim: it gets better by choosing better.
+
+**Feel note.** Not playable yet by a human against it — the turn screen exists, so it is, but I have
+only watched simulated matches. What is visible in those is that the CPU now *changes its mind*: a
+side that plays out from the back for a spell gets pressed, and stopping doing that stops the press
+within a few turns. That is the loop `09` §2.2 describes and it is legibly there. Whether it is fun
+to play against depends entirely on the key moments that are still missing.

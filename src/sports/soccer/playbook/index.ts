@@ -60,6 +60,7 @@ import {
   optionsFor,
   type SoccerIntents,
 } from './intents.ts';
+import { cpuCall } from './cpu.ts';
 import { buildDiagram } from './diagram.ts';
 import { narrateTurn } from './narration.ts';
 import { OPENING_PHASE, nextPhase, type SoccerPhase } from './phases.ts';
@@ -106,20 +107,18 @@ function callsFor(state: PlaybookState<SoccerPlaybookState>, side: Side): readon
 }
 
 /**
- * A baseline opponent, so a match can be played and simulated. **T-6.22 owns the Playbook CPU** and
- * replaces this with one that reads the human's tendencies and answers per difficulty.
+ * The assistant coach: what suits *us*, with no reference to the opponent at all.
  *
- * What it does now is set each dimension to the option its own squad is built for, scoring every
- * option by the ratings it names (`IntentOption.keys`) with a seeded wobble, and taking the best.
- * That is one honest coach and a deliberately unobservant opponent: it never looks at what the other
- * side is doing, which is exactly the line `modes/playbook/types.ts` draws between `coach` and
- * `autoCall` and the gap T-6.22 fills.
+ * This was `baselineCall` and stood in for the CPU until T-6.22 wrote a real one. It is not dead
+ * code and it did not need rewriting — it is exactly the shape `modes/playbook/types.ts` asks
+ * `coach` to be. The distinction the seam draws is the whole point: `coach` answers "what suits us"
+ * for a human who has left Auto-call on, and `autoCall` (now `cpu.ts`) also reads the opponent. A
+ * toggle the player leaves on must not quietly out-think the opponent they are playing.
+ *
+ * What it does is set each dimension to the option its own squad is built for, scoring every option
+ * by the ratings it names (`IntentOption.keys`) with a seeded wobble, and taking the best.
  */
-function baselineCall(
-  state: PlaybookState<SoccerPlaybookState>,
-  side: Side,
-  rng: Rng,
-): PlaybookCall {
+function coachCall(state: PlaybookState<SoccerPlaybookState>, side: Side, rng: Rng): PlaybookCall {
   const role = roleOf(state, side);
   const players = state.squads[side === 1 ? 1 : 0].players;
   const mean = (keys: readonly string[]): number =>
@@ -261,7 +260,11 @@ export const soccerPlaybook: SoccerPlaybook = {
     drainStamina(state.squads[defending].players, composeEffect(defIntents, 'defence').effort);
   },
 
-  autoCall: baselineCall,
+  /** The opponent (T-6.22): scores each dimension, reads the other side, samples per difficulty. */
+  autoCall: cpuCall,
+
+  /** The assistant coach — what suits us, and deliberately blind to what they are doing. */
+  coach: coachCall,
 };
 
 /**
@@ -314,5 +317,14 @@ export { PHASE_ODDS, phaseOutcomeOf, resolvePhaseTurn } from './resolution.ts';
 export { soccerSquad } from './squad.ts';
 export { soccerSquads };
 export { buildDiagram } from './diagram.ts';
+export {
+  PRESS_COUNTERS,
+  SOCCER_READ_WINDOW,
+  cpuCall,
+  markTarget,
+  readIntents,
+  scoreDimension,
+  temperatureFor,
+} from './cpu.ts';
 export type { SoccerPhase } from './phases.ts';
 export type { SoccerPlaybookState } from './resolution.ts';
