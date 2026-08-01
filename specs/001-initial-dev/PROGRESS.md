@@ -12,19 +12,25 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-7.2 — role system. **`done`** and pushed. Phase 7 is 4 of 11 (T-7.1, T-7.2, T-7.7,
-  T-7.8). PR **#15** is open as a draft.
-- **Branch:** `claude/continue-building-isc6sx`, off `main` at `826ed25` (`v0.6.0` deployed; the
-  user has played it).
-- **Next step:** `pnpm -s next` — **T-7.3 (team coordination, XL)** is now unblocked and is the
-  critical path to T-7.4 and T-7.5. It is the one that consumes `engine/ai/roles.ts`; until it
-  lands, the duty tables are a seam with no reader. T-7.6 (Playbook AI depth) and T-7.9 (CPU team
-  generation, `haiku`) are ready and independent of it.
+- **Task:** T-7.3 — team coordination. **`done`** and pushed. Phase 7 is 5 of 11 (T-7.1, T-7.2,
+  T-7.3, T-7.7, T-7.8).
+- **Branch:** `claude/continue-building-di8hng`, off `main` at `0036a29` (PR #15 merged; `v0.6.0`
+  is what the user has played).
+- **Next step:** `pnpm -s next` — **T-7.4 (basketball Live AI depth)** and **T-7.5 (soccer Live AI
+  depth)** are both unblocked by T-7.3 and are where the team layer acquires a reader. T-7.5 is the
+  one that closes the open finding below. T-7.6, T-7.9, T-7.10 remain ready and independent.
+- **What T-7.3 landed:** `src/engine/ai/team.ts` — `createTeam(...).plan(situation)` returns one
+  `Assignment` per athlete (job, intent, target, mark, urgency) from the duty table, the phase
+  clock, the block, the press, the marks, and the help line. `src/engine/ai/marking.ts` holds the
+  one-to-one matching and its stickiness. **No sport reads it yet** — that is precisely T-7.4/T-7.5,
+  and the layer is tested against both real duty tables so the seam is known to fit.
 - **Open finding carried into Phase 7 and still open:** Live soccer scores 7.5 goals a match on 16.9
   shots (band 1.2–5.5) at 44.5% conversion. T-7.7's reaction gate fixed the *volume* half — 58.5
   shots down to 16.9, inside band — and what is left is that nobody stops the carrier walking into
   the box, so the shots taken are from on top of the keeper. **T-7.5** (press lines, defensive
-  shape) is where that closes; T-7.11 measures it again.
+  shape) is where that closes; T-7.11 measures it again. T-7.3 made it *answerable* — the carrier is
+  marked before anything else and a named athlete is sent at the ball — but nothing in soccer reads
+  a plan yet, so the finding is unchanged until T-7.5.
 - **Also fixed this session:** soccer's `Shoot` and `Pass` buttons had never been wired to anything
   — the CPU decision ran for the player's carrier too. That is a direct answer to half of the
   user's "not easy to control", and it is worth asking them to try soccer again once tagged.
@@ -263,7 +269,7 @@ there; this file is read at every session start and the notes file only when you
 |---|---|---|---|---|---|---|---|
 | T-7.1 | Utility-scoring decision framework shared across sports and modes | L | `done` | | `tests/unit/engine/ai-{utility,decider}.test.ts` | `auto` — 32 unit tests | Considerations multiply so a veto is fatal, and difficulty enters only as score jitter and reaction latency (INV-1). [notes](./notes/phase-7.md#t-71) |
 | T-7.2 | Role system: per-sport role tables driving off-ball movement and responsibility | L | `done` | | `tests/unit/engine/ai-roles.test.ts` | `auto` — 27 unit tests | Anchor, ball-shade, leash, and a named job per role per phase; basketball’s table is literal, soccer’s is derived from its formations. [notes](./notes/phase-7.md#t-72) |
-| T-7.3 | Team coordination: formation shape, phase of play, pressing triggers, help defence, transition | XL | `todo` | | | | |
+| T-7.3 | Team coordination: formation shape, phase of play, pressing triggers, help defence, transition | XL | `done` | | `tests/unit/engine/ai-{team,marking}.test.ts` | `auto` — 51 unit tests, including both real duty tables | One `plan()` per side per tick turns eleven duties into eleven assignments: the block, a named press, sticky one-to-one marks, and help that never comes off the ball. [notes](./notes/phase-7.md#t-73) |
 | T-7.4 | Basketball Live AI depth: pick-and-roll, cuts, zone vs man, rating-driven shot selection | L | `todo` | | | | |
 | T-7.5 | Soccer Live AI depth: build-up phases, press lines, offside trap, counter-attacks | L | `todo` | | | | |
 | T-7.6 | Playbook AI depth for both sports: tendency modelling, counter-calling | L | `todo` | | | | |

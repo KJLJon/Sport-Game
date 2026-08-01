@@ -18,8 +18,14 @@ import {
   type TeamActor,
   type TeamOptions,
   type TeamPlan,
+  type TeamShape,
   type TeamSituation,
 } from '../../../src/engine/ai/team.ts';
+import { BASKETBALL_DUTIES } from '../../../src/sports/basketball/duties.ts';
+import { COURT } from '../../../src/sports/basketball/court.ts';
+import { SOCCER_TRANSITION_STEPS, soccerDuties } from '../../../src/sports/soccer/duties.ts';
+import { DEFAULT_FORMATION, formation } from '../../../src/sports/soccer/formations.ts';
+import { PITCH } from '../../../src/sports/soccer/pitch.ts';
 
 const FIELD = { width: 100, height: 50 };
 const TRANSITION_STEPS = 10;
@@ -450,5 +456,135 @@ describe('determinism', () => {
     expect(plan.assignments).toEqual([]);
     expect(plan.pressers).toEqual([]);
     expect(plan.pressing).toBe(false);
+  });
+});
+
+/**
+ * The layer against the two real duty tables it was written for. Not the sports' AI — that is T-7.4
+ * and T-7.5 — but the seam itself: eleven soccer roles and five basketball ones, on their own field
+ * sizes, all coming back with somewhere legal to stand.
+ */
+describe('the two real tables', () => {
+  const PITCH_FIELD = { width: PITCH.length, height: PITCH.width };
+  const COURT_FIELD = { width: COURT.length, height: COURT.width };
+
+  const soccerTeam = (shape: Partial<TeamShape> = {}) =>
+    createTeam({
+      side: 0,
+      table: soccerDuties(),
+      field: PITCH_FIELD,
+      transitionSteps: SOCCER_TRANSITION_STEPS,
+      goal: { x: 0, y: 0.5 },
+      shape,
+    });
+
+  const eleven = (): TeamActor[] =>
+    formation(DEFAULT_FORMATION).roles.map((role, index) =>
+      actor(index + 1, role.id, role.x * PITCH_FIELD.width, role.y * PITCH_FIELD.height),
+    );
+
+  const theirs = (): Opponent[] =>
+    formation(DEFAULT_FORMATION).roles.map((role, index) =>
+      opponent(100 + index, (1 - role.x) * PITCH_FIELD.width, role.y * PITCH_FIELD.height),
+    );
+
+  it('gives all eleven a job and keeps every one of them on the pitch', () => {
+    const coordinator = soccerTeam({ spacing: 3 });
+    const mates = eleven();
+    let plan = coordinator.plan({
+      mates,
+      opponents: theirs(),
+      ball: { x: 40, y: 34 },
+      possession: 1,
+      carrier: 100,
+    });
+    for (let step = 0; step < SOCCER_TRANSITION_STEPS; step++) {
+      plan = coordinator.plan({
+        mates,
+        opponents: theirs(),
+        ball: { x: 40, y: 34 },
+        possession: 1,
+        carrier: 100,
+      });
+    }
+
+    expect(plan.phase).toBe(PlayPhase.DEFEND);
+    expect(plan.assignments).toHaveLength(mates.length);
+    for (const assignment of plan.assignments) {
+      expect(assignment.target.x).toBeGreaterThanOrEqual(0);
+      expect(assignment.target.x).toBeLessThanOrEqual(PITCH_FIELD.width);
+      expect(assignment.target.y).toBeGreaterThanOrEqual(0);
+      expect(assignment.target.y).toBeLessThanOrEqual(PITCH_FIELD.height);
+    }
+  });
+
+  it('answers the v0.6.0 finding: somebody is always on the carrier in the box', () => {
+    const coordinator = soccerTeam({ pressCount: 1, pressLine: 0.5, helpCount: 1 });
+    const mates = eleven();
+    // Their striker on the penalty spot, which is where the goals were coming from.
+    const attackers = [opponent(100, 11, 34), ...theirs().slice(1)];
+
+    let plan = coordinator.plan({
+      mates,
+      opponents: attackers,
+      ball: { x: 11, y: 34 },
+      possession: 1,
+      carrier: 100,
+    });
+    for (let step = 0; step < SOCCER_TRANSITION_STEPS; step++) {
+      plan = coordinator.plan({
+        mates,
+        opponents: attackers,
+        ball: { x: 11, y: 34 },
+        possession: 1,
+        carrier: 100,
+      });
+    }
+
+    expect(plan.pressers).toHaveLength(1);
+    const marked = plan.assignments.some((assignment) => assignment.mark === 100);
+    expect(marked).toBe(true);
+    expect(plan.assignments.some((assignment) => assignment.intent === TeamIntent.HELP)).toBe(true);
+  });
+
+  it('runs the five basketball roles on a court a quarter of the size', () => {
+    const coordinator = createTeam({
+      side: 0,
+      table: BASKETBALL_DUTIES,
+      field: COURT_FIELD,
+      transitionSteps: 60,
+      shape: { spacing: 1.5, compactness: 0.1, pressCount: 1, pressRange: 8, markStandoff: 0.8 },
+    });
+
+    const mates = ['PG', 'SG', 'SF', 'PF', 'C'].map((role, index) =>
+      actor(index + 1, role, 6 + index, 3 + index * 2),
+    );
+    const them = mates.map((mate, index) => opponent(20 + index, mate.x + 2, mate.y));
+
+    let plan = coordinator.plan({
+      mates,
+      opponents: them,
+      ball: { x: 8, y: 7 },
+      possession: 1,
+      carrier: 20,
+    });
+    for (let step = 0; step < 60; step++) {
+      plan = coordinator.plan({
+        mates,
+        opponents: them,
+        ball: { x: 8, y: 7 },
+        possession: 1,
+        carrier: 20,
+      });
+    }
+
+    expect(plan.assignments).toHaveLength(5);
+    expect(
+      plan.assignments.filter((assignment) => assignment.mark !== null).length,
+    ).toBeGreaterThan(0);
+    for (const assignment of plan.assignments) {
+      expect(assignment.target.x).toBeLessThanOrEqual(COURT_FIELD.width);
+      expect(assignment.target.y).toBeLessThanOrEqual(COURT_FIELD.height);
+    }
   });
 });

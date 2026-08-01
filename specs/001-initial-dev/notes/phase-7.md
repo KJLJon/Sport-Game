@@ -231,3 +231,53 @@ metres and takes correspondingly longer to be in the wrong shape about it.
 **Not wired to either sport yet, deliberately.** The duties are the seam T-7.3 (team coordination)
 consumes and T-7.4/T-7.5 act on. Wiring off-ball movement to them without the team layer above would
 mean two sources of truth for where an athlete stands, which is worse than one that is too simple.
+
+### T-7.3
+
+*Team coordination: formation shape, phase of play, pressing triggers, help defence, transition*
+
+**One call per side per tick.** `createTeam({side, table, field, transitionSteps, shape}).plan(situation)`
+returns an `Assignment` per athlete — job, intent, target, mark, urgency — and that is the whole
+interface T-7.4 and T-7.5 build on. The sport passes where everybody is and who has the ball; it
+gets back where everybody should be and what for. Nothing in `engine/ai/team.ts` knows what a sport
+is (INV-5) and nothing in it draws a number (INV-2, INV-8): the plan is a pure function of the
+situation plus two pieces of remembered state, the possession clock and last tick's marks.
+
+**Four things a duty table cannot say, which is why this layer exists at all.**
+
+1. *Shape is a team property.* Every one of eleven roles can be individually correct and the block
+   still be forty metres too long. `compact()` pulls every target towards the unit's own centroid,
+   and it is applied only when the team does not have the ball — compacting an attack is how a
+   build-up turns into eleven athletes standing in one half.
+2. *Somebody has to go.* Roles all shading towards the ball is not a press, it is eleven people
+   watching. The press names a few — ranked by `distance / urgency`, so the role that is *supposed*
+   to go beats the one that happens to be a metre closer — and everybody else keeps the shape behind
+   them. Triggers are the press line (a fraction of the field, `06` §7's passive → relentless row)
+   plus a `trigger` flag the sport raises for cues the engine cannot see: a heavy touch, a pass
+   played backwards.
+3. *Marks are one-to-one.* `marking.ts` matches defenders to attackers greedily, danger first, and
+   — the part that matters — *keeps* the match: an incumbent's cost is discounted by `hysteresis`
+   metres. Re-running a nearest-first match every tick is what produces two defenders trading marks
+   as an attacker crosses between them, both turning, and the attacker walking through the gap they
+   just made for each other. Greedy rather than optimal on purpose: optimal matching happily sends
+   one defender sprinting across the pitch so two others save a metre each.
+4. *Help costs something.* A helper is a defender who has left their man, so help is capped by
+   `helpCount`, never comes off the carrier's marker, and stands on the carrier-to-goal segment at
+   `helpDepth` rather than running at the ball.
+
+**The v0.6.0 finding is now structurally answerable.** Live soccer conceded 7.5 goals a match because
+nobody stopped the carrier walking into the box. Two of this layer's outputs are exactly that:
+the carrier has `danger: 1` so it is picked up before anybody argues about the rest, and the press
+sends a named athlete at the ball. There is a test for the penalty-spot case. It is *answerable*,
+not answered — until T-7.5 turns an assignment into steering, no soccer athlete reads any of this.
+
+**A loose ball is not a change of possession.** It is the *question* of one. Counting it as an answer
+restarts the transition clock twice on every deflection, and transition is the phase whose whole
+value is that it lasts a known number of steps.
+
+**A role the table has never heard of gets no assignment**, rather than a plausible made-up one. The
+sport keeps whatever it was doing and the missing row is visible instead of silently wrong.
+
+**Difficulty does not appear in this file** (INV-1) and there is no parameter through which a rating
+could arrive. A level reaches the team layer by being handed a different `TeamShape` — lower press
+line, fewer pressers, a looser block — which is `06` §7's aggression row and touches nothing else.
