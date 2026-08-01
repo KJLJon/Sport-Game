@@ -191,3 +191,43 @@ headless match and broke two control tests, which is a good sign the distinction
 **The bonus is computed, not paid.** `assistMultiplier()` returns 1.15 for a no-assist run.
 `src/economy/` is still empty until T-8.9, so this is the number Phase 8's payout will multiply by,
 alongside the level's own `rewardMultiplier` — the same shape T-4.13 used for arcade coins.
+
+### T-7.2
+
+*Role system: per-sport role tables driving off-ball movement and responsibility*
+
+**A duty answers three questions, and the third is the new one.** Where a role belongs (an anchor as
+a fraction of the field, from the end it defends), how far the ball drags it (`ballShade` and
+`leash`), and — the part neither sport had — *what it is for* (`job`). The first two the sports
+already had in some form: basketball has `offensiveSpot`/`zoneSpot`, soccer has a whole formation
+module with `push`/`drop`/`tuck`. Neither had anywhere to say "this position's job, right now, is to
+run in behind" or "to hold the space the press leaves", which is why both CPUs orbit the ball.
+
+**`leash` is the number that stops the table collapsing.** Without it every role's spot is
+"somewhere between home and the ball", which over sixty ticks is indistinguishable from everyone
+chasing the ball — the exact behaviour the role layer exists to prevent. A point guard's leash is
+0.3 of the court and a centre's is 0.14, and that one difference is most of what makes a shape look
+like a shape.
+
+**The shade is applied and then clamped, in that order.** Clamping the *ball's* position to the
+leash first gives a role that stands at the end of its rope pointing at the ball, which reads as a
+dog rather than as a defender.
+
+**Basketball's table is written out; soccer's is derived.** Five positions × four phases is a table
+worth reading, so it is a literal. Soccer has three formations of eleven, a fourth would be a table
+somebody forgot to extend, and `formations.ts` already carries each role's home and its licence to
+push, drop, and tuck — so `soccerDuties()` computes the duties from that plus the *line* the role
+plays in, classified by where it stands rather than by what it is called. Adding a formation gives
+it duties for free. The cost is that a single role in a single formation cannot be hand-tuned; the
+benefit is that the formation and the duty table can never disagree about where a left back stands,
+which is the failure that actually happens.
+
+**Transition is a phase, not an instant.** `phaseFor()` takes steps-since-possession-changed, and
+for a beat *both* teams are in a shape built for the other situation. That beat is where fast breaks
+and counter-attacks live, and a model that resets the shape instantly can never produce one — or
+concede one. Basketball counts 90 steps, soccer 150, because a soccer team is spread over a hundred
+metres and takes correspondingly longer to be in the wrong shape about it.
+
+**Not wired to either sport yet, deliberately.** The duties are the seam T-7.3 (team coordination)
+consumes and T-7.4/T-7.5 act on. Wiring off-ball movement to them without the team layer above would
+mean two sources of truth for where an athlete stands, which is worse than one that is too simple.
