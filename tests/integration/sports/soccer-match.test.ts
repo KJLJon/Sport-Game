@@ -90,8 +90,15 @@ describe('a match', () => {
 
     const startX = world.x[state.ball] as number;
     const startY = world.y[state.ball] as number;
-    const striker = state.squads[0][9] as number;
-    const strikerStart = world.x[striker] as number;
+    // The whole team, not one striker's x. T-7.7 gave the carrier a reaction time, so ten seconds
+    // of play can now legitimately leave a particular forward holding their line while the ball is
+    // worked out from the back — which is football, and which made the old single-athlete
+    // assertion a test of where the ball happened to go.
+    const outfield = state.squads[0].filter((id) => id !== state.keepers[0]);
+    const before = outfield.map((id) => ({
+      x: world.x[id] as number,
+      y: world.y[id] as number,
+    }));
 
     const stepRng = rng.fork('sim');
     for (let i = 0; i < 600; i++) soccer.step(state, world, new Map(), 1 / 60, stepRng);
@@ -101,7 +108,13 @@ describe('a match', () => {
       (world.y[state.ball] as number) - startY,
     );
     expect(moved).toBeGreaterThan(1);
-    expect(Math.abs((world.x[striker] as number) - strikerStart)).toBeGreaterThan(0.5);
+
+    const walked = outfield.filter((id, index) => {
+      const start = before[index];
+      if (start === undefined) return false;
+      return Math.hypot((world.x[id] as number) - start.x, (world.y[id] as number) - start.y) > 1;
+    });
+    expect(walked.length).toBeGreaterThanOrEqual(outfield.length / 2);
   });
 
   it('emits a stream with no mode field on it (INV-9)', () => {

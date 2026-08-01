@@ -20,7 +20,12 @@ interface SettingsSection {
 }
 
 const SECTIONS: readonly SettingsSection[] = [
-  { id: 'controls', title: 'Controls & assists', summary: 'Joystick, handedness, assists.' },
+  {
+    id: 'controls',
+    title: 'Controls & assists',
+    summary: 'Aim and pass assist, auto-switch, shot-timing window.',
+    path: '/settings/controls',
+  },
   { id: 'display', title: 'Display & accessibility', summary: 'Theme, UI scale, reduced motion.' },
   { id: 'audio', title: 'Audio & haptics', summary: 'Music, effects, vibration.' },
   {

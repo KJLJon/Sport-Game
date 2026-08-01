@@ -64,6 +64,8 @@ export function powerError(rng: Rng, error: number, spread: number): number {
  * more successfully. Whether the challenge is *won* stays a matter of ratings (INV-1).
  */
 export function contestChance(base: number, aggression: number): number {
-  const scaled = base * (0.4 + 1.2 * aggression);
+  // Balanced aggression (Pro's 0.55) is exactly 1×, so a sport's tuned base rate keeps meaning what
+  // its balance pass measured and the four levels spread around it rather than away from it.
+  const scaled = base * (0.45 + aggression);
   return scaled < 0 ? 0 : scaled > 1 ? 1 : scaled;
 }

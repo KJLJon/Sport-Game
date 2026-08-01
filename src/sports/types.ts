@@ -31,6 +31,7 @@ import type { Athlete } from '../athletes/types.ts';
 import type { ArcadeGameDef } from '../modes/arcade/types.ts';
 import type { PlaybookAdapter } from '../modes/playbook/types.ts';
 import type { Difficulty } from '../modes/difficulty.ts';
+import type { AssistSettings } from '../modes/assists.ts';
 
 export type SportId = string;
 
@@ -157,6 +158,11 @@ export interface MatchSetup {
    * *nothing else* — INV-1 has a test that no rating is scaled by it.
    */
   readonly difficulty?: Difficulty;
+  /**
+   * How much help the *player's* side gets (T-7.8). Absent means none, which is what a headless
+   * match wants: nobody is holding the stick.
+   */
+  readonly assists?: AssistSettings;
 }
 
 /** Whatever the sport needs to track. The engine treats it as opaque. */

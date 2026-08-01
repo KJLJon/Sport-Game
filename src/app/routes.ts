@@ -245,6 +245,14 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
+    pattern: '/settings/controls',
+    value: {
+      id: 'settings-controls',
+      title: 'Controls & assists',
+      load: async () => (await import('../ui/screens/assists.ts')).assistsScreen(),
+    },
+  },
+  {
     pattern: '/settings/app',
     value: {
       id: 'settings-app',

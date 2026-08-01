@@ -198,6 +198,7 @@ describe('settings screen', () => {
     const links = [...ctx.host.querySelectorAll('.settings-list__link')];
     expect(links.map((link) => link.getAttribute('href')).sort()).toEqual([
       '#/settings/app',
+      '#/settings/controls',
       '#/settings/data',
     ]);
 

@@ -122,9 +122,9 @@ it reaches the final third with a metre of space. With the reaction gate on the 
 
 | | before | after | band |
 |---|---|---|---|
-| Live · goals per match | 12.84 | **8.40** | 1.2–5.5 |
-| Live · shots per match | 58.5 | **16.2** | 8–45 ✓ |
-| Live · conversion | 21.9% | **51.9%** | 4–30% |
+| Live · goals per match | 12.84 | **7.50** | 1.2–5.5 |
+| Live · shots per match | 58.5 | **16.9** | 8–45 ✓ |
+| Live · conversion | 21.9% | **44.5%** | 4–30% |
 
 Shot volume is fixed and the failure has changed shape rather than gone away: a carrier who has to
 wait ~280 ms to decide keeps running at goal in the meantime, so the shots it does take are from
@@ -132,3 +132,62 @@ almost on top of the keeper. Fewer, far better chances. The remaining defect is 
 neither of which this task owns — nobody stops the carrier walking into the box (T-7.5's press lines
 and defensive shape) and the keeper saves too little of what arrives (a keeper-model question). It
 stays an open Phase 7 finding, to be closed by T-7.5 and measured again at T-7.11.
+
+
+**Pro is the fixed point, and that had to be made true deliberately.** Three of the four channels
+were written first as curves through zero — `0.4 + 1.2 × aggression`, `0.5 + 2 × error` — which made
+*every* level, Pro included, a slightly different game from the one T-2.13 balanced over five
+hundred matches. It showed up immediately: the three-point share left its band, and T-3.6's coupling
+tests started disagreeing with themselves. All four now pass through 1× at Pro:
+
+- `contestChance()` is `base × (0.45 + aggression)`, and Pro's aggression is 0.55.
+- `releaseSpread()` is `0.4 + 3 × error`, and Pro's error is 0.2.
+- The pass reaction is `CPU_PASS_REACTION_PER_STEP × (level ÷ pro)`, anchored on T-2.13's tuned
+  constant rather than replacing it.
+- Decision noise is measured *above Pro's*, so Rookie misjudges more and the two levels above Pro
+  get their sharpness from reaction time and execution error instead.
+
+The one channel that cannot pass through 1× is execution error itself — a Pro CPU that misplaces
+passes is the feature — so it draws from **its own forked stream** (`state.executionRng`) rather
+than the sim's. Without that, adding the draw shifted every later draw in the match and a Pro game
+diverged from the pre-difficulty build for reasons that had nothing to do with difficulty. With it,
+basketball's balance table came back to within 2% of T-2.13's on every row.
+
+**Two of T-3.6's coupling assertions were measuring variance, and were rewritten.** `turns the ball
+over more` and `scores less` both compared *raw counts* over four seeds. Measured over eight, on the
+build before any of this existed, a lost squad scored **165 points to a home squad's 158** — the
+assertion was false and had been passing on a four-seed sample. The effect is real and large, but it
+is a *rate*: a lost squad turns the ball over once every two passes against once every three and a
+half, and shoots 21.0% against 33.7%. What made raw points useless is that a lost squad takes 271
+shots to a home squad's 169 — the volume of bad decisions cancels out their badness. Both tests now
+assert the rate, over eight seeds, and the file says why.
+
+### T-7.8
+
+*Assist system: aim, pass, auto-switch, timing forgiveness; independent of difficulty; no-assist bonus*
+
+**"Independently of difficulty" is the whole design, and it is two rules.** The level supplies the
+*default* — Rookie starts with everything on, Legend with everything off — and the moment the player
+touches a dial their choice wins at every level thereafter. `assistsAreCustom()` is what the screen
+uses to tell the player which of the two states they are in, because "why did my settings change
+when I picked All-Star?" is a bug report waiting to happen.
+
+**Four dials, one place each lands.** Pass assist widens the cone `selectPassTarget()` snaps within;
+aim assist pulls a soccer shot's placement back towards the middle of the goal; auto-switch is
+basketball's existing `state.autoSwitch`, which had been hardcoded `true`; timing forgiveness
+multiplies the *player's* release window and only the player's — giving the CPU the same widening
+would quietly make the setting a difficulty knob, which is the one thing `06` §2 says it is not.
+
+**The window moves; the shot does not.** Forgiveness widens the release window, so more of the
+player's releases count as good ones. It never touches the probability a good release goes in. That
+is the same line INV-1 draws for difficulty, drawn again for assists, and it is why the assist can
+be generous without making anyone a better shooter than they are.
+
+**A spectated match gets no assists; a played one gets its level's.** `assistsFor()` reads
+`playerSide === -1` — nobody is holding the stick in a balance batch or a rules test, so nothing
+should be helping them. Getting this wrong the other way round switched auto-switch off in every
+headless match and broke two control tests, which is a good sign the distinction is load-bearing.
+
+**The bonus is computed, not paid.** `assistMultiplier()` returns 1.15 for a no-assist run.
+`src/economy/` is still empty until T-8.9, so this is the number Phase 8's payout will multiply by,
+alongside the level's own `rewardMultiplier` — the same shape T-4.13 used for arcade coins.

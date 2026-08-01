@@ -20,9 +20,11 @@ import { DEFAULT_SPORT, isPlayable } from '../sports/playable.ts';
 import type { SportId } from '../sports/types.ts';
 import { isModeAvailable, modesForSport, playMode, type PlayMode } from './catalogue.ts';
 import { DEFAULT_DIFFICULTY, isDifficulty, type Difficulty } from './difficulty.ts';
+import { defaultAssists, normaliseAssists, type AssistSettings } from './assists.ts';
 
 const SPORT_KEY = 'play.lastSport';
 const DIFFICULTY_KEY = 'play.difficulty';
+const ASSIST_KEY = 'play.assists';
 const MODE_KEY_PREFIX = 'play.lastMode.';
 
 export interface PlayChoice {
@@ -88,10 +90,39 @@ export function rememberDifficulty(difficulty: Difficulty): void {
   prefs.set(DIFFICULTY_KEY, difficulty);
 }
 
+/**
+ * The player's assist settings (`06` §2, US-7.3). Nothing stored means "whatever this level starts
+ * you on"; once anything is saved, it wins at every level — that is what "tunable independently of
+ * difficulty" means.
+ *
+ * Like `lastDifficulty()`, this lives here rather than in `assists.ts` because that module is
+ * imported by the sports layer and must not reach storage.
+ */
+export function loadAssists(difficulty: Difficulty = lastDifficulty()): AssistSettings {
+  const fallback = defaultAssists(difficulty);
+  return normaliseAssists(prefs.get<Partial<AssistSettings> | null>(ASSIST_KEY, null), fallback);
+}
+
+/** Records a change. Called from the settings screen as each dial moves. */
+export function saveAssists(assists: AssistSettings): void {
+  prefs.set(ASSIST_KEY, assists);
+}
+
+/** True when the player has an opinion — used to show "following your difficulty" in settings. */
+export function assistsAreCustom(): boolean {
+  return prefs.get<Partial<AssistSettings> | null>(ASSIST_KEY, null) !== null;
+}
+
+/** Puts the dials back to whatever the current level starts you on. */
+export function resetAssists(): void {
+  prefs.remove(ASSIST_KEY);
+}
+
 /** Forgets everything this module stores. For the data screen's reset, and for tests. */
 export function forgetPlay(): void {
   prefs.remove(SPORT_KEY);
   prefs.remove(DIFFICULTY_KEY);
+  prefs.remove(ASSIST_KEY);
   for (const key of prefs.keys()) {
     if (key.startsWith(MODE_KEY_PREFIX)) prefs.remove(key);
   }

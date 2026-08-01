@@ -127,6 +127,7 @@ import {
   type DifficultyProfile,
 } from '../../modes/difficulty.ts';
 import { aimError, contestChance, reacted } from '../../engine/ai/execution.ts';
+import { NO_ASSISTS, defaultAssists, type AssistSettings } from '../../modes/assists.ts';
 import {
   createStamina,
   dribbleProfile,
@@ -194,6 +195,15 @@ export interface SoccerState extends SportState {
    * here scales a rating on either side (INV-1).
    */
   readonly difficulty: DifficultyProfile;
+  /** How much help the player gets (T-7.8). Input aids only — the CPU never reads them. */
+  readonly assists: AssistSettings;
+  /**
+   * A stream of its own for execution error (T-7.7), forked by label from the match seed. Neither
+   * the sim's stream nor a per-call fork: the first would move every later draw in the match, and
+   * the second returns the *same* number on every call, since a fork is derived from the seed and
+   * the label rather than from a position.
+   */
+  readonly executionRng: Rng;
   shot: ShotInFlight | null;
   /** Steps since kick-off. The module's own clock, for event stamping. */
   elapsed: number;
@@ -523,6 +533,12 @@ export const soccer: SoccerModule = {
       controlled,
       pass: null,
       difficulty: difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY),
+      executionRng: rng.fork('execution'),
+      assists:
+        setup.assists ??
+        (setup.playerSide === -1
+          ? NO_ASSISTS
+          : defaultAssists(setup.difficulty ?? DEFAULT_DIFFICULTY)),
       shot: null,
       elapsed: 0,
       finished: false,
@@ -1037,7 +1053,17 @@ function decide(
   const input = inputs.get(carrier);
   if (input !== undefined) {
     if (wasPressed(input, Button.A)) {
-      return shoot(state, world, carrier, side, { kind: 'shoot', power: 1 }, step, rng);
+      return shoot(
+        state,
+        world,
+        carrier,
+        side,
+        { kind: 'shoot', power: 1 },
+        step,
+        rng,
+        0,
+        state.assists.aim,
+      );
     }
     if (wasPressed(input, Button.B)) {
       return pass(state, world, carrier, side, { kind: 'pass' }, step, rng);
@@ -1169,6 +1195,8 @@ function shoot(
   rng: Rng,
   /** The striker's execution error, `0–1`. Zero when a human pulled the trigger. */
   error = 0,
+  /** The player's aim assist, `0–1`. Zero for the CPU, which aims for itself. */
+  aim = 0,
 ): readonly SportEvent[] {
   const r = state.ratings.get(actor);
   if (r === undefined || state.ballState.carrier !== actor) return [];
@@ -1184,8 +1212,11 @@ function shoot(
       power: clamp01(action.power ?? SHOOTING.tapPower + 0.4),
       // Where in the goal it was aimed, then how far off that it actually went. Placement is a
       // choice; the error on it is the level's (`06` §7).
+      // Aim assist pulls the placement back towards the middle of the goal, where the keeper is
+      // beaten by pace rather than by precision — `06` §2's "direction snapping" for a shot.
       placeAcross: clampAim(
-        shotRng.float(-0.85, 0.85) + aimError(shotRng, error, KICK_AIM_SPREAD * 4),
+        shotRng.float(-0.85, 0.85) * (1 - aim * 0.6) +
+          aimError(state.executionRng, error, KICK_AIM_SPREAD * 4),
       ),
       placeUp: shotRng.float(0.1, 0.7),
       pressure: pressureFor(state, world, actor, side),
@@ -1241,7 +1272,7 @@ function pass(
   const aimed = leadTarget(world, from, target, kind, kind === 'through' ? 6 : 0);
   // Angular, so a misplaced pass still travels the right distance and simply arrives beside the
   // player it was meant for — which is what a loose pass looks like.
-  const lead = deflect(from, aimed, aimError(rng, error, KICK_AIM_SPREAD));
+  const lead = deflect(from, aimed, aimError(state.executionRng, error, KICK_AIM_SPREAD));
 
   const passRng = rng.fork('passing');
   const inFlight = throwPass(
