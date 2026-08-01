@@ -12,11 +12,16 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.30 — honest empty states. **`done`** and pushed. Phase 6 is 30 of 30.
-- **Branch:** `claude/playable-build-98n7aa`. PR #13 is **merged**, and **`v0.6.0` is tagged and
-  deployed** — the user has played it.
-- **Next step:** **Phase 7 — CPU AI depth**, starting at T-7.1. But read the user feedback below
-  first: two of the three things they asked for are not in Phase 7.
+- **Task:** T-7.1 — utility-scoring decision framework. **`done`** and pushed.
+- **Branch:** `claude/continue-building-isc6sx`, off `main` at `826ed25` (`v0.6.0` deployed; the
+  user has played it).
+- **Next step:** `pnpm -s next` — **T-7.2 (roles)** is the only thing T-7.3/7.4/7.5 wait on, so it
+  is the critical path. T-7.9 (CPU team generation, `haiku`) and T-7.6 (Playbook AI depth) are
+  ready and independent of it.
+- **New this session:** `pnpm -s next` prints the ready tasks with their dependencies resolved, so
+  a session start no longer costs a read of both `03` and this file.
+- Read the user feedback below before assuming Phase 7 covers what they asked for — two of the
+  three things are elsewhere.
 
 ### What the user said after playing v0.6.0
 
@@ -74,14 +79,14 @@ must be asked for explicitly at every gate** — not recorded as a blocker and l
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
 | 6 | Soccer · all three modes | 30 | 30 | `done` | v0.5 |
-| 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
+| 7 | CPU AI depth & difficulty ladder | 11 | 1 | `in_progress` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **203** | **116** | | |
+| | **Total** | **203** | **117** | | |
 
 ---
 
@@ -246,7 +251,7 @@ there; this file is read at every session start and the notes file only when you
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-7.1 | Utility-scoring decision framework shared across sports and modes | L | `todo` | | | | |
+| T-7.1 | Utility-scoring decision framework shared across sports and modes | L | `done` | | `tests/unit/engine/ai-{utility,decider}.test.ts` | `auto` — 32 unit tests | Considerations multiply so a veto is fatal, and difficulty enters only as score jitter and reaction latency (INV-1). [notes](./notes/phase-7.md#t-71) |
 | T-7.2 | Role system: per-sport role tables driving off-ball movement and responsibility | L | `todo` | | | | |
 | T-7.3 | Team coordination: formation shape, phase of play, pressing triggers, help defence, transition | XL | `todo` | | | | |
 | T-7.4 | Basketball Live AI depth: pick-and-roll, cuts, zone vs man, rating-driven shot selection | L | `todo` | | | | |
