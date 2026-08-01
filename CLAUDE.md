@@ -316,6 +316,7 @@ So: never run Prettier manually, never hand-fix a formatting diff, and never spe
 | `cat`-ing a whole spec file | `pnpm spec 09 5` — or `pnpm spec 09` for the outline | Prints exactly one section, with its line range |
 | `grep -n "^export"` then reading the file | `grep` `docs/api-index.md` | Every exported name, signature, and summary, in one file |
 | re-reading all of `PROGRESS.md` | read the **In-flight** block plus your task's row | The rest is history, and the long notes moved to `notes/phase-N.md` |
+| reading `03` and `PROGRESS.md` to work out what to do | `pnpm -s next` | Prints the ready tasks in the current phase — deps resolved — plus what everything else waits on |
 
 `pnpm test:verbose` still exists for when the per-file breakdown is what you actually need.
 
@@ -337,6 +338,7 @@ So: never run Prettier manually, never hand-fix a formatting diff, and never spe
 | What to build | `specs/001-initial-dev/` |
 | Current state, resume point | `specs/001-initial-dev/PROGRESS.md` |
 | Task list and phases | `specs/001-initial-dev/03-phases-and-tasks.md` |
+| What to work on next | `pnpm -s next` · `pnpm -s next 8` for a specific phase |
 | Why a decision was made | `specs/001-initial-dev/07-decisions.md` |
 | Open questions | `specs/001-initial-dev/08-open-questions.md` |
 | Branch | The branch named in this session's instructions — one feature branch per session |
