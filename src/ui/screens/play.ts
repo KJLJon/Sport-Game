@@ -20,10 +20,17 @@
  */
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { PLAY_MODE_CATALOGUE, isModeAvailable, type PlayMode } from '../../modes/catalogue.ts';
-import { lastSport, rememberPlay } from '../../modes/last-played.ts';
+import {
+  lastDifficulty,
+  lastSport,
+  rememberDifficulty,
+  rememberPlay,
+} from '../../modes/last-played.ts';
 import { PLAYABLE_SPORTS, isPlayable } from '../../sports/playable.ts';
 import type { SportId } from '../../sports/types.ts';
 import { button } from '../components/button.ts';
+import { segmented } from '../components/controls.ts';
+import { DIFFICULTIES, DIFFICULTY_PROFILES } from '../../modes/difficulty.ts';
 import { el } from '../dom.ts';
 import './play.css';
 
@@ -134,6 +141,32 @@ export function playScreen(): Screen {
         );
       }
 
+      // One picker for every mode (`06` §7 — the same four levels apply in all three). It is
+      // remembered the moment it changes rather than when a match starts, because the modes are
+      // reached by following a link out of this screen: there is no later moment to record it in.
+      const difficultyPicker = el(doc, 'div', {
+        class: 'play-section',
+        children: [
+          el(doc, 'h2', { class: 'play-section__title', text: 'How hard should the CPU be?' }),
+          segmented(doc, {
+            legend: 'Difficulty',
+            name: 'play-difficulty',
+            value: lastDifficulty(),
+            options: DIFFICULTIES.map((id) => ({
+              value: id,
+              label: DIFFICULTY_PROFILES[id].label,
+            })),
+            onChange: (value) => {
+              rememberDifficulty(value);
+            },
+          }),
+          el(doc, 'p', {
+            class: 'play-section__hint',
+            text: 'Difficulty changes how the CPU plays and how much help you get — never how good anyone is.',
+          }),
+        ],
+      });
+
       renderModes();
 
       context.host.replaceChildren(
@@ -145,6 +178,7 @@ export function playScreen(): Screen {
               text: 'Pick a sport, then pick how you want to play it. The same athletes play all of them.',
             }),
             sportPicker,
+            difficultyPicker,
             el(doc, 'div', {
               class: 'play-section',
               children: [

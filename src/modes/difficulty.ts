@@ -1,8 +1,9 @@
 /**
  * @spec    001-initial-dev
- * @phase   4 — Arcade framework + basketball arcade set
- * @task    T-4.2 — Calibration: ratings + familiarity → window sizes and speeds (INV-10)
- * @story   US-16.3 — Feel my athlete in the mini-game
+ * @phase   4 — Arcade framework + basketball arcade set, 7 — CPU AI depth & difficulty ladder
+ * @task    T-4.2 — Calibration: ratings + familiarity → window sizes and speeds (INV-10),
+ *          T-7.7 — Difficulty model across all three modes
+ * @story   US-16.3 — Feel my athlete in the mini-game, US-7.2 — Choose a difficulty
  * @design  06-game-design.md §7 (the four levels), 09-modes-and-arcade.md §7 (one ladder)
  * @invariant INV-1 (difficulty never modifies an attribute or a derived rating)
  *
@@ -16,9 +17,11 @@
  * *after* the athlete's own window has been computed (T-4.2), so difficulty scales the challenge
  * without ever touching who the athlete is.
  *
- * T-7.7 owns the full model across all three modes and will extend this record with the CPU-side
- * knobs it needs; the values here are `06` §7's table read straight across, and T-7.11 tunes them.
+ * T-7.7 added the CPU-side rows (`tactics`, `exploits`), the mapping onto the engine's decision
+ * framework (`aiTuning()`), and the remembered default. The values are `06` §7's table read
+ * straight across; T-7.11 tunes them against the win-rate bands.
  */
+import type { AiTuning } from '../engine/ai/decider.ts';
 
 export const DIFFICULTIES = ['rookie', 'pro', 'allStar', 'legend'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
@@ -43,6 +46,18 @@ export interface DifficultyProfile {
   readonly timingWindow: number;
   /** Coin and XP multiplier. */
   readonly rewardMultiplier: number;
+  /**
+   * How readily the CPU reaches for the advanced tactics its sport knows — pick-and-roll, the
+   * offside trap, help rotations (`06` §7). `0` never calls them; `1` calls them whenever they fit.
+   * A *tendency*, not a skill: a Rookie CPU that stumbles into a pick-and-roll runs it exactly as
+   * well as Legend does, it simply almost never looks for one.
+   */
+  readonly tactics: number;
+  /**
+   * How much the CPU goes looking for mismatches and low familiarity (`06` §7). Reads the *other*
+   * team's ratings to choose whom to attack; it never changes them (INV-1).
+   */
+  readonly exploits: number;
 }
 
 /**
@@ -63,6 +78,8 @@ export const DIFFICULTY_PROFILES: Readonly<Record<Difficulty, DifficultyProfile>
     assist: 1,
     timingWindow: 1.35,
     rewardMultiplier: 0.75,
+    tactics: 0.1,
+    exploits: 0,
   },
   pro: {
     id: 'pro',
@@ -74,6 +91,8 @@ export const DIFFICULTY_PROFILES: Readonly<Record<Difficulty, DifficultyProfile>
     assist: 0.65,
     timingWindow: 1,
     rewardMultiplier: 1,
+    tactics: 0.4,
+    exploits: 0.25,
   },
   allStar: {
     id: 'allStar',
@@ -85,6 +104,8 @@ export const DIFFICULTY_PROFILES: Readonly<Record<Difficulty, DifficultyProfile>
     assist: 0.3,
     timingWindow: 0.8,
     rewardMultiplier: 1.4,
+    tactics: 0.75,
+    exploits: 0.7,
   },
   legend: {
     id: 'legend',
@@ -96,6 +117,8 @@ export const DIFFICULTY_PROFILES: Readonly<Record<Difficulty, DifficultyProfile>
     assist: 0,
     timingWindow: 0.8,
     rewardMultiplier: 2,
+    tactics: 1,
+    exploits: 1,
   },
 };
 
@@ -110,4 +133,25 @@ export function difficultyProfile(difficulty: Difficulty | string): DifficultyPr
   return isDifficulty(difficulty)
     ? DIFFICULTY_PROFILES[difficulty]
     : DIFFICULTY_PROFILES[DEFAULT_DIFFICULTY];
+}
+
+/**
+ * The level as the engine's decision framework wants it (`engine/ai/decider.ts`). The engine takes
+ * plain numbers and never imports a mode (`04` §5), so this is the one place the two meet.
+ *
+ * `commitment` and `threshold` are not rows of `06` §7 — they are derived, because they only exist
+ * to stop the framework misbehaving rather than to describe a level. A noisier decider needs *more*
+ * commitment, not less: without it, Rookie's jitter would flip its mind about which pass to make
+ * several times a second and read as a seizure rather than as indecision. The threshold rises with
+ * the level for the opposite reason — a better CPU is more willing to hold the ball and wait for
+ * something good than to force the best of four bad options.
+ */
+export function aiTuning(difficulty: Difficulty | string): AiTuning {
+  const profile = difficultyProfile(difficulty);
+  return {
+    latencyMs: profile.cpuLatencyMs,
+    noise: profile.decisionNoise,
+    commitment: 0.05 + profile.decisionNoise * 0.5,
+    threshold: 0.12 + (1 - profile.decisionNoise) * 0.1,
+  };
 }

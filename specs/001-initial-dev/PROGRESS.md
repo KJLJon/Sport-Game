@@ -12,11 +12,26 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-6.30 — honest empty states. **`done`** and pushed. Phase 6 is 30 of 30.
-- **Branch:** `claude/playable-build-98n7aa`. PR #13 is **merged**, and **`v0.6.0` is tagged and
-  deployed** — the user has played it.
-- **Next step:** **Phase 7 — CPU AI depth**, starting at T-7.1. But read the user feedback below
-  first: two of the three things they asked for are not in Phase 7.
+- **Task:** T-7.2 — role system. **`done`** and pushed. Phase 7 is 4 of 11 (T-7.1, T-7.2, T-7.7,
+  T-7.8). PR **#15** is open as a draft.
+- **Branch:** `claude/continue-building-isc6sx`, off `main` at `826ed25` (`v0.6.0` deployed; the
+  user has played it).
+- **Next step:** `pnpm -s next` — **T-7.3 (team coordination, XL)** is now unblocked and is the
+  critical path to T-7.4 and T-7.5. It is the one that consumes `engine/ai/roles.ts`; until it
+  lands, the duty tables are a seam with no reader. T-7.6 (Playbook AI depth) and T-7.9 (CPU team
+  generation, `haiku`) are ready and independent of it.
+- **Open finding carried into Phase 7 and still open:** Live soccer scores 7.5 goals a match on 16.9
+  shots (band 1.2–5.5) at 44.5% conversion. T-7.7's reaction gate fixed the *volume* half — 58.5
+  shots down to 16.9, inside band — and what is left is that nobody stops the carrier walking into
+  the box, so the shots taken are from on top of the keeper. **T-7.5** (press lines, defensive
+  shape) is where that closes; T-7.11 measures it again.
+- **Also fixed this session:** soccer's `Shoot` and `Pass` buttons had never been wired to anything
+  — the CPU decision ran for the player's carrier too. That is a direct answer to half of the
+  user's "not easy to control", and it is worth asking them to try soccer again once tagged.
+- **New this session:** `pnpm -s next` prints the ready tasks with their dependencies resolved, so
+  a session start no longer costs a read of both `03` and this file.
+- Read the user feedback below before assuming Phase 7 covers what they asked for — two of the
+  three things are elsewhere.
 
 ### What the user said after playing v0.6.0
 
@@ -74,14 +89,14 @@ must be asked for explicitly at every gate** — not recorded as a blocker and l
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
 | 6 | Soccer · all three modes | 30 | 30 | `done` | v0.5 |
-| 7 | CPU AI depth & difficulty ladder | 11 | 0 | `todo` | — |
+| 7 | CPU AI depth & difficulty ladder | 11 | 4 | `in_progress` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **203** | **116** | | |
+| | **Total** | **203** | **120** | | |
 
 ---
 
@@ -246,14 +261,14 @@ there; this file is read at every session start and the notes file only when you
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-7.1 | Utility-scoring decision framework shared across sports and modes | L | `todo` | | | | |
-| T-7.2 | Role system: per-sport role tables driving off-ball movement and responsibility | L | `todo` | | | | |
+| T-7.1 | Utility-scoring decision framework shared across sports and modes | L | `done` | | `tests/unit/engine/ai-{utility,decider}.test.ts` | `auto` — 32 unit tests | Considerations multiply so a veto is fatal, and difficulty enters only as score jitter and reaction latency (INV-1). [notes](./notes/phase-7.md#t-71) |
+| T-7.2 | Role system: per-sport role tables driving off-ball movement and responsibility | L | `done` | | `tests/unit/engine/ai-roles.test.ts` | `auto` — 27 unit tests | Anchor, ball-shade, leash, and a named job per role per phase; basketball’s table is literal, soccer’s is derived from its formations. [notes](./notes/phase-7.md#t-72) |
 | T-7.3 | Team coordination: formation shape, phase of play, pressing triggers, help defence, transition | XL | `todo` | | | | |
 | T-7.4 | Basketball Live AI depth: pick-and-roll, cuts, zone vs man, rating-driven shot selection | L | `todo` | | | | |
 | T-7.5 | Soccer Live AI depth: build-up phases, press lines, offside trap, counter-attacks | L | `todo` | | | | |
 | T-7.6 | Playbook AI depth for both sports: tendency modelling, counter-calling | L | `todo` | | | | |
-| T-7.7 | Difficulty model across all three modes — latency, noise, error, aggression, assists, arcade windows (INV-1) | M | `todo` | | | | |
-| T-7.8 | Assist system: aim, pass, auto-switch, timing forgiveness; independent of difficulty; no-assist bonus | M | `todo` | | | | |
+| T-7.7 | Difficulty model across all three modes — latency, noise, error, aggression, assists, arcade windows (INV-1) | M | `done` | | `tests/unit/engine/ai-execution.test.ts`, `tests/unit/modes/difficulty.test.ts`, `tests/invariants/inv-01-difficulty-never-scales-ratings.test.ts` | `auto`; basketball balance green, soccer Live still out of band (T-6.18’s open finding, now a different shape) | Difficulty now reaches Live through four named channels and nothing else; found and fixed that soccer’s Shoot/Pass buttons had never been wired. [notes](./notes/phase-7.md#t-77) |
+| T-7.8 | Assist system: aim, pass, auto-switch, timing forgiveness; independent of difficulty; no-assist bonus | M | `done` | | `tests/unit/modes/assists.test.ts`, `tests/unit/ui/assists.test.ts` | `auto`; balance green | Four dials with a screen at `#/settings/controls`; the level sets the default and the player’s choice then wins at every level. [notes](./notes/phase-7.md#t-78) |
 | T-7.9 | CPU team generation: coherent opponents and identities scaled to difficulty | M | `todo` | | | | |
 | T-7.10 | AI regression harness: headless batches per difficulty per mode, asserted win-rate bands | M | `todo` | | | | |
 | T-7.11 | Balance pass #3: tune all four levels against the target win-rate curve | L | `todo` | | | | |

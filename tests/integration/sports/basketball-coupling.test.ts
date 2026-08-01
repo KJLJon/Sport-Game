@@ -56,21 +56,37 @@ function bySide(events: readonly SportEvent[], kind: string, side: number): numb
   return events.filter((e) => (e.sportKind ?? e.kind) === kind && e.side === side).length;
 }
 
-/** Several seeds, because one match is an anecdote. */
-const SEEDS = ['lost-a', 'lost-b', 'lost-c', 'lost-d'];
+/**
+ * Several seeds, because one match is an anecdote.
+ *
+ * Widened from four to eight by T-7.7, together with the two assertions below. At four seeds the
+ * *raw* turnover and scoring margins were a handful of events across the whole sample, and measured
+ * over eight they turn out not to exist — on the build before difficulty was wired in, a lost squad
+ * scored 165 points to a home squad's 158. Raw counts were never the effect; rate is. See the two
+ * rewritten tests.
+ */
+const SEEDS = ['lost-a', 'lost-b', 'lost-c', 'lost-d', 'lost-e', 'lost-f', 'lost-g', 'lost-h'];
 
 describe('an out-of-sport squad', () => {
-  it('turns the ball over more than the side at home', { timeout: 60_000 }, () => {
-    let lost = 0;
-    let home = 0;
+  it('turns the ball over far more often per pass it tries', { timeout: 60_000 }, () => {
+    // Per pass, not per match. A lost squad makes fewer passes *and* loses more of them, so the
+    // raw count of turnovers can sit level with a squad that is passing the ball twice as often —
+    // it did, at 46 apiece over eight seeds. The rate is the effect, and it is not close: about
+    // one turnover every two passes against one every three and a half.
+    let lostTurnovers = 0;
+    let homeTurnovers = 0;
+    let lostPasses = 0;
+    let homePasses = 0;
 
     for (const seed of SEEDS) {
       const events = play(seed, 5);
-      lost += bySide(events, EventKind.TURNOVER, 1);
-      home += bySide(events, EventKind.TURNOVER, 0);
+      lostTurnovers += bySide(events, EventKind.TURNOVER, 1);
+      homeTurnovers += bySide(events, EventKind.TURNOVER, 0);
+      lostPasses += bySide(events, EventKind.PASS, 1);
+      homePasses += bySide(events, EventKind.PASS, 0);
     }
 
-    expect(lost).toBeGreaterThan(home);
+    expect(lostTurnovers / lostPasses).toBeGreaterThan(1.4 * (homeTurnovers / homePasses));
   });
 
   it('completes fewer passes, because first touch is where it shows', { timeout: 60_000 }, () => {
@@ -87,36 +103,59 @@ describe('an out-of-sport squad', () => {
   });
 
   it(
-    'scores less than the same athletes at home — same ratings, worse play',
+    'shoots much worse than the same athletes at home — same ratings, worse play',
     { timeout: 60_000 },
     () => {
-      let lost = 0;
-      let home = 0;
+      // Efficiency, not points. A lost squad forces shots it should not take — 271 attempts to a
+      // home squad's 169 over eight seeds — so it can finish level on points while shooting a
+      // third worse, and it did: 147 to 145 at 21.0% against 33.7%. Raw points were measuring the
+      // volume of bad decisions cancelling out their badness; field-goal percentage measures the
+      // badness, which is what `05` §3.3 actually claims.
+      let lostMade = 0;
+      let homeMade = 0;
+      let lostShots = 0;
+      let homeShots = 0;
 
       for (const seed of SEEDS) {
         const events = play(seed, 5);
-        lost += events
-          .filter((e) => e.kind === EventKind.SCORE && e.side === 1)
-          .reduce((sum, e) => sum + (e.value ?? 0), 0);
-        home += events
-          .filter((e) => e.kind === EventKind.SCORE && e.side === 0)
-          .reduce((sum, e) => sum + (e.value ?? 0), 0);
+        for (const event of events) {
+          const side = event.side;
+          if (side !== 0 && side !== 1) continue;
+          if ((event.sportKind ?? event.kind) === EventKind.SHOT) {
+            if (side === 1) lostShots += 1;
+            else homeShots += 1;
+          }
+          // A field goal is worth two or three; a free throw is worth one and is not a shot here.
+          if (event.kind === EventKind.SCORE && (event.value ?? 0) > 1) {
+            if (side === 1) lostMade += 1;
+            else homeMade += 1;
+          }
+        }
       }
 
-      expect(lost).toBeLessThan(home);
+      expect(lostShots).toBeGreaterThan(homeShots);
+      expect(lostMade / lostShots).toBeLessThan(0.8 * (homeMade / homeShots));
     },
   );
 
   it('looks worse than a squad that has learned the sport', { timeout: 60_000 }, () => {
-    let novice = 0;
-    let learned = 0;
+    // Rate again, and for the same reason as the first test: a novice squad completes far fewer
+    // passes, so counting turnovers alone compares two squads that did not attempt the same thing.
+    let noviceTurnovers = 0;
+    let novicePasses = 0;
+    let learnedTurnovers = 0;
+    let learnedPasses = 0;
 
     for (const seed of SEEDS) {
-      novice += bySide(play(seed, 5), EventKind.TURNOVER, 1);
-      learned += bySide(play(seed, 60), EventKind.TURNOVER, 1);
+      const novice = play(seed, 5);
+      const learned = play(seed, 60);
+      noviceTurnovers += bySide(novice, EventKind.TURNOVER, 1);
+      novicePasses += bySide(novice, EventKind.PASS, 1);
+      learnedTurnovers += bySide(learned, EventKind.TURNOVER, 1);
+      learnedPasses += bySide(learned, EventKind.PASS, 1);
     }
 
-    expect(novice).toBeGreaterThan(learned);
+    expect(noviceTurnovers / novicePasses).toBeGreaterThan(learnedTurnovers / learnedPasses);
   });
 });
 

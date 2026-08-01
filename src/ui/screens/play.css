@@ -35,6 +35,12 @@
   font-size: var(--text-20);
 }
 
+.play-section__hint {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
 /* ── Sport picker: `10` §8.1 step 2, "two big cards" ──────────────────────── */
 
 .play-sports {

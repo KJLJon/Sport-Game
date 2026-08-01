@@ -29,6 +29,7 @@ import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { appDatabase } from '../../storage/app-db.ts';
 import type { Athlete } from '../../athletes/types.ts';
 import { DIFFICULTIES, DIFFICULTY_PROFILES, type Difficulty } from '../../modes/difficulty.ts';
+import { lastDifficulty, rememberDifficulty } from '../../modes/last-played.ts';
 import { KEY_MOMENT_FREQUENCIES, type KeyMomentFrequency } from '../../modes/playbook/types.ts';
 import { TURN_SPEEDS, type TurnSpeed } from '../../modes/playbook/pace.ts';
 import { PARTY_LIMITS, seatPlayers } from '../../modes/local-players.ts';
@@ -135,7 +136,10 @@ export function playbookScreen(): Screen {
   return {
     async mount(context: ScreenContext): Promise<void> {
       const doc = context.host.ownerDocument;
-      let choice = readSetup(context.query);
+      // The remembered level is the default, but a level in the link still wins — the same rule
+      // Live follows, so the two modes cannot disagree about what "your difficulty" means (US-7.2).
+      let choice = { ...readSetup(context.query), difficulty: lastDifficulty() };
+      if (context.query['difficulty'] !== undefined) choice = readSetup(context.query);
       const module = await loadSport(choice.sport);
       const squadSize = module.meta.squadSize;
 
@@ -264,7 +268,10 @@ export function playbookScreen(): Screen {
             label: 'Start match',
             variant: 'primary',
             size: 'large',
-            onClick: () => context.navigate('/play/playbook/match', setupParams(choice)),
+            onClick: () => {
+              rememberDifficulty(choice.difficulty);
+              context.navigate('/play/playbook/match', setupParams(choice));
+            },
           }),
         );
 

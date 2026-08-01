@@ -132,6 +132,15 @@ import {
   type Look,
 } from './cpu.ts';
 import { cycleControlled, pickControlled, shouldAutoSwitch, type Candidate } from './control.ts';
+import {
+  DEFAULT_DIFFICULTY,
+  DIFFICULTY_PROFILES,
+  difficultyProfile,
+  type Difficulty,
+  type DifficultyProfile,
+} from '../../modes/difficulty.ts';
+import { aimError, contestChance, reactionChance } from '../../engine/ai/execution.ts';
+import { NO_ASSISTS, defaultAssists, type AssistSettings } from '../../modes/assists.ts';
 import { BASKETBALL_ARCADE } from './arcade/index.ts';
 import { basketballPlaybook } from './playbook/index.ts';
 import type {
@@ -243,6 +252,22 @@ export interface BasketballState extends SportState {
   /** Who is charging it, and the hold a CPU shooter is aiming for. */
   shooter: EntityId;
   cpuRelease: number;
+  /**
+   * The CPU's level (T-7.7). Read for reaction time, decision noise, execution error, and
+   * aggression, and for nothing else — no rating on either side is scaled by it (INV-1).
+   */
+  readonly difficulty: DifficultyProfile;
+  /** How much help the player gets (T-7.8). The CPU never reads these — they are input aids. */
+  readonly assists: AssistSettings;
+  /**
+   * A stream of its own for execution error (T-7.7), forked by label from the match seed.
+   *
+   * Not the sim's stream, and the reason is the whole of INV-8's "fork by label, never by draw
+   * order": drawing a level's error from the shared stream would shift every later draw in the
+   * match, so a build with difficulty in it would play a *different* Pro game than the build
+   * T-2.13 balanced. Forked, Pro is byte-identical to the build before this existed.
+   */
+  readonly executionRng: Rng;
   /** The ball's current flight, or `null`. */
   shot: ShotInFlight | null;
   /** The pass currently in the air, or `null`. */
@@ -425,9 +450,49 @@ const SHOT_IDEAL_HOLD = 22;
 /** Above this the ball is still on its way down and nobody has a hand on it. */
 const REBOUND_MAX_HEIGHT = 2.6;
 
+/** One simulation step, in milliseconds — the unit the reaction model works in. */
+const STEP_MS = 1000 / 60;
+
 /**
- * Per-step chance the CPU acts on a decision to pass. Stands in for reaction latency until T-7.x
- * makes it a difficulty dial (`06` §7); it is not a judgement, only a delay.
+ * Per-step chance the CPU acts on a decision to pass, scaled by the level's reaction time around
+ * Pro.
+ *
+ * The ratio, rather than `reactionChance()` on its own, because `CPU_PASS_REACTION_PER_STEP` is a
+ * *tuned* number from T-2.13's five-hundred-game balance pass and Pro is the level it was tuned at.
+ * Anchoring on it keeps every Pro match byte-identical to the pre-difficulty build — which is what
+ * lets T-3.6's coupling tests and the balance bands keep measuring what they were written against —
+ * while Rookie waits half again as long and Legend barely waits at all.
+ */
+function passReactionChance(state: BasketballState): number {
+  const pro = reactionChance(DIFFICULTY_PROFILES.pro.cpuLatencyMs, STEP_MS);
+  const level = reactionChance(state.difficulty.cpuLatencyMs, STEP_MS);
+  return Math.min(1, CPU_PASS_REACTION_PER_STEP * (level / pro));
+}
+
+/**
+ * Expected points of jitter per unit of decision noise *above Pro's*.
+ *
+ * Two decisions in one constant. The units are expected points, because that is what the shot
+ * decision works in. And it is measured from Pro rather than from zero, for the same reason the
+ * reaction rate is anchored there: this CPU was tuned at Pro by T-2.13, so Pro is the level it
+ * *is*, and a floor applied at every level would quietly make the tuned build a slightly different
+ * game — it did, and it blurred T-3.6's coupling difference until the effect the coupling tests
+ * measure stopped being visible over eight seeds.
+ *
+ * So Rookie misjudges a look by about a tenth of a point more than Pro does, and the two levels
+ * above Pro get their sharpness from reaction time and execution error instead, which is where a
+ * good player's advantage actually comes from. T-7.11 owns the real curve.
+ *
+ * @spec-ref 06-game-design.md §7 — decision noise: high → minimal
+ */
+const DECISION_NOISE_POINTS = 0.6;
+
+/** How far off a CPU pass may be aimed at full execution error, in radians. */
+const PASS_AIM_SPREAD = 0.22;
+
+/**
+ * Per-step chance the CPU acts on a decision to pass, at Pro. Tuned by T-2.13 against five hundred
+ * games; the other three levels are scaled around it by `passReactionChance()`.
  */
 const CPU_PASS_REACTION_PER_STEP = 0.06;
 
@@ -441,7 +506,11 @@ const PASS_SETTLE_STEPS = 40;
  */
 const CPU_ASSUMED_RELEASE = 0.62;
 
-/** Per-step chance a CPU defender in range lunges for the ball, before the steal itself is rolled. */
+/**
+ * Per-step chance a CPU defender in range lunges for the ball, before the steal itself is rolled,
+ * at balanced aggression. The level scales *how often it tries*, never whether it succeeds — that
+ * stays a matter of ratings (INV-1).
+ */
 const CPU_STEAL_CHANCE_PER_STEP = 0.006;
 
 /**
@@ -459,10 +528,11 @@ const CPU_BLOCK_CHANCE_PER_STEP = 0.0045;
 const FREE_THROW_SETUP_STEPS = 25;
 
 /**
- * Pass-assist strength (`06` §2). One number, on the player's side of the ball, widening the cone
- * target selection snaps within. Difficulty sets it from T-7.x; until then, "moderate" (INV-1).
+ * The cone target selection snaps within with pass assist at full strength, as a multiple of the
+ * unaided one (`06` §2). With the assist off the pass goes to whoever is genuinely in front of the
+ * stick, which is the point of being able to turn it off (US-7.3).
  */
-const PASS_ASSIST = 1;
+const PASS_ASSIST_FULL = 1.6;
 
 export const basketball: SportModule<BasketballState> = {
   id: 'basketball',
@@ -565,6 +635,9 @@ export const basketball: SportModule<BasketballState> = {
       meter: null,
       shooter: NO_ENTITY,
       cpuRelease: 0,
+      difficulty: difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY),
+      assists: assistsFor(setup),
+      executionRng: rng.fork('execution'),
       shot: null,
       pass: null,
       reboundLive: false,
@@ -579,7 +652,7 @@ export const basketball: SportModule<BasketballState> = {
       screener: NO_ENTITY,
       screenSteps: 0,
       receivedAt: 0,
-      autoSwitch: true,
+      autoSwitch: assistsFor(setup).autoSwitch,
       previousPossession: -1,
       // One side plays a 2-3 zone, chosen by the match seed, so both schemes get exercised.
       //
@@ -673,7 +746,9 @@ export const basketball: SportModule<BasketballState> = {
         ? action.target
         : pickTarget(state, world, actor, side, action.targetX ?? 0, action.targetY ?? 0);
 
-    return makePass(state, world, actor, side, target, action.power ?? 1, rng);
+    // No execution error: `act()` is an explicit instruction from outside the sim — a replay, a
+    // remote peer, a test. Whoever *decided* to make this pass owns whether it was a good idea.
+    return makePass(state, world, actor, side, target, action.power ?? 1, rng, 0);
   },
 
   isFinished(): boolean {
@@ -792,7 +867,9 @@ function trySteal(
   if (distance > DEFENCE.stealReach) return [];
 
   const wants =
-    input !== undefined ? wasPressed(input, Button.A) : rng.bool(CPU_STEAL_CHANCE_PER_STEP);
+    input !== undefined
+      ? wasPressed(input, Button.A)
+      : rng.bool(contestChance(CPU_STEAL_CHANCE_PER_STEP, state.difficulty.aggression));
   if (!wants) return [];
 
   state.stealCooldown.set(defender, DEFENCE.stealCooldown);
@@ -869,7 +946,9 @@ function tryBlock(
   if (distance > DEFENCE.blockReach) return [];
 
   const wants =
-    input !== undefined ? wasPressed(input, Button.B) : rng.bool(CPU_BLOCK_CHANCE_PER_STEP);
+    input !== undefined
+      ? wasPressed(input, Button.B)
+      : rng.bool(contestChance(CPU_BLOCK_CHANCE_PER_STEP, state.difficulty.aggression));
   if (!wants) return [];
 
   state.stealCooldown.set(defender, DEFENCE.stealCooldown);
@@ -969,15 +1048,18 @@ function driveFreeThrows(
   // which is what makes `freeThrow` worth having as its own rating rather than a flat percentage.
   const input = inputs.get(shooter);
   if (state.meter === null) {
-    state.meter = {
-      charge: 0,
-      window: releaseWindow(ratings.freeThrow),
-      movement: ShotMovement.SET,
-    };
+    state.meter = forgive(
+      { charge: 0, window: releaseWindow(ratings.freeThrow), movement: ShotMovement.SET },
+      input === undefined ? 1 : state.assists.timing,
+    );
     state.shooter = shooter;
     state.cpuRelease = Math.round(
       SHOT_IDEAL_HOLD +
-        rng.float(-1, 1) * state.meter.window * 0.7 * timingSpread(couplingOf(state, shooter)),
+        rng.float(-1, 1) *
+          state.meter.window *
+          0.7 *
+          timingSpread(couplingOf(state, shooter)) *
+          releaseSpread(state.difficulty.executionError),
     );
     return [];
   }
@@ -1218,12 +1300,19 @@ function driveShooting(
         : cpuWantsToShoot(state, world, carrier, side, rng);
     if (!start) return [];
 
-    state.meter = startShot(ratings, shotZone(x, y, side), movementOf(world, carrier, side));
+    state.meter = forgive(
+      startShot(ratings, shotZone(x, y, side), movementOf(world, carrier, side)),
+      input === undefined ? 1 : state.assists.timing,
+    );
     state.shooter = carrier;
     // The CPU aims for the middle of its own window, missing by a seeded amount.
     state.cpuRelease = Math.round(
       SHOT_IDEAL_HOLD +
-        rng.float(-1, 1) * state.meter.window * 0.8 * timingSpread(couplingOf(state, carrier)),
+        rng.float(-1, 1) *
+          state.meter.window *
+          0.8 *
+          timingSpread(couplingOf(state, carrier)) *
+          releaseSpread(state.difficulty.executionError),
     );
     return [];
   }
@@ -1374,11 +1463,59 @@ function cpuDecision(
   rng: Rng | null = null,
 ): ReturnType<typeof decide> {
   const coupling = couplingOf(state, actor);
-  const own = misjudge(lookFor(state, world, actor, side), coupling, rng);
+  // Two independent reasons to misread a look, added in quadrature because they are: how lost this
+  // athlete is in this sport (T-3.6), and how good the CPU is meant to be at reading it (T-7.7).
+  const noise = Math.hypot(coupling.decisionNoise, levelNoise(state.difficulty));
+  const own = misjudge(lookFor(state, world, actor, side), noise, rng);
   const raw = bestTeammateLook(state, world, actor, side);
-  const best = raw === null ? null : { ...raw, look: misjudge(raw.look, coupling, rng) };
+  const best = raw === null ? null : { ...raw, look: misjudge(raw.look, noise, rng) };
   const seconds = shotClockSeconds(state.rules);
   return decide(own, best, laneContest(state, world, actor, side), seconds);
+}
+
+/**
+ * How wide of its own ideal release a CPU shooter aims, as a multiplier on the athlete's own
+ * spread. `06` §7's "execution error" row for the one action where error is timing rather than aim:
+ * Legend releases almost where it meant to, Rookie is late or early often enough to miss shots it
+ * should make. It never touches the shot's *probability* — only when the ball leaves the hand.
+ *
+ * @spec-ref 06-game-design.md §7
+ */
+function releaseSpread(error: number): number {
+  // Pro is exactly 1 — the athlete's own spread, unchanged — so T-2.13's balance pass and T-3.6's
+  // coupling penalty both keep meaning what they measured, and the other three levels move around
+  // that fixed point rather than away from it.
+  return 0.4 + error * 3;
+}
+
+/**
+ * The help the player gets, when the caller has not said. A spectated match gets none — there is
+ * nobody to help — and a played one gets whatever its level starts you on, so a match built by a
+ * test or a headless harness behaves the way the mode screens do.
+ */
+function assistsFor(setup: MatchSetup): AssistSettings {
+  if (setup.assists !== undefined) return setup.assists;
+  return setup.playerSide === -1
+    ? NO_ASSISTS
+    : defaultAssists(setup.difficulty ?? DEFAULT_DIFFICULTY);
+}
+
+/**
+ * Widens a release window by the player's shot-timing forgiveness (`06` §2). It is applied only to
+ * a human's shot — the CPU lives with its own timing, and giving it the assist would make the
+ * setting a difficulty knob, which is the one thing `06` §2 says it is not.
+ *
+ * The *window* moves; the shot's probability does not. A forgiving window means more of the player's
+ * releases count as good ones, not that a good one goes in more often (INV-1).
+ */
+function forgive(meter: ShotMeter, timing: number): ShotMeter {
+  return timing === 1 ? meter : { ...meter, window: meter.window * timing };
+}
+
+/** How much worse than Pro this level reads a look, in expected points. Never negative. */
+function levelNoise(profile: DifficultyProfile): number {
+  const above = profile.decisionNoise - DIFFICULTY_PROFILES.pro.decisionNoise;
+  return above <= 0 ? 0 : above * DECISION_NOISE_POINTS;
 }
 
 /** How lost this athlete is in basketball. At home — and so free — until T-3.17 (`05` §3.3). */
@@ -1393,9 +1530,9 @@ function couplingOf(state: BasketballState, actor: EntityId): Coupling {
  * The draw is skipped entirely when nothing is coupled, so an at-home athlete's PRNG stream is
  * byte-identical to the one before T-3.6 existed (INV-8).
  */
-function misjudge(look: Look, coupling: Coupling, rng: Rng | null): Look {
-  if (rng === null || coupling.decisionNoise === 0) return look;
-  return { ...look, expected: look.expected + rng.gaussian(0, coupling.decisionNoise) };
+function misjudge(look: Look, noise: number, rng: Rng | null): Look {
+  if (rng === null || noise === 0) return look;
+  return { ...look, expected: look.expected + rng.gaussian(0, noise) };
 }
 
 /** What a shot from where this athlete stands is worth, right now. */
@@ -1508,7 +1645,9 @@ function drivePassing(
   if (input !== undefined) {
     if (!wasPressed(input, Button.B)) return [];
     const target = pickTarget(state, world, carrier, side, input.moveX, input.moveY);
-    return makePass(state, world, carrier, side, target, 1, rng);
+    // No execution error on a human's pass: their accuracy is the passer's rating and their own
+    // aim. Difficulty reaches the player's side through assists (T-7.8), not through error.
+    return makePass(state, world, carrier, side, target, 1, rng, 0);
   }
 
   // You cannot catch and release in the same instant: a receiver has to square up first, and
@@ -1518,11 +1657,20 @@ function drivePassing(
   // The decision says pass; the rate is how long it takes to see it, which is Phase 7's
   // reaction-latency dial (`06` §7) rather than a judgement — and, from T-3.6, how at home in
   // basketball this athlete is (`05` §3.3).
-  if (!rng.bool(delayReaction(CPU_PASS_REACTION_PER_STEP, couplingOf(state, carrier)))) return [];
+  if (!rng.bool(delayReaction(passReactionChance(state), couplingOf(state, carrier)))) return [];
 
   const best = bestTeammateLook(state, world, carrier, side);
   if (best === null) return [];
-  return makePass(state, world, carrier, side, best.athlete, 1, rng);
+  return makePass(
+    state,
+    world,
+    carrier,
+    side,
+    best.athlete,
+    1,
+    rng,
+    state.difficulty.executionError,
+  );
 }
 
 /** Pass assist: the teammate nearest the aim, or the nearest teammate if there is no aim. */
@@ -1546,8 +1694,25 @@ function pickTarget(
     aimX,
     aimY,
     mates,
-    PASS_ASSIST,
+    // Unaided is a narrow cone, not no cone: without one there is no way to pass at all.
+    0.45 + state.assists.pass * (PASS_ASSIST_FULL - 0.45),
   );
+}
+
+/**
+ * Rotates an aim point around the thrower by `angle` radians, keeping its distance and flight time.
+ */
+function deflect<T extends { x: number; y: number }>(
+  from: { x: number; y: number },
+  aim: T,
+  angle: number,
+): T {
+  if (angle === 0) return aim;
+  const dx = aim.x - from.x;
+  const dy = aim.y - from.y;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return { ...aim, x: from.x + dx * cos - dy * sin, y: from.y + dx * sin + dy * cos };
 }
 
 /** Throws it, and says so. */
@@ -1559,12 +1724,14 @@ function makePass(
   target: EntityId,
   power: number,
   rng: Rng,
+  /** The thrower's execution error, `0–1`. Zero for a human — see the call site. */
+  error: number,
 ): SportEvent[] {
   const ratings = state.ratings.get(passer);
   if (ratings === undefined) return [];
 
   const from = { x: world.x[passer] as number, y: world.y[passer] as number };
-  const lead =
+  const aimed =
     target === NO_ENTITY
       ? {
           x: from.x + Math.cos(world.facing[passer] as number) * 6,
@@ -1572,6 +1739,9 @@ function makePass(
           flightTime: 0.5,
         }
       : leadTarget(world, from, target, power);
+  // The error is angular, applied to where it was aimed rather than to who it was meant for: a
+  // badly-thrown pass still travels the right distance, it simply arrives beside the receiver.
+  const lead = deflect(from, aimed, aimError(state.executionRng, error, PASS_AIM_SPREAD));
 
   const pressure = contestOn(state, world, passer, side);
   state.pass = throwPass(
@@ -2426,10 +2596,16 @@ export function createBasketballMatch(
   seed: string,
   playerSide: 0 | 1 | -1 = -1,
   rosters?: readonly (readonly Athlete[])[],
+  difficulty?: Difficulty,
 ): { state: BasketballState; rng: Rng } {
   const rng = createRng(seed);
   const state = basketball.createState(
-    { seed, playerSide, ...(rosters === undefined ? {} : { rosters }) },
+    {
+      seed,
+      playerSide,
+      ...(rosters === undefined ? {} : { rosters }),
+      ...(difficulty === undefined ? {} : { difficulty }),
+    },
     world,
     rng,
   );

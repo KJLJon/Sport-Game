@@ -25,6 +25,7 @@
     "trace": "tsx tools/spec-trace.ts",
     "api": "tsx tools/api-index.ts",
     "spec": "tsx tools/spec-section.ts",
+    "next": "tsx tools/next-tasks.ts",
     "progress:check": "tsx tools/progress-check.ts",
     "verify": "pnpm typecheck && pnpm lint && pnpm test",
     "budget": "tsx tools/budget.ts",
