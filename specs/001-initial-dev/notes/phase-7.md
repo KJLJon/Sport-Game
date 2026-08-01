@@ -60,3 +60,75 @@ soccer's inside `index.ts`). Replacing those is T-7.4 and T-7.5, on top of the r
 team coordination (T-7.3) that give the considerations something to read. `AiTuning` in
 `decider.ts` is the seam T-7.7 fills from `06` §7's table — the engine takes plain numbers so it
 never imports a mode (`04` §5).
+
+### T-7.7
+
+*Difficulty model across all three modes — latency, noise, error, aggression, assists, arcade windows*
+
+**`06` §7's table was already data; what was missing was everywhere it should have been read.** The
+four profiles have existed since T-4.2, and exactly one field of one of them was consumed
+(`timingWindow`, by arcade). Live had no difficulty at all: `LiveMatch` took a seed, a sport, and a
+side, and both sports' CPUs ran off hardcoded constants. This task closed that, and the shape of the
+closing is the point — difficulty reaches the simulation through four named channels and no others:
+
+| Channel | Where it lands |
+|---|---|
+| `cpuLatencyMs` | `reactionChance()` — a memoryless per-step roll whose mean is the level's reaction time |
+| `decisionNoise` | Gaussian jitter on a look's expected points (basketball) and on how open the goal is (soccer) |
+| `executionError` | Angular error on CPU passes and shots, and how wide of its own ideal a CPU shooter releases |
+| `aggression` | How often a defender *commits* to a challenge — never whether they win it |
+
+**Memoryless reaction rather than a countdown.** A countdown makes all five defenders react at
+exactly the same instant after a turnover, which reads as a hive mind. `1 - exp(-dt/latency)` gives
+the same mean delay with a spread around it, so five athletes look like five people. It also
+happens to land Pro at 0.058 per step against the 0.06 that basketball's hand-tuned constant used,
+which is why T-2.13's balance pass largely survived this change.
+
+**One number moved and had to be tuned back.** Adding decision noise at 0.35 expected points per
+unit pushed basketball's three-point share of attempts from 51.9% to 57.7%, past the 55% band —
+jitter tips marginal threes over the bar more often than marginal twos, because the marginal three
+sits closer to it. Dropped to 0.18 and the share came back inside. T-7.11 owns the real tuning
+against the win-rate curve; this was only about not shipping a red band.
+
+**The preference had to live somewhere other than `difficulty.ts`.** `lastDifficulty()` /
+`rememberDifficulty()` started there and broke `pnpm balance` instantly: `difficulty.ts` is imported
+by the *sports* layer, so importing `storage/prefs.ts` dragged `import.meta.env.BASE_URL` into a
+headless `tsx` run that has no Vite env. They moved to `modes/last-played.ts`, which already owns
+"what was played last" and is only ever reached from a mode or a screen. The layering rule that
+falls out: anything `sports/` can import must be safe to load outside a browser.
+
+**One ladder, one memory.** `09` §7 says the same four levels apply in all three modes, so there is
+one stored preference shared by the Play hub, Playbook's setup screen, and Live — and a
+`?difficulty=` in the URL beats it in all of them, so a match stays a shareable link.
+
+**INV-1 has two tests, on purpose.** A behavioural one plays the same seed at all four levels and
+asserts every rating of every athlete on *both* sides is byte-identical, and a structural one greps
+`src/` for arithmetic mentioning a rating and a difficulty knob on the same line. The behavioural
+one would miss a scaling on a path the seed never reached; the structural one would miss one written
+around the regex. Neither is sufficient; together they are hard to get past by accident.
+
+**Soccer's Shoot and Pass buttons had never been wired to anything.** Found while adding the
+difficulty gate to `decide()`: the function ran for *every* carrier, the player's included, so the
+human's athlete shot and passed on its own while the HUD drew two buttons that did nothing at all
+(`hud.buttonLabels` has promised `Shoot`/`Pass`/`Tackle`/`Slide` since T-6.29). A human carrier now
+acts on A and B and the CPU path is skipped for them; a human defender challenges when they press,
+rather than automatically. This is a large part of what the user meant by "not easy to control" —
+in soccer, they were not controlling much.
+
+**Soccer's Live balance moved a long way and is still out of band.** T-6.18 left an open finding
+against Phase 7: Live soccer scored **12.84 goals a match on 58.5 shots** (band 1.2–5.5), with
+conversion inside band at 21.9% — volume, not finishing, because a placeholder CPU shoots the moment
+it reaches the final third with a metre of space. With the reaction gate on the carrier's decision:
+
+| | before | after | band |
+|---|---|---|---|
+| Live · goals per match | 12.84 | **8.40** | 1.2–5.5 |
+| Live · shots per match | 58.5 | **16.2** | 8–45 ✓ |
+| Live · conversion | 21.9% | **51.9%** | 4–30% |
+
+Shot volume is fixed and the failure has changed shape rather than gone away: a carrier who has to
+wait ~280 ms to decide keeps running at goal in the meantime, so the shots it does take are from
+almost on top of the keeper. Fewer, far better chances. The remaining defect is now two things
+neither of which this task owns — nobody stops the carrier walking into the box (T-7.5's press lines
+and defensive shape) and the keeper saves too little of what arrives (a keeper-model question). It
+stays an open Phase 7 finding, to be closed by T-7.5 and measured again at T-7.11.

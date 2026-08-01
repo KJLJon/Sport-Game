@@ -79,14 +79,14 @@ must be asked for explicitly at every gate** — not recorded as a blocker and l
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
 | 6 | Soccer · all three modes | 30 | 30 | `done` | v0.5 |
-| 7 | CPU AI depth & difficulty ladder | 11 | 1 | `in_progress` | — |
+| 7 | CPU AI depth & difficulty ladder | 11 | 2 | `in_progress` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **203** | **117** | | |
+| | **Total** | **203** | **118** | | |
 
 ---
 
@@ -257,7 +257,7 @@ there; this file is read at every session start and the notes file only when you
 | T-7.4 | Basketball Live AI depth: pick-and-roll, cuts, zone vs man, rating-driven shot selection | L | `todo` | | | | |
 | T-7.5 | Soccer Live AI depth: build-up phases, press lines, offside trap, counter-attacks | L | `todo` | | | | |
 | T-7.6 | Playbook AI depth for both sports: tendency modelling, counter-calling | L | `todo` | | | | |
-| T-7.7 | Difficulty model across all three modes — latency, noise, error, aggression, assists, arcade windows (INV-1) | M | `todo` | | | | |
+| T-7.7 | Difficulty model across all three modes — latency, noise, error, aggression, assists, arcade windows (INV-1) | M | `done` | | `tests/unit/engine/ai-execution.test.ts`, `tests/unit/modes/difficulty.test.ts`, `tests/invariants/inv-01-difficulty-never-scales-ratings.test.ts` | `auto`; basketball balance green, soccer Live still out of band (T-6.18’s open finding, now a different shape) | Difficulty now reaches Live through four named channels and nothing else; found and fixed that soccer’s Shoot/Pass buttons had never been wired. [notes](./notes/phase-7.md#t-77) |
 | T-7.8 | Assist system: aim, pass, auto-switch, timing forgiveness; independent of difficulty; no-assist bonus | M | `todo` | | | | |
 | T-7.9 | CPU team generation: coherent opponents and identities scaled to difficulty | M | `todo` | | | | |
 | T-7.10 | AI regression harness: headless batches per difficulty per mode, asserted win-rate bands | M | `todo` | | | | |

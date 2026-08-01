@@ -46,15 +46,26 @@ function liveRoute(): ScreenDefinition {
     // mount and the real screen is built then. A thin adapter rather than a change to `liveScreen`,
     // which has no business knowing that a sport can arrive from a URL.
     load: async () => {
-      const [{ liveScreen }, { loadSport }] = await Promise.all([
-        import('../modes/live/screen.ts'),
-        import('../sports/playable.ts'),
-      ]);
+      const [{ liveScreen }, { loadSport }, { isDifficulty }, { lastDifficulty }] =
+        await Promise.all([
+          import('../modes/live/screen.ts'),
+          import('../sports/playable.ts'),
+          import('../modes/difficulty.ts'),
+          import('../modes/last-played.ts'),
+        ]);
       let inner: Screen | null = null;
       return {
         async mount(context) {
           const sport = await loadSport(context.params['sport']);
-          inner = liveScreen({ sport, seed: newMatchSeed(), playerSide: 0 });
+          // A level in the link wins over the remembered one, so a match is shareable at the
+          // difficulty it was played at (US-7.2).
+          const asked = context.query['difficulty'] ?? '';
+          inner = liveScreen({
+            sport,
+            seed: newMatchSeed(),
+            playerSide: 0,
+            difficulty: isDifficulty(asked) ? asked : lastDifficulty(),
+          });
           await inner.mount(context);
         },
         unmount() {

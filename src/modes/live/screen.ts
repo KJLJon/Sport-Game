@@ -52,6 +52,8 @@ import type { EntityId } from '../../engine/world.ts';
 import type { Side } from '../../engine/match/events.ts';
 import type { SportModule } from '../../sports/types.ts';
 import { LiveMatch, type MatchView } from './match.ts';
+import type { Difficulty } from '../difficulty.ts';
+import { lastDifficulty } from '../last-played.ts';
 import {
   boxRows,
   drawEdgeIndicators,
@@ -90,6 +92,8 @@ export interface LiveScreenOptions {
   readonly sport: SportModule;
   readonly seed: string;
   readonly playerSide?: 0 | 1;
+  /** The CPU's level (T-7.7). Absent means the remembered default, which is Pro until it is set. */
+  readonly difficulty?: Difficulty;
 }
 
 /** Reads the safe-area insets the shell publishes as CSS custom properties (`10` §4). */
@@ -120,6 +124,7 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         sport: options.sport,
         seed: options.seed,
         playerSide: options.playerSide ?? 0,
+        difficulty: options.difficulty ?? lastDifficulty(),
       });
 
       const root = doc.createElement('div');

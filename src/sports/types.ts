@@ -30,6 +30,7 @@ import type { EntityId, World } from '../engine/world.ts';
 import type { Athlete } from '../athletes/types.ts';
 import type { ArcadeGameDef } from '../modes/arcade/types.ts';
 import type { PlaybookAdapter } from '../modes/playbook/types.ts';
+import type { Difficulty } from '../modes/difficulty.ts';
 
 export type SportId = string;
 
@@ -148,6 +149,14 @@ export interface MatchSetup {
    * is played by something other than athletes.
    */
   readonly rosters?: readonly (readonly Athlete[])[];
+  /**
+   * The CPU's level (T-7.7). Absent means Pro, which is what a headless rules test and the balance
+   * harness want unless they say otherwise.
+   *
+   * A sport reads it for reaction time, decision noise, execution error, and aggression, and for
+   * *nothing else* — INV-1 has a test that no rating is scaled by it.
+   */
+  readonly difficulty?: Difficulty;
 }
 
 /** Whatever the sport needs to track. The engine treats it as opaque. */

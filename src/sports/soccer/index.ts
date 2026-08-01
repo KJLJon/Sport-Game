@@ -34,7 +34,7 @@
  * pass will move the numbers once there is a real opponent to balance against.
  */
 import { EventKind, event, type SportEvent } from '../../engine/match/events.ts';
-import type { InputFrame } from '../../engine/input/types.ts';
+import { Button, wasPressed, type InputFrame } from '../../engine/input/types.ts';
 import {
   attach,
   canCatch,
@@ -122,6 +122,12 @@ import { SOCCER_ARCADE } from './arcade/index.ts';
 import { soccerPlaybook } from './playbook/index.ts';
 import { SHOOTING, takeShot, type ShotInFlight } from './shooting.ts';
 import {
+  DEFAULT_DIFFICULTY,
+  difficultyProfile,
+  type DifficultyProfile,
+} from '../../modes/difficulty.ts';
+import { aimError, contestChance, reacted } from '../../engine/ai/execution.ts';
+import {
   createStamina,
   dribbleProfile,
   tickStamina,
@@ -151,6 +157,22 @@ const RESTART_READY_RANGE = 1.2;
  * @spec-ref 06-game-design.md §3.2
  */
 const SHOOTING_RANGE = 22;
+
+/** One simulation step, in milliseconds — the unit the reaction model works in. */
+const STEP_MS = 1000 / 60;
+
+/** How badly the CPU may misread how open the goal is, at full decision noise. */
+const OPENNESS_NOISE = 0.35;
+
+/** Angular error on a CPU pass or shot at full execution error, in radians. */
+const KICK_AIM_SPREAD = 0.18;
+
+/**
+ * Per-step chance a defender within reach actually goes in for the challenge, at balanced
+ * aggression. `06` §7's pressing row: a relentless defender commits to more challenges, and wins
+ * them at exactly the same rate, because winning one is a matter of ratings (INV-1).
+ */
+const TACKLE_COMMIT_PER_STEP = 0.85;
 const MIN_SHOOTING_OPENNESS = 0.35;
 
 export interface SoccerState extends SportState {
@@ -167,6 +189,11 @@ export interface SoccerState extends SportState {
   readonly squads: [EntityId[], EntityId[]];
   controlled: EntityId;
   pass: PassInFlight | null;
+  /**
+   * The CPU's level (T-7.7): reaction time, decision noise, execution error, aggression. Nothing
+   * here scales a rating on either side (INV-1).
+   */
+  readonly difficulty: DifficultyProfile;
   shot: ShotInFlight | null;
   /** Steps since kick-off. The module's own clock, for event stamping. */
   elapsed: number;
@@ -495,6 +522,7 @@ export const soccer: SoccerModule = {
       squads,
       controlled,
       pass: null,
+      difficulty: difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY),
       shot: null,
       elapsed: 0,
       finished: false,
@@ -542,12 +570,12 @@ export const soccer: SoccerModule = {
       events.push(...settleLooseBall(state, world, step, rng));
     } else {
       carry(state, world, carrier, ballX, ballY);
-      events.push(...contestCarrier(state, world, carrier, step, rng));
+      events.push(...contestCarrier(state, world, carrier, inputs, step, rng));
     }
 
     events.push(...checkGoalAndBounds(state, world, step));
     if (!isBallDead(state.rules)) {
-      events.push(...decide(state, world, step, rng));
+      events.push(...decide(state, world, inputs, step, rng));
     }
     return events;
   },
@@ -884,6 +912,7 @@ function contestCarrier(
   state: SoccerState,
   world: World,
   carrier: EntityId,
+  inputs: ReadonlyMap<EntityId, InputFrame>,
   step: number,
   rng: Rng,
 ): readonly SportEvent[] {
@@ -902,6 +931,16 @@ function contestCarrier(
     const d = state.ratings.get(id);
     const c = state.ratings.get(carrier);
     if (d === undefined || c === undefined) continue;
+
+    // The human's defender challenges when they say so — `hud.buttonLabels.defence` promises
+    // Tackle and Slide, and before T-7.7 the buttons did nothing at all. A CPU defender commits at
+    // its level's aggression.
+    const input = inputs.get(id);
+    if (input !== undefined) {
+      if (!wasPressed(input, Button.A) && !wasPressed(input, Button.B)) continue;
+    } else if (!rng.bool(contestChance(TACKLE_COMMIT_PER_STEP, state.difficulty.aggression))) {
+      continue;
+    }
 
     const closing = Math.hypot(world.vx[id] as number, world.vy[id] as number);
     const outcome = resolveTackle(
@@ -980,34 +1019,91 @@ function checkGoalAndBounds(state: SoccerState, world: World, step: number): rea
 }
 
 /** The carrier's decision: shoot if it is on, pass if pressed, otherwise keep going. */
-function decide(state: SoccerState, world: World, step: number, rng: Rng): readonly SportEvent[] {
+function decide(
+  state: SoccerState,
+  world: World,
+  inputs: ReadonlyMap<EntityId, InputFrame>,
+  step: number,
+  rng: Rng,
+): readonly SportEvent[] {
   const carrier = state.ballState.carrier;
   if (carrier === NO_ENTITY) return [];
   const side = state.sides.get(carrier);
   if (side === undefined) return [];
+
+  // A human carrier shoots and passes when *they* decide to. Until T-7.7 this function ran for
+  // every carrier, so the player's athlete shot and passed on its own and the two buttons the HUD
+  // was drawing did nothing — which is most of what "not easy to control" meant.
+  const input = inputs.get(carrier);
+  if (input !== undefined) {
+    if (wasPressed(input, Button.A)) {
+      return shoot(state, world, carrier, side, { kind: 'shoot', power: 1 }, step, rng);
+    }
+    if (wasPressed(input, Button.B)) {
+      return pass(state, world, carrier, side, { kind: 'pass' }, step, rng);
+    }
+    return [];
+  }
+
+  // How long it takes to *see* the decision. `06` §7's reaction row, and the reason a Rookie
+  // carrier can be closed down while still deciding what to do with the ball.
+  if (!reacted(rng, state.difficulty.cpuLatencyMs, STEP_MS)) return [];
 
   const x = world.x[carrier] as number;
   const y = world.y[carrier] as number;
 
   if (carrier === state.keepers[side]) {
     const kind = distributionChoice(pressureFor(state, world, carrier, side), true);
-    return pass(state, world, carrier, side, { kind: 'pass', power: 1 }, step, rng, kind);
+    return pass(
+      state,
+      world,
+      carrier,
+      side,
+      { kind: 'pass', power: 1 },
+      step,
+      rng,
+      kind,
+      state.difficulty.executionError,
+    );
   }
 
   const distance = shotDistance(x, y, side);
   const pressure = pressureFor(state, world, carrier, side);
 
-  const openness = goalOpenness(x, y, side);
+  // Misjudging how open the goal is, by the level's decision noise. Rookie shoots from positions
+  // it should work an opening from, and passes up ones it should have hit.
+  const openness = clamp01(
+    goalOpenness(x, y, side) + rng.gaussian(0, state.difficulty.decisionNoise * OPENNESS_NOISE),
+  );
   if (
     distance < SHOOTING_RANGE &&
     openness > MIN_SHOOTING_OPENNESS &&
     (isInAttackingPenaltyArea(x, y, side) || pressure < 0.4)
   ) {
-    return shoot(state, world, carrier, side, { kind: 'shoot', power: 1 }, step, rng);
+    return shoot(
+      state,
+      world,
+      carrier,
+      side,
+      { kind: 'shoot', power: 1 },
+      step,
+      rng,
+      state.difficulty.executionError,
+    );
   }
 
   if (pressure > 0.55) {
-    return pass(state, world, carrier, side, { kind: 'pass' }, step, rng);
+    return pass(
+      state,
+      world,
+      carrier,
+      side,
+      { kind: 'pass' },
+      step,
+      rng,
+      undefined,
+      state.difficulty.executionError,
+    );
   }
   return [];
 }
@@ -1044,6 +1140,25 @@ function pressureFor(state: SoccerState, world: World, carrier: EntityId, side: 
   );
 }
 
+/** Keeps a placement inside the goalmouth after error has been added to it. */
+function clampAim(value: number): number {
+  return value < -0.95 ? -0.95 : value > 0.95 ? 0.95 : value;
+}
+
+/** Rotates an aim point around the kicker, keeping its distance and its flight time. */
+function deflect<T extends { x: number; y: number }>(
+  from: { x: number; y: number },
+  aim: T,
+  angle: number,
+): T {
+  if (angle === 0) return aim;
+  const dx = aim.x - from.x;
+  const dy = aim.y - from.y;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return { ...aim, x: from.x + dx * cos - dy * sin, y: from.y + dx * sin + dy * cos };
+}
+
 function shoot(
   state: SoccerState,
   world: World,
@@ -1052,6 +1167,8 @@ function shoot(
   action: ActionIntent,
   step: number,
   rng: Rng,
+  /** The striker's execution error, `0–1`. Zero when a human pulled the trigger. */
+  error = 0,
 ): readonly SportEvent[] {
   const r = state.ratings.get(actor);
   if (r === undefined || state.ballState.carrier !== actor) return [];
@@ -1065,7 +1182,11 @@ function shoot(
       side,
       ratings: { finishing: r.finishing, shotPower: r.shotPower, coordination: r.coordination },
       power: clamp01(action.power ?? SHOOTING.tapPower + 0.4),
-      placeAcross: shotRng.float(-0.85, 0.85),
+      // Where in the goal it was aimed, then how far off that it actually went. Placement is a
+      // choice; the error on it is the level's (`06` §7).
+      placeAcross: clampAim(
+        shotRng.float(-0.85, 0.85) + aimError(shotRng, error, KICK_AIM_SPREAD * 4),
+      ),
       placeUp: shotRng.float(0.1, 0.7),
       pressure: pressureFor(state, world, actor, side),
       approachAngle: 0,
@@ -1099,6 +1220,8 @@ function pass(
   step: number,
   rng: Rng,
   forceKind?: PassKind,
+  /** The passer's execution error, `0–1`. Zero when a human pulled the trigger. */
+  error = 0,
 ): readonly SportEvent[] {
   const r = state.ratings.get(actor);
   if (r === undefined || state.ballState.carrier !== actor) return [];
@@ -1115,7 +1238,10 @@ function pass(
   if (target === NO_ENTITY) return [];
 
   const kind: PassKind = forceKind ?? choosePassKind(from, world, target);
-  const lead = leadTarget(world, from, target, kind, kind === 'through' ? 6 : 0);
+  const aimed = leadTarget(world, from, target, kind, kind === 'through' ? 6 : 0);
+  // Angular, so a misplaced pass still travels the right distance and simply arrives beside the
+  // player it was meant for — which is what a loose pass looks like.
+  const lead = deflect(from, aimed, aimError(rng, error, KICK_AIM_SPREAD));
 
   const passRng = rng.fork('passing');
   const inFlight = throwPass(

@@ -4,7 +4,7 @@
  * @task    T-7.1 — Utility-scoring decision framework shared across sports and modes
  * @story   US-7.1 — Play against the computer
  * @design  06-game-design.md §5 (CPU behaviour), §7 (difficulty)
- * @invariant INV-1 (difficulty never touches attributes or ratings), INV-2 (no Math.random),
+ * @invariant INV-1 (difficulty never touches attributes or ratings), INV-2 (no unseeded randomness),
  *            INV-8 (determinism), INV-5 (no sport-specific branching in engine core)
  *
  * Purpose: scores a set of candidate actions against weighted considerations and picks one. This is

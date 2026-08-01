@@ -23,6 +23,7 @@
  * (T-2.13) runs five hundred games through it with no canvas in sight.
  */
 import type { Athlete } from '../../athletes/types.ts';
+import type { Difficulty } from '../difficulty.ts';
 import { createRng, type Rng } from '../../engine/rng.ts';
 import { EventBus, EventKind, type Side, type SportEvent } from '../../engine/match/events.ts';
 import {
@@ -61,6 +62,8 @@ export interface MatchOptions {
    * are being asked about the same players.
    */
   readonly rosters?: readonly (readonly Athlete[])[];
+  /** The CPU's level (T-7.7). Absent means Pro — the balance harness runs at Pro by default. */
+  readonly difficulty?: Difficulty;
 }
 
 /**
@@ -102,6 +105,7 @@ export class LiveMatch {
         playerSide: this.playerSide as 0 | 1 | -1,
         ...(options.squadSize === undefined ? {} : { squadSize: options.squadSize }),
         ...(options.rosters === undefined ? {} : { rosters: options.rosters }),
+        ...(options.difficulty === undefined ? {} : { difficulty: options.difficulty }),
       },
       this.world,
       rng,

@@ -19,8 +19,10 @@ import { prefs } from '../storage/prefs.ts';
 import { DEFAULT_SPORT, isPlayable } from '../sports/playable.ts';
 import type { SportId } from '../sports/types.ts';
 import { isModeAvailable, modesForSport, playMode, type PlayMode } from './catalogue.ts';
+import { DEFAULT_DIFFICULTY, isDifficulty, type Difficulty } from './difficulty.ts';
 
 const SPORT_KEY = 'play.lastSport';
+const DIFFICULTY_KEY = 'play.difficulty';
 const MODE_KEY_PREFIX = 'play.lastMode.';
 
 export interface PlayChoice {
@@ -66,9 +68,30 @@ export function rememberPlay(sport: SportId, mode: PlayMode): void {
   prefs.set(MODE_KEY_PREFIX + sport, mode.id);
 }
 
+/**
+ * The remembered difficulty (US-7.2 — "selectable per match and rememberable as a default"). One
+ * memory for all three modes, because `06` §7 describes one ladder: a player who has settled on
+ * All-Star has not settled on it for basketball only.
+ *
+ * It lives here rather than beside the profiles in `difficulty.ts` for a structural reason —
+ * `difficulty.ts` is imported by the *sports* layer, and anything it imports is dragged into the
+ * headless balance harness, which has no `import.meta.env` and therefore no storage. Preferences
+ * belong on the mode side of that line.
+ */
+export function lastDifficulty(): Difficulty {
+  const stored = prefs.get<string | null>(DIFFICULTY_KEY, null);
+  return stored !== null && isDifficulty(stored) ? stored : DEFAULT_DIFFICULTY;
+}
+
+/** Records a choice. Called when a match is started, or when the picker is changed. */
+export function rememberDifficulty(difficulty: Difficulty): void {
+  prefs.set(DIFFICULTY_KEY, difficulty);
+}
+
 /** Forgets everything this module stores. For the data screen's reset, and for tests. */
 export function forgetPlay(): void {
   prefs.remove(SPORT_KEY);
+  prefs.remove(DIFFICULTY_KEY);
   for (const key of prefs.keys()) {
     if (key.startsWith(MODE_KEY_PREFIX)) prefs.remove(key);
   }
