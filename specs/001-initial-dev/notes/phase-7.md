@@ -281,3 +281,53 @@ sport keeps whatever it was doing and the missing row is visible instead of sile
 **Difficulty does not appear in this file** (INV-1) and there is no parameter through which a rating
 could arrive. A level reaches the team layer by being handed a different `TeamShape` — lower press
 line, fewer pressers, a looser block — which is `06` §7's aggression row and touches nothing else.
+
+### T-7.4
+
+*Basketball Live AI depth: pick-and-roll, cuts, zone vs man, rating-driven shot selection*
+
+**The theme is "a decision, not a die".** T-2.8 shipped cuts at a flat 0.4% per step and picked a
+screener because they were a big and it was their turn. That produced movement, which was the point
+at the time, and it produced the *same* movement whoever was playing: a wide-open shooter cutting
+away from their own look, a screen set for a handler nobody was guarding. All four of `03`'s named
+pieces now run through T-7.1's scoring.
+
+**An urge, not a boolean.** `cutUrge()` returns a `0–1` utility and the caller multiplies its tuned
+per-step rate by it (`CUT_URGE_SCALE`, `SCREEN_URGE_SCALE` = 2.2, so a good look lands near the old
+rate). A `selectOption()` boolean evaluated sixty times a second is a *state*, and a cut is an
+*event* — wiring it as a yes/no would have every off-ball athlete cutting continuously the moment
+their defender relaxed. This way what changed is *who* cuts and *when*, not how much the sport cuts,
+which is what keeps T-2.13's balance numbers meaningful.
+
+**The pick-and-roll is the screen's second half.** `screenSteps` counts down; above the halfway mark
+the screener holds `screenSpot()`, below it they leave — `rollOrPop()` reads their own ratings and
+sends a stretch big to the arc and a rim runner to the rim. Getting that backwards is the most
+visible way a basketball AI reads as not understanding the sport, and it is decided by
+`threePoint - finishing >= 6` and nothing else (INV-1: no parameter through which a difficulty could
+arrive; there is a test asserting the arity).
+
+**The scheme is now a read, not a coin flip.** `pickScheme(rng)` gave one side a 2-3 zone for the
+whole match, one match in three. `schemeFor()` runs every possession, in `refreshMarks()` — a zone
+concedes the three to take away the rim, so it is right against a team that cannot shoot and wrong
+against one that can, and foul trouble pushes the same way for a different reason. Both schemes
+still get exercised in the integration suite; what changed is that a team of shooters now sees man.
+
+**The shot bar knows who is taking the shot.** `CPU.possessionValue` was one constant for everybody.
+`possessionValueFor()` reads the five on the floor and spreads it ±0.14 points: a side that cannot
+shoot takes the shot it has, a side that can passes it up. It moves with fatigue and substitutions
+for free because it is recomputed rather than cached.
+
+**Balance moved the right way, all in band.** FG% 36.8 → 38.1, eFG 44.9 → 45.8, three-point share
+52.2% → 48.8% (it was near the 55% ceiling), turnovers 22.7 → 21.5, points 76.9 → 77.3. Better shot
+selection showing up as better shooting rather than as more shooting is the shape you want.
+
+**One integration test had to change and it is worth knowing why.** *"still ends a stalled possession
+on the shot clock"* asserted at least one violation in one quarter of seed `flow`, and with the new
+bar that seed produces zero — the offence shoots instead of stalling. It now sums four seeds, so it
+tests the mechanism rather than one seed's luck. Verified first that violations still fire (1 per
+quarter on four other seeds) before touching the test.
+
+**Not done here:** the team layer (T-7.3) still has no basketball reader. Basketball's off-ball
+positioning is `offensiveSpot`/`zoneSpot`/`markingSpot` and it works; replacing it with duty-driven
+targets is a spacing change that would re-open every balance number, and it belongs with T-7.11's
+tuning pass rather than in the middle of this one.
