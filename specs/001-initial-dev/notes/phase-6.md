@@ -1732,6 +1732,84 @@ default spec. Nothing in the suite had ever asserted what soccer's HUD showed.
    too readily, and it was invisible while the number sat under a basketball label nobody read.
    Measured, not eyeballed, in the row below.
 
+### T-6.29
+
+**Draw the touch buttons' captions from `SportHudSpec.buttonLabels`.**
+
+The user played the `v0.6.0` deploy and said, in order: *"not easy to control"*. `drawTouchControls`
+stroked three bare circles. `buttonLabels` had carried `['Shoot', 'Pass']` / `['Call', 'Screen']` /
+`['Steal', 'Block']` for basketball since T-2.10 and `['Tackle', 'Slide']` for soccer since T-6.10,
+and — exactly like `showShotClock`, `clock`, and `foulLabel` before T-6.28 — **nothing read them**.
+
+That makes four dormant members of one interface, found in two sessions. The lesson is not "wire up
+`SportHudSpec`", it is that **a seam member with no consumer is indistinguishable from a comment**,
+and the suite cannot tell you: every one of these shipped green. If a future phase adds a member to
+`SportModule`, add the thing that reads it in the same commit or do not add it.
+
+**The one thing the seam could not already answer** was *which* of the three label rows applies right
+now. `buttonLabels` is a `Record<string, [string, string]>` — deliberately open, so a sport names its
+own states — but nothing said which key was live. That is simulation knowledge (is the athlete under
+the thumbs carrying? does their side have the ball?), so it belongs to the sport:
+`SportStatus.buttonContext?: string`, optional, keying into the sport's own labels. Both sports
+compute it the same way, from `ballState.carrier`, `controlled`, `sides`, and `rules.possession`.
+
+**Sprint is not the sport's to name.** There are three buttons and `buttonLabels` supplies two,
+because the third is the modifier and it is sprint in both sports and in `DEFAULT_KEYMAP`. It is
+captioned by the mode, not the sport, and a sport cannot override it. If a sport ever wants a
+different modifier, that is a seam change and it should be made deliberately.
+
+**A held button now thickens its ring rather than brightening it** — a shape change, not a shade
+change, so the feedback survives a colourblind player and a phone in direct sunlight (INV-11). This
+needed `TouchInput.isHeld(id)`; `held` answers as a bitmask, which is what the input router wants,
+and mapping ids back through `buttonMaskFor` at the draw site would have put that table in two
+places.
+
+**Verified** on the production build, both sports, at 844×390 with a real touch tap: basketball reads
+`Shoot` / `Pass` / `Sprint` on the ball, soccer reads `Tackle` / `Slide` / `Sprint` defending. The
+captions change with possession, which is asserted rather than eyeballed — a context that never moved
+would satisfy every other assertion and still tell the player nothing.
+
+**Feel note.** Unknown, honestly. Labels fix *what the buttons do*, which was the reported problem,
+but "not easy to control" may also be the stick deadzone, the auto-switch, or sprint being a held
+button rather than a toggle — none of which any human has evaluated. Do not treat this row as having
+closed the user's complaint until they say so.
+
+**Still open from the same feedback**, both logged in `PROGRESS.md`'s In-flight block rather than
+fixed here: the Store and Progress tabs are Phase-8 stubs sitting in the bottom bar where they are
+the most tappable things in the app, and Live is landscape-only, which is Phase 12's camera work.
+
+### T-6.30
+
+**Make the unbuilt screens read as unbuilt rather than as broken.**
+
+Third item from the same user session. They said "some screens don't seem to work", and they meant
+`#/store` and `#/progress` — the last two `stub()` routes, both **tabs in the bottom bar**, which
+makes them among the most tappable things in the app. What they showed was:
+
+> **Store**
+> Packs, the market, and selling athletes.
+> *Arrives in Phase 8.*
+
+That third line is a sentence about this repository's plan. To anyone who has not read `03` — which
+is everyone the user is showing the game to — it is a page that failed to load and then apologised in
+jargon. It also offered nothing to tap, which makes it a dead end, and `10` §10 has a name for that.
+
+**The fix is small and the reasoning is not.** The note now reads "Still being built — there is
+nothing to do here yet", and there is a primary button back to `#/play`. The `arrivesIn` phase is
+kept — it is real traceability, and `docs/traceability.md` wants it — but it moved to a
+`data-arrives-in` attribute, so it is there for whoever is debugging a build and not prose a player
+has to read past.
+
+**A test now asserts the absence of the old behaviour**, not just the presence of the new one:
+`expect(host.textContent).not.toMatch(/phase \d/i)`. The previous test asserted the note read exactly
+`"Arrives in Phase 3."` — it was green the entire time the screen was confusing people, because it
+was checking that the string was what someone had decided to write, not that the string was any good.
+That is the same failure mode as the four dormant `SportHudSpec` members: **the suite tested the
+implementation of a decision rather than the decision.**
+
+This is properly T-9.7's territory ("the forgotten states"). Taken early because it is three lines
+and it was actively costing the user something.
+
 ---
 
 ## Gate record

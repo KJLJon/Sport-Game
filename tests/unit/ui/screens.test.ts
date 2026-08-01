@@ -130,11 +130,35 @@ describe('placeholder screen', () => {
     expect(ctx.host.querySelector('p')?.textContent).toBe('Your athletes will live here.');
   });
 
-  it('names the phase that delivers the real screen', () => {
+  /**
+   * T-6.30. This used to assert the note read "Arrives in Phase 3." — a sentence about the build
+   * plan, shown to a player who has never read it. The user hit the two remaining stubs on the
+   * deployed build and reported that those screens "don't seem to work".
+   */
+  it('says it is unbuilt in words a player understands, not in phase numbers', () => {
     const ctx = context();
     placeholderScreen(spec).mount(ctx);
 
-    expect(ctx.host.querySelector('.empty-state__note')?.textContent).toBe('Arrives in Phase 3.');
+    const note = ctx.host.querySelector('.empty-state__note')?.textContent ?? '';
+    expect(note).toContain('Still being built');
+    expect(note).not.toMatch(/phase/i);
+    expect(ctx.host.textContent ?? '').not.toMatch(/phase \d/i);
+  });
+
+  it('keeps the phase for whoever is debugging, off the screen and on the element', () => {
+    const ctx = context();
+    placeholderScreen(spec).mount(ctx);
+
+    expect(ctx.host.querySelector('.empty-state')?.getAttribute('data-arrives-in')).toBe('Phase 3');
+  });
+
+  it('is never a dead end — there is always a way back to a match (`10` §10)', () => {
+    const ctx = context();
+    placeholderScreen(spec).mount(ctx);
+
+    const out = ctx.host.querySelector('a[href="#/play"]');
+    expect(out, 'a stub with no way out is a dead end').not.toBeNull();
+    expect(out?.textContent).toBe('Play a match');
   });
 
   it('renders each spec independently', () => {

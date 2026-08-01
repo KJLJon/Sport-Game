@@ -307,6 +307,22 @@ const hud: SportHudSpec = {
 };
 
 /**
+ * Which row of `hud.buttonLabels` applies right now (T-6.29).
+ *
+ * The three states are the three grips: you have the ball, your side has it and you do not, or the
+ * other side has it. `06` §2 wants the two action buttons to say what they currently do, and until
+ * T-6.29 the labels existed and nothing could tell which pair to draw.
+ *
+ * @spec-ref 06-game-design.md §2 — context-sensitive button labels
+ */
+function buttonContext(state: BasketballState): string {
+  const controlled = state.controlled;
+  if (controlled === NO_ENTITY) return 'defence';
+  if (state.ballState.carrier === controlled) return 'onBall';
+  return state.sides.get(controlled) === state.rules.possession ? 'offBall' : 'defence';
+}
+
+/**
  * What basketball sounds like (T-2.12's mapping, moved out of `modes/live/audio.ts` by T-6.16 so
  * that file stops importing a sport).
  */
@@ -688,6 +704,7 @@ export const basketball: SportModule<BasketballState> = {
             : null,
       meter: state.meter === null ? null : Math.min(1, state.meter.charge / SHOT_IDEAL_HOLD),
       periodClock: gameClockSeconds(state.periodStep, 1),
+      buttonContext: buttonContext(state),
     };
   },
 

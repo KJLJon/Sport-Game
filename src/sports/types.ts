@@ -237,6 +237,18 @@ export interface SportStatus {
    * Optional: a sport whose clock counts down never needs it.
    */
   readonly periodElapsed?: number;
+  /**
+   * Which entry of `SportHudSpec.buttonLabels` describes what the two action buttons do *now* —
+   * `'onBall'`, `'offBall'`, `'defence'`, or whatever states this sport chose to name.
+   *
+   * The sport reports it because the sport is the only thing that knows: whether the athlete under
+   * the player's thumbs is carrying, and whether their side has the ball, are facts about the
+   * simulation, not about the HUD.
+   *
+   * Optional. A sport that omits it gets unlabelled buttons — which is what *every* sport got until
+   * T-6.29, because `buttonLabels` had no way to say which row applied and so nothing drew it.
+   */
+  readonly buttonContext?: string;
 }
 
 export interface SportHudSpec {
