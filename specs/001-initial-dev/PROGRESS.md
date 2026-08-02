@@ -12,33 +12,37 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-7.4 — basketball Live AI depth. **`done`** and pushed. Phase 7 is 6 of 11 (T-7.1,
-  T-7.2, T-7.3, T-7.4, T-7.7, T-7.8). PR **#16** is open as a draft.
+- **Task:** T-7.5 — soccer Live AI depth. **`done`** and pushed. Phase 7 is 7 of 11 (T-7.1, T-7.2,
+  T-7.3, T-7.4, T-7.5, T-7.7, T-7.8). PR **#16** is open as a draft.
 - **Branch:** `claude/continue-building-di8hng`, off `main` at `0036a29` (PR #15 merged; `v0.6.0`
   is what the user has played).
-- **Next step:** `pnpm -s next` — **T-7.5 (soccer Live AI depth)** is the one that closes the open
-  finding below, and the one the team layer was built for. T-7.6, T-7.9, T-7.10 remain ready and
-  independent.
-- **Careful with T-7.5:** basketball deliberately did *not* replace its off-ball positioning with
-  duty-driven targets (see the T-7.4 note) — its spots work and re-doing them re-opens every balance
-  number. Soccer is the opposite case: its defensive shape is the thing that is broken, so T-7.5
-  *is* where `createTeam(...).plan()` gets its first real reader.
+- **Next step:** `pnpm -s next` — **T-7.6 (Playbook AI depth)**, **T-7.9 (CPU team generation,
+  `haiku`)** and **T-7.10 (AI regression harness, `sonnet`)** are all ready and independent of each
+  other. T-7.10 unblocks T-7.11, which is the phase's last task and the one that owns the conversion
+  number below, so T-7.10 is the critical path.
 - **What T-7.3 landed:** `src/engine/ai/team.ts` — `createTeam(...).plan(situation)` returns one
   `Assignment` per athlete (job, intent, target, mark, urgency) from the duty table, the phase
   clock, the block, the press, the marks, and the help line. `src/engine/ai/marking.ts` holds the
   one-to-one matching and its stickiness. Tested against both real duty tables, so the seam is
   known to fit; **T-7.5 is where it acquires its first reader.**
+- **What T-7.5 landed:** `src/sports/soccer/tactics.ts` plus the wiring in `index.ts` —
+  `planTeams()` runs the team layer for both sides once a step, outfield athletes take their target
+  from the assignment, and a presser seeks the ball. Soccer's own two situations, the offside trap
+  and the counter, are laid over the plan afterwards. The keeper stays `keeper.ts`'s.
 - **What T-7.4 landed:** `src/sports/basketball/offball.ts` — the pick-and-roll (set, then roll or
   pop by the screener's own ratings), cuts and screens scored through T-7.1 instead of fired on a
   flat rate, a scheme re-read every possession, and a shot bar that knows how good the offence is.
   Balance re-run: all fifteen measures in band, and the shooting ones improved.
-- **Open finding carried into Phase 7 and still open:** Live soccer scores 7.5 goals a match on 16.9
-  shots (band 1.2–5.5) at 44.5% conversion. T-7.7's reaction gate fixed the *volume* half — 58.5
-  shots down to 16.9, inside band — and what is left is that nobody stops the carrier walking into
-  the box, so the shots taken are from on top of the keeper. **T-7.5** (press lines, defensive
-  shape) is where that closes; T-7.11 measures it again. T-7.3 made it *answerable* — the carrier is
-  marked before anything else and a named athlete is sent at the ball — but nothing in soccer reads
-  a plan yet, so the finding is unchanged until T-7.5.
+- ~~**Open finding carried since T-6.18:** Live soccer scores 7.5 goals a match.~~ **Closed by
+  T-7.5.** Goals per match 7.5 → **3.25** (band 1.2–5.5) on 10.6 shots (band 8–45), because a named
+  athlete is now sent at the carrier instead of eleven shading towards the ball.
+- **What is left of it:** Live conversion is **30.7%** against a 30% ceiling — the only soccer
+  measure still out. Two tunings both made it *worse* (more helpers → 34.6%, a higher press →
+  34.9%): suppressing shot volume removes the bad shots first. Closing it needs the carrier shooting
+  from distance more often, which is the shooting decision rather than the shape. **T-7.11 owns it.**
+- **Also worth somebody's attention:** seed `plans` produces a red card inside ten seconds of a
+  soccer match. Found while writing T-7.5's integration test. Not investigated — the foul rates are
+  T-6.13's and the balance run's overall numbers are fine, but that looks fast.
 - **Also fixed this session:** soccer's `Shoot` and `Pass` buttons had never been wired to anything
   — the CPU decision ran for the player's carrier too. That is a direct answer to half of the
   user's "not easy to control", and it is worth asking them to try soccer again once tagged.
@@ -279,7 +283,7 @@ there; this file is read at every session start and the notes file only when you
 | T-7.2 | Role system: per-sport role tables driving off-ball movement and responsibility | L | `done` | | `tests/unit/engine/ai-roles.test.ts` | `auto` — 27 unit tests | Anchor, ball-shade, leash, and a named job per role per phase; basketball’s table is literal, soccer’s is derived from its formations. [notes](./notes/phase-7.md#t-72) |
 | T-7.3 | Team coordination: formation shape, phase of play, pressing triggers, help defence, transition | XL | `done` | | `tests/unit/engine/ai-{team,marking}.test.ts` | `auto` — 51 unit tests, including both real duty tables | One `plan()` per side per tick turns eleven duties into eleven assignments: the block, a named press, sticky one-to-one marks, and help that never comes off the ball. [notes](./notes/phase-7.md#t-73) |
 | T-7.4 | Basketball Live AI depth: pick-and-roll, cuts, zone vs man, rating-driven shot selection | L | `done` | | `tests/unit/sports/basketball/offball.test.ts` | `auto` — 28 unit tests; balance re-run, all fifteen measures in band | Cuts, screens, the roll, the scheme, and the shot bar are all judgements now: FG% 36.8 → 38.1 and three-point share 52.2% → 48.8% without taking more shots. [notes](./notes/phase-7.md#t-74) |
-| T-7.5 | Soccer Live AI depth: build-up phases, press lines, offside trap, counter-attacks | L | `todo` | | | | |
+| T-7.5 | Soccer Live AI depth: build-up phases, press lines, offside trap, counter-attacks | L | `done` | | `tests/unit/sports/soccer/tactics.test.ts`, `tests/integration/sports/soccer-match.test.ts` | `auto` — 17 new tests; balance re-run, goals and shots now in band, conversion 30.7% vs a 30% ceiling | **The oldest open finding is closed:** Live goals per match 7.5 → 3.25 on 10.6 shots, because somebody is finally sent at the carrier. [notes](./notes/phase-7.md#t-75) |
 | T-7.6 | Playbook AI depth for both sports: tendency modelling, counter-calling | L | `todo` | | | | |
 | T-7.7 | Difficulty model across all three modes — latency, noise, error, aggression, assists, arcade windows (INV-1) | M | `done` | | `tests/unit/engine/ai-execution.test.ts`, `tests/unit/modes/difficulty.test.ts`, `tests/invariants/inv-01-difficulty-never-scales-ratings.test.ts` | `auto`; basketball balance green, soccer Live still out of band (T-6.18’s open finding, now a different shape) | Difficulty now reaches Live through four named channels and nothing else; found and fixed that soccer’s Shoot/Pass buttons had never been wired. [notes](./notes/phase-7.md#t-77) |
 | T-7.8 | Assist system: aim, pass, auto-switch, timing forgiveness; independent of difficulty; no-assist bonus | M | `done` | | `tests/unit/modes/assists.test.ts`, `tests/unit/ui/assists.test.ts` | `auto`; balance green | Four dials with a screen at `#/settings/controls`; the level sets the default and the player’s choice then wins at every level. [notes](./notes/phase-7.md#t-78) |

@@ -174,6 +174,78 @@ describe('a match', () => {
   });
 });
 
+/**
+ * The v0.6.0 finding, as a test. Live soccer conceded 7.5 goals a match because a carrier could walk
+ * into the box unopposed: the whole defence shaded towards the ball and none of it arrived. T-7.5
+ * wired the team layer in, and these are the two things that have to stay true for that to hold.
+ */
+describe('the defence turns up (T-7.5)', () => {
+  function nearestOpponent(state: SoccerState, world: World, carrier: number): number {
+    const side = state.sides.get(carrier);
+    let nearest = Infinity;
+    for (const other of state.squads[side === 0 ? 1 : 0]) {
+      const gap = Math.hypot(
+        (world.x[other] as number) - (world.x[carrier] as number),
+        (world.y[other] as number) - (world.y[carrier] as number),
+      );
+      if (gap < nearest) nearest = gap;
+    }
+    return nearest;
+  }
+
+  it('sends somebody at a carrier instead of watching them walk in', () => {
+    const world = arena();
+    const rng = createRng('press');
+    const state = soccer.createState({ seed: 'press', playerSide: -1 }, world, rng);
+    const stepRng = rng.fork('sim');
+
+    let carried = 0;
+    let closed = 0;
+    for (let i = 0; i < 4000; i++) {
+      soccer.step(state, world, new Map(), 1 / 60, stepRng);
+      const carrier = state.ballState.carrier;
+      if (carrier === -1) continue;
+      carried++;
+      if (nearestOpponent(state, world, carrier) <= 6) closed++;
+    }
+
+    expect(carried).toBeGreaterThan(200);
+    // Not every step — a carrier in their own half with nobody near them is a normal picture. What
+    // has to be true is that being closed down is the usual case rather than the exception.
+    expect(closed / carried).toBeGreaterThan(0.5);
+  });
+
+  it('plans for both sides every step, and names who is pressing', () => {
+    const { state } = play('plans', 600);
+
+    for (const side of [0, 1] as const) {
+      const plan = state.plans[side];
+      expect(plan).not.toBeNull();
+
+      // Every athlete with a job is one of ours and is not the keeper — `keeper.ts` is a better
+      // model of a keeper than any duty, so the team layer never sees one. The count is `>= 9`
+      // rather than exactly ten because a red card lands mid-step, after the plan for that step was
+      // drawn; the next step's plan has already dropped them, which this seed exercises.
+      const actors = plan?.assignments.map((assignment) => assignment.actor) ?? [];
+      expect(actors.length).toBeGreaterThanOrEqual(9);
+      expect(new Set(actors).size).toBe(actors.length);
+      for (const actor of actors) {
+        expect(state.squads[side]).toContain(actor);
+        expect(actor).not.toBe(state.keepers[side]);
+      }
+      for (const assignment of plan?.assignments ?? []) {
+        expect(assignment.target.x).toBeGreaterThanOrEqual(0);
+        expect(assignment.target.x).toBeLessThanOrEqual(PITCH.length);
+        expect(assignment.target.y).toBeGreaterThanOrEqual(0);
+        expect(assignment.target.y).toBeLessThanOrEqual(PITCH.width);
+      }
+    }
+
+    const defending = state.plans[state.rules.possession === 0 ? 1 : 0];
+    expect(defending?.pressers.length ?? 0).toBeGreaterThan(0);
+  });
+});
+
 describe('the AI adapter', () => {
   it('offers the carrier something to do and a defender a tackle', () => {
     const { world, state } = play('ai', 400);

@@ -331,3 +331,52 @@ quarter on four other seeds) before touching the test.
 positioning is `offensiveSpot`/`zoneSpot`/`markingSpot` and it works; replacing it with duty-driven
 targets is a spacing change that would re-open every balance number, and it belongs with T-7.11's
 tuning pass rather than in the middle of this one.
+
+### T-7.5
+
+*Soccer Live AI depth: build-up phases, press lines, offside trap, counter-attacks*
+
+**The headline: Live goals per match 7.5 → 3.25, inside the 1.2–5.5 band for the first time.** That
+number had been the project's oldest open finding, carried from T-6.18 through five gates. Shots per
+match 16.9 → 10.6, also in band. What closed it is exactly what T-7.3 predicted would: a *named*
+athlete is now sent at the carrier, and the carrier is marked before anybody argues about the rest.
+Before this, eleven athletes all shaded towards the ball and none of them arrived, so every shot was
+taken from on top of the keeper.
+
+**This is the team layer's first reader.** `planTeams()` runs `createTeam(...).plan()` for both sides
+once per step in `moveEveryone()`; an outfield athlete with an assignment takes its target, and a
+presser `seek`s the ball rather than `arrive`s at a spot — the difference between being sent and
+being pointed. The old formation shape is still the fallback for anybody the plan has no row for.
+
+**The keeper is deliberately not in the plan.** `keeper.ts` is a better model of what a keeper does
+than any duty, and a keeper in the marking pool is a keeper who gets assigned a striker.
+
+**Build-up came free.** `03` lists "build-up phases" as part of this task and it needed no code: the
+duty table's `BUILD_UP` anchors drop the back line and the phase clock says when. That is the whole
+argument for having built T-7.2 and T-7.3 as tables and a clock rather than as soccer code.
+
+**The trap and the counter are soccer's, not the engine's** (`tactics.ts`). Both are *situations*
+rather than positions — the same centre-back in the same phase steps up or drops depending on where
+the ball is — and a duty anchor has nowhere to say so. The trap has two conditions and both are
+refusals: not with the ball behind the line (that is a gap, not a trap) and not with the ball at the
+attacker's feet (a through-ball into an empty net). `offside.ts` has enforced the rule since T-6.12
+and nothing had ever tried to exploit it.
+
+**Difficulty reaches all of it through `aggression` and nothing else** (INV-1). `soccerShape()`
+multiplies the formation's own aggression by the level's, rather than averaging: a cautious
+formation on Legend is still a cautious formation, because `06` §7's row is about how hard the same
+team competes, not about replacing its manager.
+
+**The one measure still out of band, and why tuning it made it worse.** Conversion is 30.7% against
+a 30% ceiling. Two attempts to close it both *raised* it: more helpers (2 rather than 1) gave 34.6%
+on 8.3 shots, and a higher, wider press gave 34.9% on 9.3. The mechanism is the same both times —
+suppressing shot volume removes the *bad* shots first, so what is left converts better. Lowering
+conversion needs the carrier to shoot from distance more often, which lives in soccer's shooting
+decision rather than in its shape. Left for **T-7.11**, whose job it is, and the shape reverted to
+the setting that produced the best goals-and-shots pair.
+
+**A test had to be loosened, honestly.** The plan is drawn before the step's fouls resolve, so a red
+card lands *after* that step's plan was made and the sent-off athlete still appears in it for one
+step. The integration assertion is `>= 9` outfield actors with no duplicates and no keeper, rather
+than exact set equality. Seed `plans` produces a red card inside ten seconds, which is how this was
+found — and is itself worth a look by whoever owns the foul rates.
