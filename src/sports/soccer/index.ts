@@ -71,6 +71,10 @@ import {
 } from './formations.ts';
 import { KEEPER, distributionChoice, keeperSpot, saveOutcome } from './keeper.ts';
 import { judgeOffside, offsideOffence, type PlayerPosition } from './offside.ts';
+import { createTeam, type TeamCoordinator, type TeamPlan } from '../../engine/ai/team.ts';
+import { PlayPhase as EnginePhase } from '../../engine/ai/roles.ts';
+import { SOCCER_TRANSITION_STEPS, soccerDuties, type Line } from './duties.ts';
+import { applyTactics, linesOf, soccerShape, trapLine } from './tactics.ts';
 import {
   leadTarget,
   selectPassTarget,
@@ -195,6 +199,16 @@ export interface SoccerState extends SportState {
    * here scales a rating on either side (INV-1).
    */
   readonly difficulty: DifficultyProfile;
+  /**
+   * The team layer, one per side (T-7.3/T-7.5). Holds the possession clock and last tick's marks,
+   * which is why it is state rather than a call: a shape recomputed from nothing every step is a
+   * shape that cannot keep a mark.
+   */
+  readonly teams: [TeamCoordinator, TeamCoordinator];
+  /** Role id → the line it plays in, per side, so the trap and the counter know who they mean. */
+  readonly lines: [ReadonlyMap<string, Line>, ReadonlyMap<string, Line>];
+  /** This step's plan per side, for the athletes to read and for the dev overlay. */
+  readonly plans: [TeamPlan | null, TeamPlan | null];
   /** How much help the player gets (T-7.8). Input aids only — the CPU never reads them. */
   readonly assists: AssistSettings;
   /**
@@ -533,6 +547,32 @@ export const soccer: SoccerModule = {
       controlled,
       pass: null,
       difficulty: difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY),
+      teams: [
+        createTeam({
+          side: 0,
+          table: soccerDuties(shapes[0]),
+          field: { width: PITCH.length, height: PITCH.width },
+          transitionSteps: SOCCER_TRANSITION_STEPS,
+          goal: { x: 0, y: 0.5 },
+          shape: soccerShape(
+            shapes[0],
+            difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY).aggression,
+          ),
+        }),
+        createTeam({
+          side: 1,
+          table: soccerDuties(shapes[1]),
+          field: { width: PITCH.length, height: PITCH.width },
+          transitionSteps: SOCCER_TRANSITION_STEPS,
+          goal: { x: 0, y: 0.5 },
+          shape: soccerShape(
+            shapes[1],
+            difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY).aggression,
+          ),
+        }),
+      ],
+      lines: [linesOf(shapes[0]), linesOf(shapes[1])],
+      plans: [null, null],
       executionRng: rng.fork('execution'),
       assists:
         setup.assists ??
@@ -715,6 +755,8 @@ function moveEveryone(
     1: cachedShape(state.formations[1], phases[1], 1),
   };
 
+  planTeams(state, world, possession, ballX, ballY);
+
   // Profiles are built once, up front, rather than inside `profileOf`. Two reasons, and the first
   // is a real bug avoided: `integrateAll` asks for a profile and a desired velocity separately, so
   // ticking stamina inside the profile lookup would drain a sprinting athlete twice a step. The
@@ -774,6 +816,16 @@ function moveEveryone(
       return seek(x, y, ballX, ballY, profile.maxSpeed, desired);
     }
 
+    // The team layer's answer, if it has one for this athlete (T-7.5). A presser goes at the ball
+    // rather than at a spot — the whole point of naming one is that they arrive.
+    const assignment = assignmentOf(state, side, id);
+    if (assignment !== undefined) {
+      if (assignment.intent === 'press') {
+        return seek(x, y, assignment.target.x, assignment.target.y, profile.maxSpeed, desired);
+      }
+      return arrive(x, y, assignment.target.x, assignment.target.y, profile.maxSpeed, 2.5, desired);
+    }
+
     const spot = shapes[side][index] as { x: number; y: number };
     // Drift towards the ball's channel so a shape does not look painted on.
     const pull = 0.18;
@@ -792,6 +844,86 @@ function moveEveryone(
 }
 
 /** Whether this athlete is the one going after the ball: closest of their side, keeper aside. */
+/**
+ * Runs the team layer for both sides, once per step, and lays soccer's own tactics over the result.
+ *
+ * The keeper is left out of the plan deliberately: `keeper.ts` is a better model of what a keeper
+ * does than any duty, and a keeper in the marking pool is a keeper who gets assigned a striker.
+ */
+function planTeams(
+  state: SoccerState,
+  world: World,
+  possession: 0 | 1 | -1,
+  ballX: number,
+  ballY: number,
+): void {
+  const outfield: Record<0 | 1, { id: EntityId; role: string; x: number; y: number }[]> = {
+    0: [],
+    1: [],
+  };
+
+  for (const side of [0, 1] as const) {
+    const shape = formation(state.formations[side]).roles;
+    for (const id of state.squads[side]) {
+      if (id === state.keepers[side] || isSentOff(state.rules, id)) continue;
+      const index = state.roleIndex.get(id);
+      const role = index === undefined ? undefined : shape[index];
+      if (role === undefined) continue;
+      outfield[side].push({
+        id,
+        role: role.id,
+        x: world.x[id] as number,
+        y: world.y[id] as number,
+      });
+    }
+  }
+
+  for (const side of [0, 1] as const) {
+    const them: 0 | 1 = side === 0 ? 1 : 0;
+    const carrier = state.ballState.carrier;
+    const plan = state.teams[side].plan({
+      mates: outfield[side],
+      opponents: outfield[them],
+      ball: { x: ballX, y: ballY },
+      possession,
+      ...(carrier !== NO_ENTITY && state.sides.get(carrier) === them ? { carrier } : {}),
+    });
+
+    applyTactics(plan.assignments, {
+      side,
+      lines: state.lines[side],
+      trapX: trapFor(outfield[them], side, ballX, possession),
+      countering: plan.phase === EnginePhase.TRANSITION && possession === side,
+    });
+
+    state.plans[side] = plan;
+  }
+}
+
+/** Where this side's back line steps to, or `null` when the trap is not on. */
+function trapFor(
+  attackers: readonly { x: number }[],
+  side: 0 | 1,
+  ballX: number,
+  possession: 0 | 1 | -1,
+): number | null {
+  if (possession === side || attackers.length === 0) return null;
+
+  // The deepest attacker is the one furthest up *their* attacking direction, which is the one the
+  // line has to stay in front of.
+  let deepest = attackers[0]?.x ?? 0;
+  for (const attacker of attackers) {
+    if (side === 0 ? attacker.x < deepest : attacker.x > deepest) deepest = attacker.x;
+  }
+
+  return trapLine({ ballX, deepestAttackerX: deepest, side });
+}
+
+/** This step's assignment for one athlete, if the plan has one. */
+function assignmentOf(state: SoccerState, side: PitchSide, id: EntityId) {
+  return state.plans[side]?.assignments.find((assignment) => assignment.actor === id);
+}
+
 function chasing(
   state: SoccerState,
   world: World,
