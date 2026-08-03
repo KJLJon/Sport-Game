@@ -42,6 +42,7 @@ import type {
   PlaybookState,
   TurnResolution,
 } from '../../../modes/playbook/types.ts';
+import { levelOf } from '../../../modes/playbook/types.ts';
 import {
   DEFAULT_INTENTS,
   callFrom,
@@ -291,10 +292,15 @@ export function readValue(
   return value * READ_WEIGHT;
 }
 
-/** Temperature for a difficulty. Higher noise, wider sampling, worse decisions. */
-export function temperatureFor(state: State): number {
+/**
+ * Temperature for a difficulty. Higher noise, wider sampling, worse decisions.
+ *
+ * Per side (T-7.10): the two CPUs in a regression batch are playing at different levels, and a
+ * temperature read off the match rather than off the caller would give them the same one.
+ */
+export function temperatureFor(state: State, side: Side = state.playerSide === 1 ? 0 : 1): number {
   return (
-    BASE_TEMPERATURE + difficultyProfile(state.difficulty).decisionNoise * NOISE_TO_TEMPERATURE
+    BASE_TEMPERATURE + difficultyProfile(levelOf(state, side)).decisionNoise * NOISE_TO_TEMPERATURE
   );
 }
 
@@ -407,7 +413,7 @@ export function cpuCall(
   for (const dimension of dimensionsFor(role)) {
     chosen[dimension] = sample(
       scoreDimension(dimension, state, side, role, phase, turns),
-      temperatureFor(state),
+      temperatureFor(state, side),
       rng.fork(dimension),
     );
   }

@@ -37,6 +37,7 @@ import type {
   PlaybookState,
   TurnResolution,
 } from '../../../modes/playbook/types.ts';
+import { levelOf } from '../../../modes/playbook/types.ts';
 import { DEFENSIVE_PROFILES, OFFENSIVE_PROFILES, areaOf, offensiveProfile } from './calls.ts';
 import { scoreDefence, scoreOffence, type ScoredCall } from './coach.ts';
 import { primaryOption, zoneValue, type BasketballPlaybookState } from './resolution.ts';
@@ -152,10 +153,15 @@ export function readAdjustmentForOffence(
   return adjustment * READ_WEIGHT * 4;
 }
 
-/** Temperature for a difficulty. Higher noise, wider sampling, worse decisions. */
-export function temperatureFor(state: State): number {
+/**
+ * Temperature for a difficulty. Higher noise, wider sampling, worse decisions.
+ *
+ * Per side (T-7.10): the two CPUs in a regression batch are playing at different levels, and a
+ * temperature read off the match rather than off the caller would give them the same one.
+ */
+export function temperatureFor(state: State, side: Side = state.playerSide === 1 ? 0 : 1): number {
   return (
-    BASE_TEMPERATURE + difficultyProfile(state.difficulty).decisionNoise * NOISE_TO_TEMPERATURE
+    BASE_TEMPERATURE + difficultyProfile(levelOf(state, side)).decisionNoise * NOISE_TO_TEMPERATURE
   );
 }
 
@@ -203,7 +209,7 @@ export function cpuCall(
   if (scored.length === 0) return { side, call: defending ? 'man' : 'motion' };
 
   const ordered = [...scored].sort((a, b) => b.score - a.score || a.call.localeCompare(b.call));
-  const chosen = sample(ordered, temperatureFor(state), rng);
+  const chosen = sample(ordered, temperatureFor(state, side), rng);
 
   if (defending) {
     // Double the Star needs somebody to double, and the CPU names the athlete the opponent's own

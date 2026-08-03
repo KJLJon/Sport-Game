@@ -131,6 +131,12 @@ export interface PlaybookState<S = unknown> {
   readonly sport: SportId;
   readonly turnKind: TurnKind;
   readonly difficulty: Difficulty;
+  /**
+   * A level per side (T-7.10). Absent means both sides play at `difficulty`, which is every match a
+   * player actually plays; the AI regression harness sets them apart, because two CPUs at the same
+   * level win half of everything and measure nothing. Read it through `levelOf()`, never directly.
+   */
+  readonly difficulties?: readonly [Difficulty, Difficulty];
   /** Which side the human is playing, or `-1` when both are CPU (a balance batch). */
   readonly playerSide: Side;
   /** 0-based, counting every turn of the match including overtime. */
@@ -359,4 +365,20 @@ export interface PlaybookAdapter<S = unknown> {
    * toggle the player leaves on must not quietly out-think the opponent they are playing.
    */
   coach?(state: PlaybookState<S>, side: Side, rng: Rng): PlaybookCall;
+}
+
+/**
+ * The level one side is playing at (T-7.10).
+ *
+ * Every Playbook CPU reads its level through here rather than off `state.difficulty`, so that a
+ * batch pitting one level against another gets two different opponents instead of two copies of the
+ * same one. With `difficulties` absent — which is every match a player plays — it is exactly
+ * `state.difficulty`, so nothing about a real match changes.
+ */
+export function levelOf(
+  state: Pick<PlaybookState, 'difficulty' | 'difficulties'>,
+  side: Side,
+): Difficulty {
+  if (side !== 0 && side !== 1) return state.difficulty;
+  return state.difficulties?.[side] ?? state.difficulty;
 }
