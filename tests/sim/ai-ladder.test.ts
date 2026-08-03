@@ -28,12 +28,19 @@ import { EMPTY_FRAME } from '../../src/engine/input/types.ts';
 import { basketball } from '../../src/sports/basketball/index.ts';
 import { soccer } from '../../src/sports/soccer/index.ts';
 
-const row = (level: LadderRow['level'], winRate: number): LadderRow => ({
+const row = (
+  level: LadderRow['level'],
+  winRate: number,
+  margin = (winRate - 0.5) * 20,
+): LadderRow => ({
   sport: 'basketball',
   mode: 'live',
   level,
   matches: 24,
   winRate,
+  // Margin tracks the win rate by default, which is what a real ladder looks like; the tests that
+  // care about the two disagreeing pass their own.
+  margin: level === 'pro' ? 0 : margin,
 });
 
 /** A ladder that passes: losing badly on Rookie, even at Pro, winning above it. */
@@ -85,8 +92,8 @@ describe('judge', () => {
     const flat = [row('rookie', 0.44), row('pro', 0.5), row('allStar', 0.46), row('legend', 0.5)];
     const findings = judge(flat);
 
-    expect(findings.some((finding) => finding.label.endsWith('ladder'))).toBe(true);
-    expect(findings.find((finding) => finding.label.endsWith('ladder'))?.detail).toContain(
+    expect(findings.some((finding) => finding.label.endsWith('spread'))).toBe(true);
+    expect(findings.find((finding) => finding.label.endsWith('spread'))?.detail).toContain(
       'not four opponents',
     );
   });
@@ -100,6 +107,35 @@ describe('judge', () => {
 
   it('says nothing about a group it has no ends for', () => {
     expect(judge([row('pro', 0.5)])).toEqual([]);
+  });
+
+  it('catches an inverted ladder on the margin, before the win rate has noticed', () => {
+    // Win rates within their bands and spread apart the right way; the margins say otherwise, and
+    // the margin is the measure that moves out of the noise first.
+    const inverted = [
+      row('rookie', 0.3, 4),
+      row('pro', 0.5),
+      row('allStar', 0.6, 1),
+      row('legend', 0.7, -2),
+    ];
+    const findings = judge(inverted);
+
+    expect(findings.some((finding) => finding.label.endsWith('ladder'))).toBe(true);
+    expect(findings.find((finding) => finding.label.endsWith('ladder'))?.detail).toContain(
+      'the wrong way',
+    );
+  });
+
+  it('reports a pairing that is not pairing as a bug in the harness, not in the game', () => {
+    const skewed = HEALTHY.map((entry) =>
+      entry.level === 'pro' ? { ...entry, margin: 1.4 } : entry,
+    );
+    const findings = judge(skewed);
+
+    expect(findings.some((finding) => finding.label.endsWith('pairing'))).toBe(true);
+    expect(findings.find((finding) => finding.label.endsWith('pairing'))?.detail).toContain(
+      'not the same match',
+    );
   });
 });
 

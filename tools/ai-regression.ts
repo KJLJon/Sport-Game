@@ -25,10 +25,24 @@
  * CPU was tuned at Pro by T-2.13 and T-6.18, so Pro is the level whose behaviour the balance bands
  * were measured against.
  *
- * **Every level plays both sides.** A batch that always put the level under test on side 0 would
- * measure the level *plus* whatever home advantage the sport has; running each pairing twice with
- * the sides swapped and pooling the results cancels it. The balance tools measure home win share
- * separately and it is not this tool's job to re-discover it.
+ * **The measurement is paired.** Each match is played twice on the *same seed* with the *same
+ * squads*, once with the level under test on side 0 and once on side 1, and the two are pooled. The
+ * two runs then differ in exactly one thing — which side got which level — so home advantage and
+ * the seed's own luck cancel rather than being averaged over. It also gives the tool a free
+ * self-check: at the reference level both runs are literally the same match, so Pro must come back
+ * at exactly 50% and a margin of exactly zero. Anything else is a bug in the harness.
+ *
+ * **Margin is the headline, not win rate.** A basketball match is 80 points a side and a soccer
+ * match is two goals; whether one of them was won is a coin flip with a thumb on it, and a batch
+ * small enough to run before a gate cannot see the thumb. The average points margin uses the whole
+ * scoreline instead of one bit of it, and moves out of the noise an order of magnitude sooner.
+ *
+ * **Both sides field the same eleven — or the same five.** This is the difference between a harness
+ * that measures difficulty and one that measures luck, and the first version of this tool got it
+ * wrong: left to itself a match rolls anonymous ratings from its seed, *independently per side*, and
+ * a random roster edge is worth more than a difficulty step. Two seed sets of the same size then
+ * reported the same pairing at 36.7% and 81.3%. Mirroring the roster removes the whole of that
+ * variance, because the only thing left that differs between the two sides is the level.
  *
  * Seeds are `ai-<sport>-<mode>-<level>-<n>`, so a failing band can be replayed exactly.
  */
@@ -62,10 +76,15 @@ export interface LadderRow {
   readonly sport: SportId;
   readonly mode: ModeId;
   readonly level: Difficulty;
-  /** Matches played, both sides pooled. */
+  /** Matches played, both legs of every pair pooled. */
   readonly matches: number;
   /** Share of matches this level won against the reference, `0–1`. Draws count as a half. */
   readonly winRate: number;
+  /**
+   * Mean scoreline margin for this level against the reference, in points or goals. The number the
+   * bands are actually judged on: it uses the whole scoreline rather than one bit of it.
+   */
+  readonly margin: number;
 }
 
 export interface LadderFinding {
@@ -101,19 +120,26 @@ export const LADDER_BANDS: Readonly<Record<Difficulty, { min: number; max: numbe
 /** How much of a gap the ends of the ladder have to show, in win-rate points. */
 export const LADDER_SPREAD = 0.08;
 
+/**
+ * How far Pro's own margin may sit from zero. It should be *exactly* zero: at the reference level
+ * both legs of a pair are the same match with the sides named the other way round, so the two
+ * margins are equal and opposite. Anything else means the pairing is not pairing.
+ */
+export const PAIRING_TOLERANCE = 1e-9;
+
 interface Pairing {
   readonly level: Difficulty;
-  /** Which side the level under test plays. */
+  /** Which side the level under test plays for this leg. */
   readonly side: 0 | 1;
+  /** The same for both legs of a pair — that is what makes it a pair. */
   readonly seed: string;
 }
 
 function pairings(sport: SportId, mode: ModeId, level: Difficulty, matches: number): Pairing[] {
   const list: Pairing[] = [];
   for (let i = 0; i < matches; i += 1) {
-    for (const side of [0, 1] as const) {
-      list.push({ level, side, seed: `ai-${sport}-${mode}-${level}-${side}-${i}` });
-    }
+    const seed = `ai-${sport}-${mode}-${level}-${i}`;
+    for (const side of [0, 1] as const) list.push({ level, side, seed });
   }
   return list;
 }
@@ -123,6 +149,11 @@ function outcome(score: readonly [number, number], side: 0 | 1): number {
   const own = score[side];
   const theirs = score[side === 0 ? 1 : 0];
   return own > theirs ? 1 : own === theirs ? 0.5 : 0;
+}
+
+/** The level under test's scoreline margin. */
+function margin(score: readonly [number, number], side: 0 | 1): number {
+  return score[side] - score[side === 0 ? 1 : 0];
 }
 
 function levelsFor(pairing: Pairing): readonly [Difficulty, Difficulty] {
@@ -137,12 +168,15 @@ function liveRow(
 ): LadderRow {
   const list = pairings(sport, 'live', level, matches);
   let points = 0;
+  let margins = 0;
 
   for (const pairing of list) {
+    const squad = sport === 'basketball' ? five(pairing.seed) : eleven(pairing.seed);
     const match = new LiveMatch({
       seed: pairing.seed,
       sport: module,
       playerSide: -1,
+      rosters: [squad, squad],
       difficulties: levelsFor(pairing),
     });
     match.setInput(EMPTY_FRAME);
@@ -151,15 +185,25 @@ function liveRow(
     while (!match.finished && guard++ < 400_000) match.step();
 
     const view = match.view();
-    points += outcome([view.score[0], view.score[1]], pairing.side);
+    const score = [view.score[0], view.score[1]] as const;
+    points += outcome(score, pairing.side);
+    margins += margin(score, pairing.side);
   }
 
-  return { sport, mode: 'live', level, matches: list.length, winRate: points / list.length };
+  return {
+    sport,
+    mode: 'live',
+    level,
+    matches: list.length,
+    winRate: points / list.length,
+    margin: margins / list.length,
+  };
 }
 
 function playbookRow(sport: SportId, level: Difficulty, matches: number): LadderRow {
   const list = pairings(sport, 'playbook', level, matches);
   let points = 0;
+  let margins = 0;
 
   for (const pairing of list) {
     // Each sport's adapter is generic over its own detail type, so the two branches cannot be
@@ -186,9 +230,17 @@ function playbookRow(sport: SportId, level: Difficulty, matches: number): Ladder
           }).state.score;
 
     points += outcome([score[0], score[1]], pairing.side);
+    margins += margin([score[0], score[1]], pairing.side);
   }
 
-  return { sport, mode: 'playbook', level, matches: list.length, winRate: points / list.length };
+  return {
+    sport,
+    mode: 'playbook',
+    level,
+    matches: list.length,
+    winRate: points / list.length,
+    margin: margins / list.length,
+  };
 }
 
 /** Every level, in every mode, against the reference. */
@@ -228,14 +280,37 @@ export function judge(rows: readonly LadderRow[]): LadderFinding[] {
   }
 
   for (const [key, group] of groups) {
+    // The harness checking itself: at the reference level the two legs of every pair are the same
+    // match, so the margins cancel exactly. A non-zero number here is a finding about the tool.
+    const reference = group.find((row) => row.level === REFERENCE);
+    if (reference !== undefined && Math.abs(reference.margin) > PAIRING_TOLERANCE) {
+      failures.push({
+        label: `${key} · pairing`,
+        detail:
+          `${REFERENCE} against itself came back at ${reference.margin.toFixed(3)} rather than 0; ` +
+          `the two legs of a pair are not the same match`,
+      });
+    }
+
     const rookie = group.find((row) => row.level === 'rookie');
     const legend = group.find((row) => row.level === 'legend');
     if (rookie === undefined || legend === undefined) continue;
 
+    // Direction, on the margin: the low-variance measure, and the one that catches an inverted
+    // ladder in a batch small enough to run before a gate.
+    if (legend.margin <= rookie.margin) {
+      failures.push({
+        label: `${key} · ladder`,
+        detail:
+          `legend's margin ${legend.margin.toFixed(2)} is not above rookie's ` +
+          `${rookie.margin.toFixed(2)}; the ladder runs the wrong way`,
+      });
+    }
+
     const spread = legend.winRate - rookie.winRate;
     if (spread < LADDER_SPREAD) {
       failures.push({
-        label: `${key} · ladder`,
+        label: `${key} · spread`,
         detail:
           `legend ${percent(legend.winRate)} is only ${percent(spread)} above rookie ` +
           `${percent(rookie.winRate)}; the four levels are not four opponents`,
@@ -265,9 +340,10 @@ export function formatReport(report: AiRegressionReport): string {
     }
     const band = LADDER_BANDS[row.level];
     const ok = row.winRate >= band.min && row.winRate <= band.max ? ' ' : '!';
+    const signed = `${row.margin >= 0 ? '+' : ''}${row.margin.toFixed(2)}`;
     lines.push(
       `${ok}   ${row.level.padEnd(9)} ${percent(row.winRate).padStart(6)}` +
-        `   (${percent(band.min)}–${percent(band.max)})`,
+        `   (${percent(band.min)}–${percent(band.max)})   margin ${signed.padStart(6)}`,
     );
   }
 
