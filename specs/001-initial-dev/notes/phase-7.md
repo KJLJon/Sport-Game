@@ -521,3 +521,66 @@ counter-calling), which is the task that owns Playbook's read model.
 `06` §7 that is written about a person — "comfortably winnable by a newcomer", "beats an experienced
 player more often than not" — still needs somebody to sit down with it. That is Gate 7's device
 matrix, and it should not be signed off from a table of margins.
+
+### T-7.6
+
+*Playbook AI depth for both sports: tendency modelling, counter-calling*
+
+**Both halves are `06` §7's exploits row, which had no reader anywhere in the project.** *Exploits
+mismatches and low familiarity: no · rarely · often · consistently* was in the difficulty table from
+the start, and `DifficultyProfile.exploits` was carried, stored, and never once read. Playbook's
+only difficulty channel was the sampling temperature.
+
+**Counter-calling is now a level.** Both sports already modelled the opponent's tendencies and
+adjusted call scores by a fixed `READ_WEIGHT`, so a Rookie CPU punished a repeated call exactly as
+ruthlessly as a Legend one — which is not what the table says and not what a Rookie should be.
+`scaleRead()` applies the level at the one place it belongs: *after* the sport has priced the read,
+so no sport has to know what a level is.
+
+**Not being read is the other half, and it is the one the ladder found.** At Legend's
+`decisionNoise: 0.04` the CPU took the top-scored call nearly every turn. Against an opponent that
+reads tendencies — which is exactly what the other half of this task builds — playing the argmax
+every turn is the most exploitable thing a CPU can do, and T-7.10 measured the consequence as
+Playbook soccer's Legend being no better than its All-Star. `repeatPenalty()` discounts a call the
+CPU has itself been leaning on, by the same measure it uses against the opponent. The symmetry is
+the point: punishing your patterns while having none of its own is what "reads you" should mean.
+
+**The baseline is an even spread of the sheet, not of what it played.** The first version compared a
+call's share against the calls the CPU had actually made, which is circular — a CPU that had called
+one thing ten times came out perfectly balanced, penalty zero. It now takes the option count and
+compares against `1 / options`, so a CPU spreading evenly pays nothing on any of it and one that has
+found a single favourite pays the most.
+
+**Variety is a tiebreak, not a strategy, and the first weights got that wrong.** At two thirds of the
+read weight, basketball's Playbook Legend fell from **+6.00** to **+0.93** against Pro: it was
+varying off genuinely better calls to avoid being predictable. Both sports now express the repeat
+weight as `READ_WEIGHT / 3`, which states the trade in the code rather than hiding it in two
+unrelated constants.
+
+**Don't tune against noise — a 30-match Playbook batch cannot see these effects.** Two intermediate
+runs reported findings (basketball Rookie 46.7%, soccer All-Star 41.7%) that both vanished at 160
+matches a level. Playbook batches are seconds where Live is minutes, so `AI_MODE=playbook` was added
+to the harness to make a decisive sample cheap. Every tuning decision below is from 160.
+
+**And then the default was fixed, because that lesson should not have to be learned twice.**
+`pnpm ai:ladder` now runs 24 matches a level in Live and **160 in Playbook** — a Playbook match costs
+a hundredth of a Live one, so there was never a reason for both to share a sample size. A regression
+harness whose default cannot tell a regression from a coin flip is worse than no harness, because
+somebody will eventually tune against it. It reports zero findings on those defaults.
+
+**Where Playbook ended up**, margin against Pro at 160 matches a level:
+
+| | rookie | pro | allStar | legend |
+|---|---|---|---|---|
+| basketball · playbook | −3.73 | +0.00 | +3.70 | **+8.35** |
+| soccer · playbook | −0.20 | +0.00 | +0.14 | **+0.30** |
+
+Both monotone, both in band, zero findings. Basketball's Legend is now *better* than it was before
+this task (+8.35 against the old +6.00), which is what adding a channel should do rather than
+trading one for another.
+
+**Soccer's Playbook ladder is thin, and that is a real product observation.** A soccer match is two
+goals and its intents score close together, so a level has far less room to show an edge than in
+basketball — the whole ladder spans half a goal. `NOISE_TO_TEMPERATURE` went 0.3 → 0.55 to give
+Rookie somewhere to be bad, which was enough to clear the band. If soccer's Playbook levels ever
+need to feel more different than this, the lever is the *spread of the scores*, not the sampling.

@@ -66,10 +66,30 @@ import { five, eleven } from './regression-rosters.ts';
 /** The level every other level is measured against. */
 export const REFERENCE: Difficulty = 'pro';
 
-/** Matches per pairing per side. Doubled by the swap, so `12` is 24 matches a level. */
-const MATCHES = Number(process.env.AI_MATCHES ?? 12);
+/**
+ * Matches per pairing, per mode. Doubled by the pairing's swap, so `12` is 24 matches a level.
+ *
+ * **Playbook gets six times the sample, because it costs a hundredth as much.** A Playbook match is
+ * milliseconds and a Live one is seconds, and at 24 matches a level Playbook's win rates carry a
+ * ±10-point standard error — enough that two consecutive runs of this tool reported findings against
+ * Rookie that both vanished at 160. A regression harness whose default sample cannot distinguish a
+ * regression from a coin flip is worse than no harness, because somebody will tune against it.
+ * `AI_MATCHES` overrides both.
+ */
+const MATCHES: Readonly<Record<ModeId, number>> = {
+  live: Number(process.env.AI_MATCHES ?? 12),
+  playbook: Number(process.env.AI_MATCHES ?? 80),
+};
 
 export type ModeId = 'live' | 'playbook';
+
+/** Every mode, unless `AI_MODE` names one. */
+const MODES: readonly ModeId[] =
+  process.env.AI_MODE === 'live'
+    ? ['live']
+    : process.env.AI_MODE === 'playbook'
+      ? ['playbook']
+      : ['live', 'playbook'];
 export type SportId = 'basketball' | 'soccer';
 
 export interface LadderRow {
@@ -93,7 +113,7 @@ export interface LadderFinding {
 }
 
 export interface AiRegressionReport {
-  readonly matches: number;
+  readonly matches: Readonly<Record<ModeId, number>>;
   readonly rows: readonly LadderRow[];
   readonly failures: readonly LadderFinding[];
 }
@@ -244,14 +264,26 @@ function playbookRow(sport: SportId, level: Difficulty, matches: number): Ladder
 }
 
 /** Every level, in every mode, against the reference. */
-export function runAiRegression(matches: number = MATCHES): AiRegressionReport {
+export function runAiRegression(
+  matches: Readonly<Record<ModeId, number>> = MATCHES,
+  /**
+   * Which modes to run. Playbook is seconds and Live is minutes, so a session chasing a Playbook
+   * number should not be paying for the Live half of the batch forty times over — `AI_MODE=playbook`
+   * is how you take a sample big enough to tell a real finding from a 30-match coincidence.
+   */
+  modes: readonly ModeId[] = MODES,
+): AiRegressionReport {
   const rows: LadderRow[] = [];
 
   for (const level of DIFFICULTIES) {
-    rows.push(liveRow(basketball, 'basketball', level, matches));
-    rows.push(liveRow(soccer, 'soccer', level, matches));
-    rows.push(playbookRow('basketball', level, matches));
-    rows.push(playbookRow('soccer', level, matches));
+    if (modes.includes('live')) {
+      rows.push(liveRow(basketball, 'basketball', level, matches.live));
+      rows.push(liveRow(soccer, 'soccer', level, matches.live));
+    }
+    if (modes.includes('playbook')) {
+      rows.push(playbookRow('basketball', level, matches.playbook));
+      rows.push(playbookRow('soccer', level, matches.playbook));
+    }
   }
 
   return { matches, rows, failures: judge(rows) };
@@ -327,7 +359,8 @@ function percent(value: number): string {
 
 export function formatReport(report: AiRegressionReport): string {
   const lines = [
-    `AI ladder: ${report.matches * 2} matches per level per mode, against ${REFERENCE}`,
+    `AI ladder, against ${REFERENCE}: ${report.matches.live * 2} matches a level in Live, ` +
+      `${report.matches.playbook * 2} in Playbook`,
     '',
   ];
 

@@ -77,8 +77,15 @@ const BASE_TEMPERATURE = 0.012;
 /**
  * How much `decisionNoise` widens it. At Legend (0.04) the CPU is close to taking its best option;
  * at Rookie (0.35) it is sampling most of the row.
+ *
+ * **Raised from 0.3 by T-7.6 because soccer's Playbook ladder is thin.** A soccer match is two
+ * goals, and its intents score close together, so a level's edge has less room to show than in
+ * basketball — 160 matches a level put Rookie at 44.4% against Pro, on the wrong side of the
+ * regression harness's 44% ceiling with the ladder otherwise correctly ordered. Widening the
+ * sampling is the honest lever for that: a Rookie CPU that picks worse *more often* is what the
+ * level is supposed to be, and it costs no rating (INV-1).
  */
-const NOISE_TO_TEMPERATURE = 0.3;
+const NOISE_TO_TEMPERATURE = 0.55;
 
 /**
  * What a 20-point rating edge on what an option asks for is worth, in the same odds-shift units the
