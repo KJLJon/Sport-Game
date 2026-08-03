@@ -380,3 +380,59 @@ card lands *after* that step's plan was made and the sent-off athlete still appe
 step. The integration assertion is `>= 9` outfield actors with no duplicates and no keeper, rather
 than exact set equality. Seed `plans` produces a red card inside ten seconds, which is how this was
 found — and is itself worth a look by whoever owns the foul rates.
+
+### T-7.10
+
+*AI regression harness: headless batches per difficulty per mode, asserted win-rate bands*
+
+**What a headless batch can honestly assert, and what it cannot.** `06` §7's bands are written about
+a *human*: "a new player should win ~80%+ on Rookie; an experienced player should sit near 50% on
+All-Star and below 40% on Legend." No batch can measure that — there is no human in it — and
+nominating some CPU as "a new player" would produce a number that looks like the spec's and means
+something else. What a batch *can* assert is the property those human bands depend on: **that the
+four levels are four different opponents, ordered and spaced.** If Legend does not beat Pro more
+often than All-Star does, no amount of playtesting will make the human bands come out right. The
+human half stays `12` §7's device matrix and T-7.11's feel work; this is the half that can regress
+silently, and now cannot.
+
+**Pro is the reference**, because the CPU was tuned at Pro by T-2.13 and T-6.18 — it is the anchor
+everywhere else in the sim, so it is the anchor here.
+
+**Every level plays both sides.** A batch that always put the level under test on side 0 would
+measure the level plus whatever home advantage the sport has. Each pairing runs twice with the sides
+swapped and the results pool, so home advantage cancels; the balance tools measure it separately and
+this one has no business re-discovering it.
+
+**The enabling change was a level per side, and it was most of the task.** With one level for the
+whole match both CPUs play identically and a headless win rate is 50% by symmetry. `difficulties`
+is now optional on `MatchSetup`, `MatchOptions`, and `PlaybookState`; every CPU decision in both
+sports and both modes reads `levels[side]` / `levelOf(state, side)` rather than `state.difficulty`.
+Absent, it *is* `state.difficulty`, so every match a player plays is unchanged — verified by the
+soccer balance run coming back byte-identical and by a test that a two-legend match and a
+`difficulty: 'legend'` match produce the same score.
+
+**It found something on its first real run, and the finding is large.** 30 matches per level per
+sport-and-mode:
+
+| | rookie | pro | allStar | legend |
+|---|---|---|---|---|
+| basketball · live | **56.7%** | 50.0% | 50.0% | **36.7%** |
+| basketball · playbook | 50.0% | 70.0% | 60.0% | 70.0% |
+| soccer · live | **58.3%** | 43.3% | **41.7%** | **33.3%** |
+| soccer · playbook | 40.0% | 45.0% | 53.3% | 58.3% |
+
+**The Live ladder is inverted, in both sports.** Rookie beats Pro; Legend loses to it. A ~20–25 point
+inversion in the same direction in two independent sports is not a 30-match sampling artefact.
+Playbook soccer is a correct ladder and entirely in band; Playbook basketball is noisy (its only
+difficulty channel is the sampling temperature, which is thin).
+
+The hypothesis to test in T-7.11 is **aggression**: `contestChance()` scales tackle and steal
+commitment by it, so `relentless` lunges far more often — more fouls conceded, more free throws and
+free kicks given away, more turnovers from a defender who has left their feet. A level that competes
+harder is being *punished* for it. That is a difficulty-model bug, not a tuning nudge, and it is
+exactly the thing this harness exists to have caught.
+
+**Not in the suite.** `pnpm ai:ladder` is a pre-gate tool like `pnpm balance`, and it exits non-zero
+today, on purpose. What runs in the suite is `judge()` against fixtures — so the bands cannot rot
+silently — plus the one thing a batch cannot check about itself: that swapping which side is Legend
+actually produces a different match.

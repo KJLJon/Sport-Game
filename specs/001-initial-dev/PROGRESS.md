@@ -12,19 +12,30 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-7.5 — soccer Live AI depth. **`done`** and pushed. Phase 7 is 7 of 11 (T-7.1, T-7.2,
-  T-7.3, T-7.4, T-7.5, T-7.7, T-7.8). PR **#16** is open as a draft.
+- **Task:** T-7.10 — AI regression harness. **`done`** and pushed. Phase 7 is 8 of 11 (T-7.1, T-7.2,
+  T-7.3, T-7.4, T-7.5, T-7.7, T-7.8, T-7.10). PR **#16** is open as a draft.
 - **Branch:** `claude/continue-building-di8hng`, off `main` at `0036a29` (PR #15 merged; `v0.6.0`
   is what the user has played).
-- **Next step:** `pnpm -s next` — **T-7.6 (Playbook AI depth)**, **T-7.9 (CPU team generation,
-  `haiku`)** and **T-7.10 (AI regression harness, `sonnet`)** are all ready and independent of each
-  other. T-7.10 unblocks T-7.11, which is the phase's last task and the one that owns the conversion
-  number below, so T-7.10 is the critical path.
+- **Next step:** **T-7.11 (balance pass #3)** is unblocked and is now the phase's most important
+  task by some distance — `pnpm ai:ladder` says the Live difficulty ladder is *inverted* in both
+  sports (see the finding below). T-7.6 and T-7.9 are ready and independent.
+- 🔴 **The finding T-7.10 was built to catch, and caught immediately.** 30 matches per level per
+  sport-and-mode, every level against Pro: Live basketball goes rookie **56.7%** → legend **36.7%**,
+  Live soccer rookie **58.3%** → legend **33.3%**. **The ladder runs backwards.** Playbook soccer is
+  correct (40% → 58.3%); Playbook basketball is noisy. A 20–25 point inversion in the same direction
+  in two independent sports is not sampling noise. Working hypothesis: `contestChance()` scales
+  tackle and steal commitment by aggression, so `relentless` lunges far more, concedes far more
+  fouls, and is punished for competing harder. **T-7.11 owns it.** Re-run with `pnpm ai:ladder`
+  (`AI_MATCHES=15` gives 30 a level; the default 12 gives 24 and takes a few minutes).
 - **What T-7.3 landed:** `src/engine/ai/team.ts` — `createTeam(...).plan(situation)` returns one
   `Assignment` per athlete (job, intent, target, mark, urgency) from the duty table, the phase
   clock, the block, the press, the marks, and the help line. `src/engine/ai/marking.ts` holds the
   one-to-one matching and its stickiness. Tested against both real duty tables, so the seam is
   known to fit; **T-7.5 is where it acquires its first reader.**
+- **What T-7.10 landed:** `tools/ai-regression.ts` (`pnpm ai:ladder`) plus the change that made it
+  possible — a **level per side** through both modes. `difficulties` is optional everywhere and
+  absent means "both sides play at `difficulty`", so no match a player plays changed; the soccer
+  balance run is byte-identical.
 - **What T-7.5 landed:** `src/sports/soccer/tactics.ts` plus the wiring in `index.ts` —
   `planTeams()` runs the team layer for both sides once a step, outfield athletes take their target
   from the assignment, and a presser seeks the ball. Soccer's own two situations, the offside trap
@@ -288,7 +299,7 @@ there; this file is read at every session start and the notes file only when you
 | T-7.7 | Difficulty model across all three modes — latency, noise, error, aggression, assists, arcade windows (INV-1) | M | `done` | | `tests/unit/engine/ai-execution.test.ts`, `tests/unit/modes/difficulty.test.ts`, `tests/invariants/inv-01-difficulty-never-scales-ratings.test.ts` | `auto`; basketball balance green, soccer Live still out of band (T-6.18’s open finding, now a different shape) | Difficulty now reaches Live through four named channels and nothing else; found and fixed that soccer’s Shoot/Pass buttons had never been wired. [notes](./notes/phase-7.md#t-77) |
 | T-7.8 | Assist system: aim, pass, auto-switch, timing forgiveness; independent of difficulty; no-assist bonus | M | `done` | | `tests/unit/modes/assists.test.ts`, `tests/unit/ui/assists.test.ts` | `auto`; balance green | Four dials with a screen at `#/settings/controls`; the level sets the default and the player’s choice then wins at every level. [notes](./notes/phase-7.md#t-78) |
 | T-7.9 | CPU team generation: coherent opponents and identities scaled to difficulty | M | `todo` | | | | |
-| T-7.10 | AI regression harness: headless batches per difficulty per mode, asserted win-rate bands | M | `todo` | | | | |
+| T-7.10 | AI regression harness: headless batches per difficulty per mode, asserted win-rate bands | M | `done` | | `tests/sim/ai-ladder.test.ts` | `auto` — 11 unit tests; `pnpm ai:ladder` run at 30 matches per level per mode | **The Live ladder is inverted in both sports** — Rookie beats Pro, Legend loses to it. Found on the harness's first real run; T-7.11 fixes it. [notes](./notes/phase-7.md#t-710) |
 | T-7.11 | Balance pass #3: tune all four levels against the target win-rate curve | L | `todo` | | | | |
 
 ### Phase 8 — Modes hub, progression, achievements, economy
