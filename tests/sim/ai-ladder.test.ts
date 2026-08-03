@@ -140,6 +140,13 @@ describe('judge', () => {
 });
 
 describe('a level reaches the side it was given to', () => {
+  /**
+   * These three play whole matches, which is seconds normally and far longer under coverage
+   * instrumentation. Vitest's 5-second default is written for unit tests; a batch check needs to
+   * say so rather than fail the gate run intermittently.
+   */
+  const MATCH_TIMEOUT_MS = 60_000;
+
   /** Two matches on one seed, differing only in which side is Legend, must not be identical. */
   function diverges(sport: typeof basketball | typeof soccer, seed: string): boolean {
     const scores = ([0, 1] as const).map((side) => {
@@ -159,28 +166,40 @@ describe('a level reaches the side it was given to', () => {
     return scores[0] !== scores[1];
   }
 
-  it('gives basketball two different matches when the levels are swapped', () => {
-    expect(diverges(basketball, 'ladder-swap-basketball')).toBe(true);
-  });
+  it(
+    'gives basketball two different matches when the levels are swapped',
+    () => {
+      expect(diverges(basketball, 'ladder-swap-basketball')).toBe(true);
+    },
+    MATCH_TIMEOUT_MS,
+  );
 
-  it('gives soccer two different matches when the levels are swapped', () => {
-    expect(diverges(soccer, 'ladder-swap-soccer')).toBe(true);
-  });
+  it(
+    'gives soccer two different matches when the levels are swapped',
+    () => {
+      expect(diverges(soccer, 'ladder-swap-soccer')).toBe(true);
+    },
+    MATCH_TIMEOUT_MS,
+  );
 
-  it('is still exactly the old match when both sides share a level (INV-8)', () => {
-    const play = (options: { difficulty?: 'legend'; difficulties?: ['legend', 'legend'] }) => {
-      const match = new LiveMatch({
-        seed: 'ladder-parity',
-        sport: basketball,
-        playerSide: -1,
-        ...options,
-      });
-      match.setInput(EMPTY_FRAME);
-      let guard = 0;
-      while (!match.finished && guard++ < 400_000) match.step();
-      return match.view().score.join('-');
-    };
+  it(
+    'is still exactly the old match when both sides share a level (INV-8)',
+    () => {
+      const play = (options: { difficulty?: 'legend'; difficulties?: ['legend', 'legend'] }) => {
+        const match = new LiveMatch({
+          seed: 'ladder-parity',
+          sport: basketball,
+          playerSide: -1,
+          ...options,
+        });
+        match.setInput(EMPTY_FRAME);
+        let guard = 0;
+        while (!match.finished && guard++ < 400_000) match.step();
+        return match.view().score.join('-');
+      };
 
-    expect(play({ difficulties: ['legend', 'legend'] })).toBe(play({ difficulty: 'legend' }));
-  });
+      expect(play({ difficulties: ['legend', 'legend'] })).toBe(play({ difficulty: 'legend' }));
+    },
+    MATCH_TIMEOUT_MS,
+  );
 });

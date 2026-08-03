@@ -14,12 +14,18 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 - **Task:** T-7.9 — CPU team generation. **`done`** and pushed. **Phase 7 is 11 of 11 — every task
   is done, and Gate 7 is the next thing.** PR **#16** is open as a draft.
-- 🚦 **Gate 7 has not been run.** What is already true: the full suite is green (172 files, 3 066
-  tests), all three balance harnesses are in band, and `pnpm ai:ladder` reports zero findings. What
-  is *not* done is the half of Gate 7 that needs a person — `06` §7's bands are written about a
-  human ("comfortably winnable by a newcomer", "beats an experienced player more often than not")
-  and no batch can stand in for that. `12` §7's device matrix is also outstanding. **Ask the user
-  to play it before signing the gate off.**
+- 🚦 **Gate 7 evaluated 2026-08-03: NOT PASSED**, and the reasons are the familiar two plus one that
+  is specific to this phase. Every automatable check is green — 3 066 unit tests, 45 E2E, coverage
+  95.1%, bench and budgets inside, **all three balance harnesses in band at once for the first time
+  in the project**, `pnpm ai:ladder` zero findings. What is missing: the device matrix (`12` §7) and
+  a tagged deploy, both six gates deep, and two of `03`'s own criteria that are statements about a
+  *person* — "comfortably winnable by a newcomer", "beats an experienced player more often than
+  not". No batch closes those, and the harness deliberately does not claim to. Full record in
+  [phase 7 notes](./notes/phase-7.md#gate-record).
+- 👉 **The two things only the user can do:** mark PR #16 ready so it can merge and be tagged (a tag
+  is what deploys, and nothing can be tagged off an unmerged branch), then play it. **Nothing in
+  Phase 7 has been played by a human** — four difficulty levels across two sports and three modes,
+  tuned entirely against batch output.
 - **Branch:** `claude/continue-building-di8hng`, off `main` at `0036a29` (PR #15 merged; `v0.6.0`
   is what the user has played).
 - **Next step:** **T-7.11 (balance pass #3)** is unblocked and is now the phase's most important
@@ -481,6 +487,7 @@ One row per gate: the result and what it turned on. The full evaluation — ever
 | 3 — Athletes & roster (v0.2) | 2026-07-28 | **NOT PASSED** | Same two blockers, unchanged. Nothing in Phase 3 alters the analysis. | [phase 3 notes](./notes/phase-3.md#gate-record) |
 | 5 — Playbook (v0.4) | 2026-07-29 | **NOT PASSED** | Every automatable check green, and unlike Gate 4 **all four of `03`'s criteria are machine-checkable and are met**: a full match, key moments, hot seat, and Live/Playbook agreement within ±8. Blocked only on the device matrix and the deploy, now four gates deep. Playbook's eFG% is 46.6% against Live's 44.6% without tuning. | [phase 5 notes](./notes/phase-5.md#gate-record) |
 | 4 — Arcade (v0.3) | 2026-07-28 | **NOT PASSED** | Same two blockers, now three gates deep. Two of `03`'s four criteria ("fun standalone", "a child can start one unaided") are claims about a person, not a program, and no test will close them. 1 941 tests, coverage 94.9%. | [phase 4 notes](./notes/phase-4.md#gate-record) |
+| 7 — CPU AI depth & difficulty ladder | 2026-08-03 | **NOT PASSED** | Every automatable check green and, for the first time in the project, **all three balance harnesses in band at once** — soccer's ten included. `pnpm ai:ladder` reports zero findings. 3 066 unit, 45 E2E, coverage 95.1%. Two of `03`'s four criteria ("comfortably winnable by a newcomer", "beats an experienced player more often than not") are claims about a person and no batch closes them; the device matrix and the deploy are the same blockers, now **six gates deep**. | [phase 7 notes](./notes/phase-7.md#gate-record) |
 | 6 — Soccer · all three modes (v0.5) | 2026-07-31 | **NOT PASSED** | Every automatable check green: 2 788 unit, 45 E2E, coverage 94.9%, bench 0.058 ms/step at 11v11, budgets inside. All three of `03`'s criteria met, the third (`engine/` touched only for core improvements) demonstrably so — three changes, none naming a sport. Blocked on the device matrix and the deploy, now **five gates deep**, with five mini-games never played by a human. One open finding handed to Phase 7: Live soccer scores 12.8 goals a match on shot *volume*, not conversion. | [phase 6 notes](./notes/phase-6.md#gate-record) |
 
 ---

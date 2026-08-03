@@ -631,3 +631,91 @@ three attributes (or two opponents would be indistinguishable) and between them 
 nothing calls it, because the mode that picks an opponent is Phase 8's modes hub (T-8.1) and the
 pre-match screen that would show the style and blurb does not exist. The generator is the part that
 belongs to this phase.
+
+---
+
+## Gate record
+
+**Gate 7 — evaluated 2026-08-03. Result: NOT PASSED.**
+
+Every automatable check is green, and for the first time in the project **every balance harness is
+in band at once**. The two blockers are the same two that have held every gate since Gate 2 — the
+device matrix and a tagged deploy — plus, uniquely for this gate, two of `03`'s own criteria that
+are statements about a person and cannot be closed by any batch.
+
+### 1. Every task done or cut
+
+**11 of 11 `done`, none cut.** T-7.1, T-7.2, T-7.7 and T-7.8 landed in earlier sessions; T-7.3,
+T-7.4, T-7.5, T-7.6, T-7.9, T-7.10 and T-7.11 in this one.
+
+### 2. Full suite green
+
+| Check | Result |
+|---|---|
+| `pnpm verify` (typecheck · lint · unit) | **172 files, 3 066 tests, green** |
+| `pnpm e2e` | **45 passed**, including all sixteen `11` §9 PWA scenarios and the a11y sweep |
+| `pnpm test:coverage` | statements/lines **95.08%**, branches **92.08%**, functions **93.71%** |
+| `pnpm bench` | soccer 11v11 (23 entities) **0.078 ms mean, 0.110 ms p95** against a 4 ms budget |
+| `pnpm build && pnpm budget` | initial JS **70.5 KB gzip / 200 KB**; install **533.6 KB / 6 MB** |
+| `pnpm balance` (basketball) | **all 15 bands in** |
+| `pnpm balance:playbook` | **all 14 bands in** |
+| `pnpm balance:soccer` | **all 10 bands in — the first time this has ever been true** |
+| `pnpm ai:ladder` | **zero findings** |
+
+One fragility of this phase's own making was found and fixed during the gate run: three tests in
+`tests/sim/ai-ladder.test.ts` play whole matches, which is seconds normally and past Vitest's
+5-second default under coverage instrumentation. They now carry an explicit 60-second budget.
+
+### 3. Coverage thresholds (`12` §2)
+
+Hold, and comfortably — 95.08% against an 85% floor overall, 92.08% branches against 80%. The
+per-directory floors are enforced by `vitest.config.ts` and the run passed, so `athletes`, `economy`,
+`achievements` and `storage` are all above their 95%.
+
+### 4. Invariants (`12` §3)
+
+None regressed. INV-1 is the one this phase leaned on hardest and it now has a second guard: T-7.9
+could have broken it by generating better rosters at higher levels, and there is a test asserting
+that a squad's attribute total is identical at all four levels **per athlete**, not merely in
+aggregate.
+
+### 5. Device matrix (`12` §7)
+
+**Not run.** No device. Unchanged since Gate 2, now six gates deep.
+
+### 6. Gate 7's own criteria (`03`)
+
+> *Rookie is comfortably winnable by a newcomer; Legend beats an experienced player more often than
+> not; batches confirm the bands; no code path scales attributes by difficulty.*
+
+| Criterion | Result |
+|---|---|
+| Batches confirm the bands | **Met.** `pnpm ai:ladder` reports zero findings across four sport-and-mode ladders. |
+| No code path scales attributes by difficulty | **Met**, and now guarded in two places — the INV-1 invariant test and T-7.9's per-athlete points identity. |
+| Rookie comfortably winnable by a newcomer | **Cannot be closed by a batch.** There is no newcomer in a headless run. |
+| Legend beats an experienced player more often than not | **Cannot be closed by a batch**, for the same reason. |
+
+The harness deliberately does not claim to measure the last two. What it asserts is the property they
+depend on — that the four levels are four genuinely different opponents, correctly ordered and
+spaced — which is a weaker and honest claim. Signing those two off from a table of margins would be
+the kind of green checkmark `CLAUDE.md` §10 asks not to hand over.
+
+### 7. Tag and deploy
+
+**Not done.** The work is on `claude/continue-building-di8hng` behind draft PR #16, and the protocol
+is that a draft is marked ready only when the user asks. Nothing can be tagged from an unmerged
+branch. This is a user action and it is the one that unblocks §5 and §6 — the user cannot play what
+has not shipped.
+
+### 8. What this gate turned on regardless
+
+The oldest open finding in the project is closed. Live soccer conceded **7.5 goals a match** from
+T-6.18 through five gates; it is now **3.75**, in band, on 14.7 shots at 25.5% conversion. And the
+difficulty ladder, which no tool had ever measured, was found inverted in soccer and fixed.
+
+### Feel note
+
+**None of Phase 7 has been played by a human.** Four levels of CPU across two sports and three
+modes, tuned entirely against batch output. The numbers say the ladder is a ladder; whether Legend
+*feels* like a better opponent rather than a faster one is exactly the question a batch cannot
+answer, and it is the single most valuable thing the next session could be given.
