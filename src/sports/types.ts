@@ -25,6 +25,7 @@ import type { InputFrame } from '../engine/input/types.ts';
 import type { SportEvent } from '../engine/match/events.ts';
 import type { MatchRules } from '../engine/match/state-machine.ts';
 import type { Canvas2D, ViewTransform } from '../engine/render/renderer.ts';
+import type { PartialCameraProfile } from '../engine/render/framing.ts';
 import type { SportAudio } from '../modes/live/audio.ts';
 import type { EntityId, World } from '../engine/world.ts';
 import type { Athlete } from '../athletes/types.ts';
@@ -370,6 +371,17 @@ export interface SportModule<S extends SportState = SportState> {
    * Live rules do. A sport without one simply does not appear in the Playbook mode picker.
    */
   readonly playbook?: PlaybookAdapter;
+
+  /**
+   * How this sport wants to be framed (T-12.6): how much of the field to show in each phase of
+   * play, how far to look ahead, how large a deadzone.
+   *
+   * Optional, and partial — a sport overrides the numbers it has an opinion about and inherits the
+   * rest from `DEFAULT_CAMERA_PROFILE`. This is what makes per-sport framing possible without the
+   * word "soccer" appearing in the camera: a rink and a pitch frame differently because the rink
+   * and the pitch each said so, not because the director knows which is which (INV-5).
+   */
+  readonly camera?: PartialCameraProfile;
 
   /**
    * What to show about this sport right now. Optional so a Phase-1 test fixture stays valid; a

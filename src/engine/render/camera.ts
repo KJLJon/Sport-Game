@@ -1,6 +1,7 @@
 /**
  * @spec    001-initial-dev
  * @phase   1 — Engine core
+ * @task    T-12.1 — Follow camera: lookahead, deadzone, and speed-scaled framing
  * @task    T-6.12 — Camera and minimap tuning for the larger pitch
  * @task    T-1.8 — Camera: ball follow, smoothing, dynamic zoom, bounds clamp, shake
  * @story   US-2.3 — See the whole field on a small screen
@@ -46,6 +47,24 @@ export interface CameraOptions {
   readonly zoomRate?: number;
   /** How far ahead of the target's velocity the camera looks, in seconds. */
   readonly lookahead?: number;
+  /**
+   * The furthest the lookahead may push the aim point ahead of the target, in world units.
+   *
+   * Without a cap, lead is linear in speed and a struck ball is fast: a 25 m/s shot at 0.35 s of
+   * lead aims nearly nine metres past it, which on a phone puts the ball itself off the bottom of
+   * the frame — the camera looking so far ahead that it loses the thing it is following.
+   */
+  readonly maxLead?: number;
+  /**
+   * Half-size of the region, as a fraction of the visible half-extent, in which the target may move
+   * without the camera moving at all. `0` restores the old always-centred behaviour.
+   *
+   * A camera with no deadzone translates every jitter of the ball into a translation of the entire
+   * world, which is both nauseating and the main reason a following camera reads as worse than a
+   * static one. Inside the deadzone the world holds still and only the athletes move, which is what
+   * the eye expects.
+   */
+  readonly deadzone?: number;
   /** No shake, no lead — `prefers-reduced-motion` (`10` §6). */
   readonly reducedMotion?: boolean;
 }
@@ -55,6 +74,17 @@ export interface FollowTarget {
   readonly y: number;
   readonly vx?: number;
   readonly vy?: number;
+}
+
+/**
+ * The nearest value to `centre` that keeps `aim` within `half` of it. Returns `centre` untouched
+ * when it already does — that "untouched" is the whole point of a deadzone.
+ */
+function pushInside(centre: number, aim: number, half: number): number {
+  const offset = aim - centre;
+  if (offset > half) return aim - half;
+  if (offset < -half) return aim + half;
+  return centre;
 }
 
 export class Camera {
@@ -67,9 +97,12 @@ export class Camera {
   /** What the caller asked for, or `undefined` for "fit the field". Survives a resize. */
   private readonly requestedMinScale: number | undefined;
   private minScale: number;
-  private readonly followRate: number;
+  private readonly baseFollowRate: number;
+  private followRate: number;
   private readonly zoomRate: number;
   private readonly lookahead: number;
+  private readonly maxLead: number;
+  private deadzone: number;
   private reduced: boolean;
 
   private centreX: number;
@@ -91,9 +124,12 @@ export class Camera {
     this.maxScale = options.maxScale ?? 60;
     this.requestedMinScale = options.minScale;
     this.minScale = options.minScale ?? this.fitScale();
-    this.followRate = options.followRate ?? 6;
+    this.baseFollowRate = options.followRate ?? 6;
+    this.followRate = this.baseFollowRate;
     this.zoomRate = options.zoomRate ?? 2.5;
     this.lookahead = options.lookahead ?? 0.35;
+    this.maxLead = options.maxLead ?? 6;
+    this.deadzone = clamp(options.deadzone ?? 0, 0, 0.9);
     this.reduced = options.reducedMotion ?? false;
 
     this.centreX = this.worldWidth / 2;
@@ -118,6 +154,19 @@ export class Camera {
     // rotation or a browser-chrome change counts, so on a phone it undid it almost immediately.
     // Only a camera that asked for the default gets its floor recomputed from the new viewport.
     this.minScale = this.requestedMinScale ?? this.fitScale();
+    this.currentScale = clamp(this.currentScale, this.minScale, this.maxScale);
+    this.targetScale = clamp(this.targetScale, this.minScale, this.maxScale);
+    this.clampCentre();
+  }
+
+  /**
+   * Replaces the zoom floor. Needed since T-12.2, where the floor is derived from the viewport's
+   * width — a rotation changes the width, and therefore changes how wide the camera may go and
+   * still draw an athlete you can see. `resize()` deliberately preserves an explicit floor (that
+   * was T-6.12's bug fix), so the owner re-supplies it rather than the camera guessing.
+   */
+  setMinScale(scale: number): void {
+    this.minScale = Math.min(scale, this.maxScale);
     this.currentScale = clamp(this.currentScale, this.minScale, this.maxScale);
     this.targetScale = clamp(this.targetScale, this.minScale, this.maxScale);
     this.clampCentre();
@@ -207,13 +256,12 @@ export class Camera {
    */
   update(dt: number, target: FollowTarget | null, rng?: Rng): void {
     if (target !== null) {
-      const lead = this.reduced ? 0 : this.lookahead;
-      const aimX = target.x + (target.vx ?? 0) * lead;
-      const aimY = target.y + (target.vy ?? 0) * lead;
+      const aim = this.aimPoint(target);
+      const desired = this.deadzoneCentre(aim.x, aim.y);
 
       const follow = 1 - Math.exp(-this.followRate * dt);
-      this.centreX += (aimX - this.centreX) * follow;
-      this.centreY += (aimY - this.centreY) * follow;
+      this.centreX += (desired.x - this.centreX) * follow;
+      this.centreY += (desired.y - this.centreY) * follow;
     }
 
     const zoom = 1 - Math.exp(-this.zoomRate * dt);
@@ -221,6 +269,66 @@ export class Camera {
 
     this.clampCentre();
     this.updateShake(dt, rng);
+  }
+
+  /**
+   * Where the camera would like to be looking: the target, plus its velocity times the lookahead,
+   * capped so a fast ball cannot drag the aim point off the thing it is aiming at.
+   *
+   * The cap is on the *magnitude* of the lead, not per axis, so a diagonal counter leads the same
+   * distance as a straight one — a per-axis clamp would lead 1.41× further on the diagonal.
+   */
+  private aimPoint(target: FollowTarget): { x: number; y: number } {
+    const lead = this.reduced ? 0 : this.lookahead;
+    let leadX = (target.vx ?? 0) * lead;
+    let leadY = (target.vy ?? 0) * lead;
+
+    const distance = Math.hypot(leadX, leadY);
+    if (distance > this.maxLead && distance > 0) {
+      const scale = this.maxLead / distance;
+      leadX *= scale;
+      leadY *= scale;
+    }
+
+    return { x: target.x + leadX, y: target.y + leadY };
+  }
+
+  /**
+   * The centre that puts `aim` just inside the deadzone, or the current centre if it is already
+   * inside it.
+   *
+   * The deadzone is measured in *world* units derived from the current zoom, so it stays the same
+   * fraction of the screen at every zoom level — a deadzone in fixed metres would be most of a
+   * phone screen when tight on a duel and a pixel when wide on a set piece.
+   */
+  private deadzoneCentre(aimX: number, aimY: number): { x: number; y: number } {
+    if (this.deadzone <= 0) return { x: aimX, y: aimY };
+
+    const halfX = (this.viewWidth / this.currentScale / 2) * this.deadzone;
+    const halfY = (this.viewHeight / this.currentScale / 2) * this.deadzone;
+
+    return {
+      x: pushInside(this.centreX, aimX, halfX),
+      y: pushInside(this.centreY, aimY, halfY),
+    };
+  }
+
+  /** Widens or narrows the deadzone — the director does this by phase of play (T-12.2). */
+  setDeadzone(fraction: number): void {
+    this.deadzone = clamp(fraction, 0, 0.9);
+  }
+
+  /**
+   * Temporarily changes how fast the camera closes on its target. Used for a handoff (T-12.5),
+   * where the camera has to cross a distance quickly and still be seen to cross it rather than
+   * appear to have cut. `resetFollowRate()` puts it back.
+   */
+  setFollowRate(rate: number): void {
+    this.followRate = Math.max(rate, 0);
+  }
+
+  resetFollowRate(): void {
+    this.followRate = this.baseFollowRate;
   }
 
   private updateShake(dt: number, rng?: Rng): void {
@@ -283,6 +391,13 @@ export class Camera {
     out.x = (worldX - view.x) * view.scale + view.width / 2;
     out.y = (worldY - view.y) * view.scale + view.height / 2;
     return out;
+  }
+
+  /** The visible world rectangle at the current zoom — what culling and the minimap frame ask for. */
+  viewport(): { x: number; y: number; width: number; height: number } {
+    const width = this.viewWidth / this.currentScale;
+    const height = this.viewHeight / this.currentScale;
+    return { x: this.centreX - width / 2, y: this.centreY - height / 2, width, height };
   }
 
   /** Screen → world, for taps that select a position or an athlete. */

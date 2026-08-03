@@ -11,15 +11,14 @@
  * @invariant INV-5 (no sport-specific branching outside the sport), INV-11 (44 px targets, no
  *            information by colour alone)
  *
- * **The camera does not fit the whole field** (T-6.12). It follows the ball at a zoom that keeps
- * `VISIBLE_SPAN` metres of the field's long axis on screen, so an athlete is legible on a phone. A
- * 28 × 15 basketball court is smaller than that span and so still fits entirely — the rule changes
- * nothing for it. A 105 × 68 pitch does not, and that is the point: at fit-to-field an athlete is
- * about three pixels. Requested by the user after seeing exactly that.
+ * **The camera does not fit the whole field** (T-6.12), and since T-12.2 it does not hold one zoom
+ * either. A `CameraDirector` frames by phase of play — tight in a duel, wide on a counter, widest at
+ * a set piece — from a `FramingSignal` this file assembles out of the world. The span numbers come
+ * from the sport's own `camera` profile through the seam (T-12.6), so there is still no sport id
+ * here; a sport that supplies no profile gets the defaults, which are T-6.12's 45 m rule generalised.
  *
- * Deliberately one span for every sport rather than a per-sport number. Per-sport camera profiles
- * are T-12.6 in the bonus camera phase; a sport id in this file would be the thing that phase then
- * has to remove.
+ * `zoomFloor` survives as the floor beneath all of that: whatever the director asks for, the camera
+ * never zooms out past the point where an athlete stops being legible on a phone.
  *
  * Purpose: the screen a match is played on. It owns the canvas, the loop, the camera, and the
  * input, and it is the only place those four meet.
@@ -38,6 +37,15 @@
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { CanvasHost, type CanvasSize } from '../../app/canvas-host.ts';
 import { Camera } from '../../engine/render/camera.ts';
+import { CameraDirector } from '../../engine/render/director.ts';
+import {
+  DEFAULT_CAMERA_PROFILE,
+  cameraProfile,
+  legibleSpan,
+  type CameraProfile,
+} from '../../engine/render/framing.ts';
+import { cameraMotion } from '../../app/motion.ts';
+import { framingSignal } from './framing.ts';
 import { Renderer, type Canvas2D, type OffscreenLayer } from '../../engine/render/renderer.ts';
 import { MatchAudio } from './audio.ts';
 import { createLoop, type Loop } from '../../engine/loop.ts';
@@ -68,24 +76,24 @@ import {
 import { teamLine } from './box-score.ts';
 
 /**
- * Metres of the field's long axis to keep on screen.
- *
- * 45 m is a little over a soccer pitch's width, which frames a phase of play — the ball, the players
- * around it, and enough space to see a run being made — rather than a whole match at once. It is
- * also wider than a basketball court is long, so basketball still shows its entire court and its
- * framing is untouched by this rule.
- */
-const VISIBLE_SPAN = 45;
-
-/**
- * The zoom the camera must not go below: enough to keep `VISIBLE_SPAN` metres on screen, or the
+ * The zoom the camera must not go below: whatever keeps an athlete legible on *this* screen, or the
  * whole field if that is smaller.
  *
- * Returning the fit-the-field scale for a small field is what makes this safe to apply to every
- * sport without naming one.
+ * T-6.12 set this with a fixed 45 m span, chosen against one phone. T-12.2 replaced the constant
+ * with `legibleSpan`, which asks the same question — how wide can this go before an athlete stops
+ * being a shape — as an equation in the viewport's own width. Two things follow: a tablet stops
+ * being framed as if it were a phone, and spans wider than 45 m become reachable, without which the
+ * set-piece framing this phase adds could never actually happen.
+ *
+ * Returning the fit-the-field scale for a small field is what makes it safe for every sport without
+ * naming one.
  */
-export function zoomFloor(viewWidth: number, fieldWidth: number): number {
-  const span = Math.min(VISIBLE_SPAN, fieldWidth);
+export function zoomFloor(
+  viewWidth: number,
+  fieldWidth: number,
+  profile: CameraProfile = DEFAULT_CAMERA_PROFILE,
+): number {
+  const span = Math.min(legibleSpan(viewWidth, profile), fieldWidth);
   return viewWidth / span;
 }
 
@@ -143,14 +151,37 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       const ctx = canvasHost.canvas.getContext('2d') as unknown as Canvas2D | null;
       if (ctx === null) return;
 
+      // The sport's framing, or the defaults if it has no opinion (T-12.6).
+      const profile = cameraProfile(options.sport.camera);
+      const motion = cameraMotion(window);
+
       const camera = new Camera({
         width: canvasHost.size.width,
         height: canvasHost.size.height,
         worldWidth: options.sport.field.width,
         worldHeight: options.sport.field.height,
         maxScale: 34,
-        minScale: zoomFloor(canvasHost.size.width, options.sport.field.width),
+        // `fixed` is the player asking for no camera movement at all, which means fitting the whole
+        // field — the floor stops applying, because the floor exists to keep the camera zoomed in.
+        // Omitting `minScale` entirely is how the camera is told to fit.
+        ...(motion === 'fixed'
+          ? {}
+          : { minScale: zoomFloor(canvasHost.size.width, options.sport.field.width, profile) }),
+        lookahead: profile.lookahead,
+        maxLead: profile.maxLead,
+        deadzone: profile.deadzone,
+        reducedMotion: motion !== 'full',
       });
+
+      const director =
+        motion === 'fixed'
+          ? null
+          : new CameraDirector({
+              camera,
+              profile,
+              fieldWidth: options.sport.field.width,
+              reducedMotion: motion === 'reduced',
+            });
 
       const renderer = new Renderer((w, h) => offscreen(doc, w, h));
 
@@ -170,6 +201,11 @@ export function liveScreen(options: LiveScreenOptions): Screen {
 
       detachResize = canvasHost.onResize((size: CanvasSize) => {
         camera.resize(size.width, size.height);
+        // The floor is a function of the new width (T-12.2): a rotation changes how wide the camera
+        // may go and still leave an athlete legible, so it is re-derived rather than carried over.
+        if (motion !== 'fixed') {
+          camera.setMinScale(zoomFloor(size.width, options.sport.field.width, profile));
+        }
         controlLayout = { ...DEFAULT_LAYOUT, width: size.width, height: size.height };
         touch.setLayout(controlLayout, defaultButtons(controlLayout));
         layout = hudLayout(size.width, size.height, readSafeArea(window, root));
@@ -298,7 +334,18 @@ export function liveScreen(options: LiveScreenOptions): Screen {
             wasFinished = match.finished;
             renderOverlay();
           }
-          draw(ctx, renderer, camera, match, options.sport, layout, controlLayout, touch, input);
+          draw(
+            ctx,
+            renderer,
+            camera,
+            director,
+            match,
+            options.sport,
+            layout,
+            controlLayout,
+            touch,
+            input,
+          );
         },
       });
       loop.start();
@@ -322,6 +369,7 @@ function draw(
   ctx: Canvas2D,
   renderer: Renderer,
   camera: Camera,
+  director: CameraDirector | null,
   match: LiveMatch,
   sport: SportModule,
   layout: HudLayout,
@@ -333,14 +381,10 @@ function draw(
   const world = match.world;
   const ball = (match.sportState as { ball: EntityId }).ball;
 
-  // Follow the ball, not the controlled athlete: the ball is what the player is tracking, and a
-  // camera that follows a body while the ball flies elsewhere is a camera that hides the game.
-  camera.update(1 / 60, {
-    x: world.x[ball] as number,
-    y: world.y[ball] as number,
-    vx: world.vx[ball] as number,
-    vy: world.vy[ball] as number,
-  });
+  // The director frames by phase of play (T-12.2) from a signal that names no sport. A `null`
+  // director is the player having asked for a camera that does not move at all (T-12.7): the camera
+  // was built fitting the whole field and is simply left where it is.
+  director?.update(1 / 60, framingSignal(world, view, ball));
   const transform = camera.view();
 
   renderer.setStatic(

@@ -22,27 +22,19 @@ import type { Canvas2D } from '../../engine/render/renderer.ts';
 import { prefs } from '../../storage/prefs.ts';
 import type { ArcadeLayout, ArcadeOutcome } from './types.ts';
 
+/**
+ * The motion preference moved to `app/motion.ts` in T-12.7, when the camera needed the same answer
+ * and two copies of the resolution rule would have been two chances to disagree. Re-exported rather
+ * than moved outright: every arcade game imports it from here.
+ */
+export { REDUCED_MOTION_KEY, applyMotionPreference, reducedMotion } from '../../app/motion.ts';
+import { reducedMotion } from '../../app/motion.ts';
+
 /** Preference keys, shared with Settings. Read here, never written. */
 export const LEFT_HANDED_KEY = 'controls.leftHanded';
-export const REDUCED_MOTION_KEY = 'display.reducedMotion';
 
 /** How long an outcome banner stays up, in seconds. */
 export const FEEDBACK_SECONDS = 0.9;
-
-/**
- * Whether motion should be reduced: the app's own setting, or the operating system's, whichever
- * asks for it. The OS is honoured without the player having to find a setting, and the app's
- * setting can turn it on where the OS has not.
- */
-export function reducedMotion(view: Window | null | undefined): boolean {
-  if (prefs.get<boolean>(REDUCED_MOTION_KEY, false)) return true;
-  try {
-    return view?.matchMedia('(prefers-reduced-motion: reduce)').matches === true;
-  } catch {
-    // `matchMedia` is missing in jsdom and in a few embedded webviews. Not a reason to fail a run.
-    return false;
-  }
-}
 
 export function leftHanded(): boolean {
   return prefs.get<boolean>(LEFT_HANDED_KEY, false);
@@ -51,20 +43,6 @@ export function leftHanded(): boolean {
 /** The layout an arcade run draws into, before the canvas has been measured. */
 export function arcadeLayout(view: Window | null | undefined): ArcadeLayout {
   return { width: 1, height: 1, mirror: leftHanded(), reducedMotion: reducedMotion(view) };
-}
-
-/**
- * Puts the motion preference on the document root, so `tokens.css`'s `[data-motion='reduced']`
- * switch stops being inert and every transition in the app respects it.
- *
- * Called from the arcade run screen because that is the first screen that needs it. T-9.x owns
- * application-wide preferences and should move this to bootstrap; until then a screen setting it is
- * better than a token nothing ever sets.
- */
-export function applyMotionPreference(doc: Document, view: Window | null | undefined): void {
-  const root = doc.documentElement;
-  if (reducedMotion(view)) root.setAttribute('data-motion', 'reduced');
-  else root.removeAttribute('data-motion');
 }
 
 export interface FeedbackState {
