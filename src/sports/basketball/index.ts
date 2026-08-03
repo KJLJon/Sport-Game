@@ -265,6 +265,11 @@ export interface BasketballState extends SportState {
    * aggression, and for nothing else — no rating on either side is scaled by it (INV-1).
    */
   readonly difficulty: DifficultyProfile;
+  /**
+   * The level each side plays at (T-7.10). Normally both are `difficulty`; the AI regression
+   * harness sets them apart so a batch can measure one level against another.
+   */
+  readonly levels: [DifficultyProfile, DifficultyProfile];
   /** How much help the player gets (T-7.8). The CPU never reads these — they are input aids. */
   readonly assists: AssistSettings;
   /**
@@ -471,10 +476,25 @@ const STEP_MS = 1000 / 60;
  * lets T-3.6's coupling tests and the balance bands keep measuring what they were written against —
  * while Rookie waits half again as long and Legend barely waits at all.
  */
-function passReactionChance(state: BasketballState): number {
+function passReactionChance(state: BasketballState, side: CourtSide): number {
   const pro = reactionChance(DIFFICULTY_PROFILES.pro.cpuLatencyMs, STEP_MS);
-  const level = reactionChance(state.difficulty.cpuLatencyMs, STEP_MS);
+  const level = reactionChance(levelOf(state, side).cpuLatencyMs, STEP_MS);
   return Math.min(1, CPU_PASS_REACTION_PER_STEP * (level / pro));
+}
+
+/**
+ * The level one side is playing at. Every CPU decision goes through here rather than through
+ * `state.difficulty`, so that a match with two different levels behaves like two different
+ * opponents rather than like one (T-7.10). It is still never a rating (INV-1).
+ */
+function levelOf(state: BasketballState, side: CourtSide): DifficultyProfile {
+  return state.levels[side];
+}
+
+/** The level of whoever this entity plays for, or the match default if it plays for nobody. */
+function levelFor(state: BasketballState, id: EntityId): DifficultyProfile {
+  const side = state.sides.get(id);
+  return side === undefined ? state.difficulty : state.levels[side];
 }
 
 /**
@@ -644,6 +664,10 @@ export const basketball: SportModule<BasketballState> = {
       shooter: NO_ENTITY,
       cpuRelease: 0,
       difficulty: difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY),
+      levels: [
+        difficultyProfile(setup.difficulties?.[0] ?? setup.difficulty ?? DEFAULT_DIFFICULTY),
+        difficultyProfile(setup.difficulties?.[1] ?? setup.difficulty ?? DEFAULT_DIFFICULTY),
+      ],
       assists: assistsFor(setup),
       executionRng: rng.fork('execution'),
       shot: null,
@@ -877,7 +901,7 @@ function trySteal(
   const wants =
     input !== undefined
       ? wasPressed(input, Button.A)
-      : rng.bool(contestChance(CPU_STEAL_CHANCE_PER_STEP, state.difficulty.aggression));
+      : rng.bool(contestChance(CPU_STEAL_CHANCE_PER_STEP, levelFor(state, defender).aggression));
   if (!wants) return [];
 
   state.stealCooldown.set(defender, DEFENCE.stealCooldown);
@@ -956,7 +980,7 @@ function tryBlock(
   const wants =
     input !== undefined
       ? wasPressed(input, Button.B)
-      : rng.bool(contestChance(CPU_BLOCK_CHANCE_PER_STEP, state.difficulty.aggression));
+      : rng.bool(contestChance(CPU_BLOCK_CHANCE_PER_STEP, levelFor(state, defender).aggression));
   if (!wants) return [];
 
   state.stealCooldown.set(defender, DEFENCE.stealCooldown);
@@ -1067,7 +1091,7 @@ function driveFreeThrows(
           state.meter.window *
           0.7 *
           timingSpread(couplingOf(state, shooter)) *
-          releaseSpread(state.difficulty.executionError),
+          releaseSpread(levelFor(state, shooter).executionError),
     );
     return [];
   }
@@ -1320,7 +1344,7 @@ function driveShooting(
           state.meter.window *
           0.8 *
           timingSpread(couplingOf(state, carrier)) *
-          releaseSpread(state.difficulty.executionError),
+          releaseSpread(levelFor(state, carrier).executionError),
     );
     return [];
   }
@@ -1473,7 +1497,7 @@ function cpuDecision(
   const coupling = couplingOf(state, actor);
   // Two independent reasons to misread a look, added in quadrature because they are: how lost this
   // athlete is in this sport (T-3.6), and how good the CPU is meant to be at reading it (T-7.7).
-  const noise = Math.hypot(coupling.decisionNoise, levelNoise(state.difficulty));
+  const noise = Math.hypot(coupling.decisionNoise, levelNoise(levelOf(state, side)));
   const own = misjudge(lookFor(state, world, actor, side), noise, rng);
   const raw = bestTeammateLook(state, world, actor, side);
   const best = raw === null ? null : { ...raw, look: misjudge(raw.look, noise, rng) };
@@ -1671,7 +1695,9 @@ function drivePassing(
   // The decision says pass; the rate is how long it takes to see it, which is Phase 7's
   // reaction-latency dial (`06` §7) rather than a judgement — and, from T-3.6, how at home in
   // basketball this athlete is (`05` §3.3).
-  if (!rng.bool(delayReaction(passReactionChance(state), couplingOf(state, carrier)))) return [];
+  if (!rng.bool(delayReaction(passReactionChance(state, side), couplingOf(state, carrier)))) {
+    return [];
+  }
 
   const best = bestTeammateLook(state, world, carrier, side);
   if (best === null) return [];
@@ -1683,7 +1709,7 @@ function drivePassing(
     best.athlete,
     1,
     rng,
-    state.difficulty.executionError,
+    levelOf(state, side).executionError,
   );
 }
 
@@ -2383,7 +2409,7 @@ function driveOffBall(state: BasketballState, world: World, rng: Rng): void {
     });
   });
 
-  const choice = screenChoice(looks, { noise: levelNoise(state.difficulty), rng });
+  const choice = screenChoice(looks, { noise: levelNoise(levelOf(state, offence)), rng });
   if (choice === null) return;
   if (!rng.bool(Math.min(1, CPU.screenChance * choice.urge * SCREEN_URGE_SCALE))) return;
   state.screener = choice.id;

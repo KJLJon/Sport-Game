@@ -200,6 +200,11 @@ export interface SoccerState extends SportState {
    */
   readonly difficulty: DifficultyProfile;
   /**
+   * The level each side plays at (T-7.10). Normally both are `difficulty`; the AI regression
+   * harness sets them apart so a batch can measure one level against another.
+   */
+  readonly levels: [DifficultyProfile, DifficultyProfile];
+  /**
    * The team layer, one per side (T-7.3/T-7.5). Holds the possession clock and last tick's marks,
    * which is why it is state rather than a call: a shape recomputed from nothing every step is a
    * shape that cannot keep a mark.
@@ -547,6 +552,10 @@ export const soccer: SoccerModule = {
       controlled,
       pass: null,
       difficulty: difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY),
+      levels: [
+        difficultyProfile(setup.difficulties?.[0] ?? setup.difficulty ?? DEFAULT_DIFFICULTY),
+        difficultyProfile(setup.difficulties?.[1] ?? setup.difficulty ?? DEFAULT_DIFFICULTY),
+      ],
       teams: [
         createTeam({
           side: 0,
@@ -556,7 +565,8 @@ export const soccer: SoccerModule = {
           goal: { x: 0, y: 0.5 },
           shape: soccerShape(
             shapes[0],
-            difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY).aggression,
+            difficultyProfile(setup.difficulties?.[0] ?? setup.difficulty ?? DEFAULT_DIFFICULTY)
+              .aggression,
           ),
         }),
         createTeam({
@@ -567,7 +577,8 @@ export const soccer: SoccerModule = {
           goal: { x: 0, y: 0.5 },
           shape: soccerShape(
             shapes[1],
-            difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY).aggression,
+            difficultyProfile(setup.difficulties?.[1] ?? setup.difficulty ?? DEFAULT_DIFFICULTY)
+              .aggression,
           ),
         }),
       ],
@@ -845,6 +856,21 @@ function moveEveryone(
 
 /** Whether this athlete is the one going after the ball: closest of their side, keeper aside. */
 /**
+ * The level one side is playing at. Every CPU decision reads this rather than `state.difficulty`,
+ * so a match with two different levels behaves like two different opponents (T-7.10). Still never a
+ * rating (INV-1).
+ */
+function levelOf(state: SoccerState, side: PitchSide): DifficultyProfile {
+  return state.levels[side];
+}
+
+/** The level of whoever this entity plays for, or the match default if it plays for nobody. */
+function levelFor(state: SoccerState, id: EntityId): DifficultyProfile {
+  const side = state.sides.get(id);
+  return side === undefined ? state.difficulty : state.levels[side];
+}
+
+/**
  * Runs the team layer for both sides, once per step, and lays soccer's own tactics over the result.
  *
  * The keeper is left out of the plan deliberately: `keeper.ts` is a better model of what a keeper
@@ -1086,7 +1112,7 @@ function contestCarrier(
     const input = inputs.get(id);
     if (input !== undefined) {
       if (!wasPressed(input, Button.A) && !wasPressed(input, Button.B)) continue;
-    } else if (!rng.bool(contestChance(TACKLE_COMMIT_PER_STEP, state.difficulty.aggression))) {
+    } else if (!rng.bool(contestChance(TACKLE_COMMIT_PER_STEP, levelFor(state, id).aggression))) {
       continue;
     }
 
@@ -1205,7 +1231,7 @@ function decide(
 
   // How long it takes to *see* the decision. `06` §7's reaction row, and the reason a Rookie
   // carrier can be closed down while still deciding what to do with the ball.
-  if (!reacted(rng, state.difficulty.cpuLatencyMs, STEP_MS)) return [];
+  if (!reacted(rng, levelOf(state, side).cpuLatencyMs, STEP_MS)) return [];
 
   const x = world.x[carrier] as number;
   const y = world.y[carrier] as number;
@@ -1221,7 +1247,7 @@ function decide(
       step,
       rng,
       kind,
-      state.difficulty.executionError,
+      levelOf(state, side).executionError,
     );
   }
 
@@ -1231,7 +1257,7 @@ function decide(
   // Misjudging how open the goal is, by the level's decision noise. Rookie shoots from positions
   // it should work an opening from, and passes up ones it should have hit.
   const openness = clamp01(
-    goalOpenness(x, y, side) + rng.gaussian(0, state.difficulty.decisionNoise * OPENNESS_NOISE),
+    goalOpenness(x, y, side) + rng.gaussian(0, levelOf(state, side).decisionNoise * OPENNESS_NOISE),
   );
   if (
     distance < SHOOTING_RANGE &&
@@ -1246,7 +1272,7 @@ function decide(
       { kind: 'shoot', power: 1 },
       step,
       rng,
-      state.difficulty.executionError,
+      levelOf(state, side).executionError,
     );
   }
 
@@ -1260,7 +1286,7 @@ function decide(
       step,
       rng,
       undefined,
-      state.difficulty.executionError,
+      levelOf(state, side).executionError,
     );
   }
   return [];

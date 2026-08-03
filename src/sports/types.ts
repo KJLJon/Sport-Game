@@ -159,6 +159,15 @@ export interface MatchSetup {
    */
   readonly difficulty?: Difficulty;
   /**
+   * A level per side, for the AI regression harness (T-7.10). With one level for the whole match
+   * both CPUs play identically and a headless batch's win rate is 50% by symmetry, which measures
+   * nothing; giving the two sides different levels is what lets a batch ask "how often does a
+   * Rookie CPU beat an All-Star one" — and therefore what lets `06` §7's win-rate bands be checked.
+   *
+   * Absent means both sides play at `difficulty`, which is every match a player actually plays.
+   */
+  readonly difficulties?: readonly [Difficulty, Difficulty];
+  /**
    * How much help the *player's* side gets (T-7.8). Absent means none, which is what a headless
    * match wants: nobody is holding the stick.
    */
