@@ -142,13 +142,43 @@ describe('reading the opponent', () => {
     const patient = Array.from({ length: 8 }, () => turn(1, 'patient', 'mid'));
     const direct = Array.from({ length: 8 }, () => turn(1, 'direct', 'mid'));
 
+    // At Legend, because T-7.6 made counter-calling a *level* — `06` §7's exploits row runs from
+    // "no" to "consistently", and a Pro CPU is only supposed to punish a tendency rarely. The
+    // level-by-level strength is asserted in its own test below.
     const scoreOf = (turns: TurnResolution[], option: string): number =>
-      scoreDimension('press', state({ possession: 1 }), 0, 'defence', 'buildUp', turns).find(
-        (candidate) => candidate.id === option,
-      )?.score ?? 0;
+      scoreDimension(
+        'press',
+        { ...state({ possession: 1 }), difficulty: 'legend' as const },
+        0,
+        'defence',
+        'buildUp',
+        turns,
+      ).find((candidate) => candidate.id === option)?.score ?? 0;
 
     expect(scoreOf(patient, 'high')).toBeGreaterThan(scoreOf(patient, 'deep'));
     expect(scoreOf(direct, 'deep')).toBeGreaterThan(scoreOf(direct, 'high'));
+  });
+
+  it('reads harder the higher the level, and not at all at Rookie (06 §7)', () => {
+    const patient = Array.from({ length: 8 }, () => turn(1, 'patient', 'mid'));
+
+    const gap = (difficulty: 'rookie' | 'pro' | 'allStar' | 'legend'): number => {
+      const scores = scoreDimension(
+        'press',
+        { ...state({ possession: 1 }), difficulty },
+        0,
+        'defence',
+        'buildUp',
+        patient,
+      );
+      const high = scores.find((candidate) => candidate.id === 'high')?.score ?? 0;
+      const deep = scores.find((candidate) => candidate.id === 'deep')?.score ?? 0;
+      return high - deep;
+    };
+
+    expect(gap('legend')).toBeGreaterThan(gap('allStar'));
+    expect(gap('allStar')).toBeGreaterThan(gap('pro'));
+    expect(gap('pro')).toBeGreaterThan(gap('rookie'));
   });
 
   it('keeps the counter soft: a read shades a call, it does not decide the match', () => {

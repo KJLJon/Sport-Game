@@ -38,6 +38,7 @@ import type {
   TurnResolution,
 } from '../../../modes/playbook/types.ts';
 import { levelOf } from '../../../modes/playbook/types.ts';
+import { repeatPenalty, scaleRead, varietyStrength } from '../../../modes/playbook/read.ts';
 import { DEFENSIVE_PROFILES, OFFENSIVE_PROFILES, areaOf, offensiveProfile } from './calls.ts';
 import { scoreDefence, scoreOffence, type ScoredCall } from './coach.ts';
 import { primaryOption, zoneValue, type BasketballPlaybookState } from './resolution.ts';
@@ -62,6 +63,29 @@ const NOISE_TO_TEMPERATURE = 1.4;
 
 /** How hard a read is allowed to push a call's score, in points-per-possession. */
 const READ_WEIGHT = 0.22;
+
+/**
+ * How hard leaning on one call is allowed to push it *down*, in the same units.
+ *
+ * Smaller than the read, deliberately: a CPU that varies harder than it exploits is a CPU choosing
+ * worse calls on purpose, which is a different thing from being hard to read.
+ *
+ * @spec-ref 06-game-design.md §7 — exploits mismatches: no · rarely · often · consistently
+ */
+const REPEAT_WEIGHT = 0.14;
+
+/** The calls this side has made in the window, on the same side of the ball it is calling now. */
+function ownCalls(
+  turns: readonly TurnResolution[],
+  side: Side,
+  defending: boolean,
+  window = READ_WINDOW,
+): { call: CallId }[] {
+  return turns
+    .filter((turn) => (turn.attacking === side) !== defending)
+    .slice(-window)
+    .map((turn) => ({ call: defending ? turn.calls.defence.call : turn.calls.offence.call }));
+}
 
 /** What the CPU has noticed about one of the opponent's calls. */
 export interface CallRead {
@@ -196,15 +220,26 @@ export function cpuCall(
   const defending = side !== state.possession;
   const opponent: Side = side === 1 ? 0 : 1;
 
-  const scored = defending
-    ? scoreDefence(state, side).map((candidate) => ({
-        ...candidate,
-        score: candidate.score + readAdjustment(readTendencies(turns, opponent), candidate.call),
-      }))
-    : scoreOffence(state, side).map((candidate) => ({
-        ...candidate,
-        score: candidate.score + readAdjustmentForOffence(turns, side, candidate.call),
-      }));
+  // How hard this level reads, and how hard it works at not being read (T-7.6). Both are `06` §7's
+  // exploits row, which had no reader in the project until now: before this, a Rookie CPU punished
+  // a repeated call exactly as ruthlessly as a Legend one.
+  const level = levelOf(state, side);
+  const variety = varietyStrength(level);
+  const own = ownCalls(turns, side, defending);
+
+  const sheet = defending ? scoreDefence(state, side) : scoreOffence(state, side);
+  const scored = sheet.map((candidate) => ({
+    ...candidate,
+    score:
+      candidate.score +
+      scaleRead(
+        defending
+          ? readAdjustment(readTendencies(turns, opponent), candidate.call)
+          : readAdjustmentForOffence(turns, side, candidate.call),
+        level,
+      ) -
+      repeatPenalty(own, candidate.call, REPEAT_WEIGHT, variety, sheet.length),
+  }));
 
   if (scored.length === 0) return { side, call: defending ? 'man' : 'motion' };
 
