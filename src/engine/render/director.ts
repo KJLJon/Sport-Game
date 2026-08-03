@@ -33,6 +33,7 @@ import {
   legibleSpan,
   scaleForSpan,
   spanFor,
+  type CameraMotion,
   type CameraProfile,
   type FramingSignal,
   type PlayPhase,
@@ -44,8 +45,8 @@ export interface DirectorOptions {
   readonly profile?: CameraProfile;
   /** The field's long axis, so a span is never asked to exceed it. */
   readonly fieldWidth: number;
-  /** `prefers-reduced-motion`, or the player's own setting (T-12.7). */
-  readonly reducedMotion?: boolean;
+  /** How much the camera may move (T-12.7). Defaults to `full`. */
+  readonly motion?: CameraMotion;
   /**
    * World units of focus movement in one frame past which the camera treats it as a jump to be
    * panned rather than a movement to be followed.
@@ -64,7 +65,7 @@ export interface DirectorState {
   readonly span: number;
   /** Seconds left of a handoff pan, or `0`. */
   readonly handoff: number;
-  readonly reducedMotion: boolean;
+  readonly motion: CameraMotion;
 }
 
 /**
@@ -86,7 +87,7 @@ export class CameraDirector {
   private readonly jumpDistance: number;
   private readonly handoffSeconds: number;
 
-  private reduced: boolean;
+  private motion: CameraMotion;
   private lastFocus: { x: number; y: number } | null = null;
   private lastPossession: 0 | 1 | -1 = -1;
   private handoffLeft = 0;
@@ -102,7 +103,7 @@ export class CameraDirector {
     this.fieldWidth = options.fieldWidth;
     this.jumpDistance = options.jumpDistance ?? 12;
     this.handoffSeconds = options.handoffSeconds ?? 0.6;
-    this.reduced = options.reducedMotion ?? false;
+    this.motion = options.motion ?? 'full';
 
     this.camera.setDeadzone(this.deadzone());
     this.currentSpan = this.profile.spans.openPlay;
@@ -113,19 +114,20 @@ export class CameraDirector {
       phase: this.currentPhase,
       span: this.currentSpan,
       handoff: this.handoffLeft,
-      reducedMotion: this.reduced,
+      motion: this.motion,
     };
   }
 
   /**
-   * Turns camera motion off or on. Takes effect on the next frame rather than immediately, because
-   * a setting changed mid-match should not itself be a camera movement.
+   * Changes how much the camera may move. Takes effect on the next frame rather than immediately,
+   * because a setting changed mid-match should not itself be a camera movement.
    */
-  setReducedMotion(reduced: boolean): void {
-    if (this.reduced === reduced) return;
-    this.reduced = reduced;
-    this.camera.setReducedMotion(reduced);
+  setMotion(motion: CameraMotion): void {
+    if (this.motion === motion) return;
+    this.motion = motion;
+    this.camera.setReducedMotion(motion !== 'full');
     this.camera.setDeadzone(this.deadzone());
+    if (motion === 'fixed') this.endPeek();
   }
 
   /**
@@ -134,7 +136,7 @@ export class CameraDirector {
    */
   snap(signal: FramingSignal): void {
     const focus = this.focus(signal);
-    this.tracker.reset(this.reduced ? 'openPlay' : this.tracker.phase);
+    this.tracker.reset(this.reduced() ? 'openPlay' : this.tracker.phase);
     this.currentPhase = this.tracker.phase;
     this.currentSpan = this.span(this.currentPhase, focus);
     this.camera.snapTo(focus.x, focus.y, scaleForSpan(this.viewWidth(), this.currentSpan));
@@ -152,6 +154,9 @@ export class CameraDirector {
    * camera moving on its own should not also disable the control that moves it deliberately.
    */
   peek(x: number, y: number, seconds = 1.6): void {
+    // A fixed camera already shows the whole field, so there is nowhere to look that is not
+    // already on screen.
+    if (this.motion === 'fixed') return;
     this.peekAt = { x, y };
     this.peekLeft = Math.max(seconds, 0);
   }
@@ -168,6 +173,10 @@ export class CameraDirector {
 
   /** One frame. `rng` is only used for shake, and only when motion is on (INV-2). */
   update(dt: number, signal: FramingSignal, rng?: Rng): void {
+    // `fixed` is the player having asked for no camera movement at all. The camera was built
+    // fitting the whole field and is simply left where it is.
+    if (this.motion === 'fixed') return;
+
     if (this.peekLeft > 0) {
       this.updatePeek(dt, rng);
       this.lastPossession = signal.possession;
@@ -176,7 +185,7 @@ export class CameraDirector {
 
     const focus = this.focus(signal);
 
-    this.currentPhase = this.reduced ? 'openPlay' : this.tracker.update(dt, signal);
+    this.currentPhase = this.reduced() ? 'openPlay' : this.tracker.update(dt, signal);
     this.currentSpan = this.span(this.currentPhase, focus);
     this.camera.requestScale(scaleForSpan(this.viewWidth(), this.currentSpan));
 
@@ -252,14 +261,14 @@ export class CameraDirector {
 
   private focus(signal: FramingSignal): FollowTarget {
     const point = focusPoint(signal, this.profile);
-    if (!this.reduced) return point;
+    if (!this.reduced()) return point;
     // No lookahead under reduced motion — `Camera` already drops it, but the focus blend's own
     // velocity would otherwise still be handed on to anything reading the target.
     return { x: point.x, y: point.y, vx: 0, vy: 0 };
   }
 
   private span(phase: PlayPhase, focus: FollowTarget): number {
-    if (this.reduced) {
+    if (this.reduced()) {
       // One fixed span, whatever is happening. Open play's is the honest middle: tight enough to
       // read an athlete, wide enough that a counter does not leave the frame behind.
       return Math.min(
@@ -271,8 +280,13 @@ export class CameraDirector {
     return spanFor(phase, focus, this.profile, this.fieldWidth, this.viewWidth());
   }
 
+  /** True for anything but `full` — `fixed` never reaches the code that asks. */
+  private reduced(): boolean {
+    return this.motion !== 'full';
+  }
+
   private deadzone(): number {
-    return this.reduced ? REDUCED_MOTION_DEADZONE : this.profile.deadzone;
+    return this.reduced() ? REDUCED_MOTION_DEADZONE : this.profile.deadzone;
   }
 
   private viewWidth(): number {

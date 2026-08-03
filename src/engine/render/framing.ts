@@ -107,6 +107,22 @@ export interface CameraProfile {
 }
 
 /**
+ * How much the camera may move (T-12.7). Lives here rather than with the preference that stores it,
+ * because it is a fact about the camera; `app/motion.ts` decides which of these a player has asked
+ * for and re-exports the type.
+ *
+ * - `full` — everything: lookahead, dynamic zoom by phase, handoff pans, shake.
+ * - `reduced` — still follows, at one fixed zoom, with a wide deadzone. No lookahead, no zoom
+ *   changes, no shake.
+ * - `fixed` — does not move at all. The whole field, always, athletes as dots.
+ *
+ * `fixed` is worse to play, and it is nobody's business but the player's whether they want it: an
+ * accessibility setting that stops short of the option somebody actually needs is not one.
+ */
+export const CAMERA_MOTIONS = ['full', 'reduced', 'fixed'] as const;
+export type CameraMotion = (typeof CAMERA_MOTIONS)[number];
+
+/**
  * The framing a sport gets when it says nothing.
  *
  * The spans are the reasoning from T-6.12 continued: 45 m was chosen there as "a phase of play"

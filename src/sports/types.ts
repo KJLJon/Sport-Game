@@ -24,7 +24,7 @@ import type { Rng } from '../engine/rng.ts';
 import type { InputFrame } from '../engine/input/types.ts';
 import type { SportEvent } from '../engine/match/events.ts';
 import type { MatchRules } from '../engine/match/state-machine.ts';
-import type { Canvas2D, ViewTransform } from '../engine/render/renderer.ts';
+import type { Canvas2D, EntityLod, ViewTransform } from '../engine/render/renderer.ts';
 import type { PartialCameraProfile } from '../engine/render/framing.ts';
 import type { SportAudio } from '../modes/live/audio.ts';
 import type { EntityId, World } from '../engine/world.ts';
@@ -216,7 +216,22 @@ export interface SportRenderer {
    * Takes the sport's own state for exactly that reason: `controlled` is the athlete the player is,
    * and everything else the sport needs to tell its athletes apart is already in `state`.
    */
-  drawAthletes(ctx: Canvas2D, state: SportState, world: World, controlled: EntityId): void;
+  drawAthletes(
+    ctx: Canvas2D,
+    state: SportState,
+    world: World,
+    controlled: EntityId,
+    /**
+     * The engine's culling and detail policy for this frame (T-12.8). Ask it about every athlete
+     * before drawing one: `null` means off-screen, and the level it returns is how much of the kit
+     * is worth drawing at this distance.
+     *
+     * Optional so a sport can ignore it — the Phase-1 test fixture does — but a sport that ignores
+     * it draws 22 athletes on a viewport showing six, which was free while the camera fitted the
+     * field and stopped being free the moment it did not.
+     */
+    lod?: EntityLod,
+  ): void;
   /** The ball, with whatever height cue this sport uses. Its own layer, so it draws over bodies. */
   drawBall(ctx: Canvas2D, state: SportState, world: World, ball: EntityId): void;
   /** Per-frame sport-specific overlays: possession arrows, zone highlights. */

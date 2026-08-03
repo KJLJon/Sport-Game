@@ -846,6 +846,26 @@
   height: 22px;
 }
 
+/* The camera-motion choice (T-12.7). A `<select>` rather than a checkbox because there are three
+   answers, and its labels are sentences — "Follows calmly — no zooming" — so the row wraps to two
+   lines on a phone instead of truncating the only text that explains what the setting does. */
+
+.live-panel__setting--wide {
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.live-panel__setting--wide select {
+  flex: 1 1 12rem;
+  min-height: 44px;
+  padding: 0 var(--space-2, 8px);
+  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface, rgb(255 255 255 / 6%));
+  color: inherit;
+  font: inherit;
+}
+
 /* ── Play-call sheet (T-5.4) ─────────────────────────────────────────────────
    `10` §8.4: three-to-six large cards along the bottom of the turn screen. The
    cards are the primary target on this screen, so they take `--target-primary`

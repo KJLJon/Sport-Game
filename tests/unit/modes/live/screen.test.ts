@@ -69,7 +69,11 @@ describe('the pause menu', () => {
 
 describe('in-match settings', () => {
   it('are labelled checkboxes that change the setting they name', () => {
-    const settings: MatchSettings = { leftHanded: false, sound: true };
+    const settings: MatchSettings = {
+      leftHanded: false,
+      sound: true,
+      cameraMotion: 'full' as const,
+    };
     let changes = 0;
     const group = settingsPanel(document, settings, () => changes++);
     // Connected, because a checkbox's activation behaviour needs a document to happen in.
@@ -91,6 +95,27 @@ describe('in-match settings', () => {
     expect(settings.sound).toBe(false);
   });
 
+  it('offers the camera as three named choices rather than a checkbox (T-12.7)', () => {
+    const settings: MatchSettings = { leftHanded: false, sound: true, cameraMotion: 'full' };
+    let changes = 0;
+    const group = settingsPanel(document, settings, () => changes++);
+    document.body.appendChild(group);
+
+    const select = group.querySelector('select') as HTMLSelectElement | null;
+    expect(select).not.toBeNull();
+    expect([...(select?.options ?? [])].map((o) => o.value)).toEqual(['full', 'reduced', 'fixed']);
+    // Three because there are three answers, and the middle one — follows the play, calmly — is
+    // what most people who dislike a moving camera actually want.
+    expect(group.querySelector(`label[for="${select?.id}"]`)?.textContent).toBe('Camera');
+
+    if (select !== null) {
+      select.value = 'reduced';
+      select.dispatchEvent(new Event('change'));
+    }
+    expect(settings.cameraMotion).toBe('reduced');
+    expect(changes).toBe(1);
+  });
+
   it('appear in the pause menu only when the caller offers them', () => {
     const match = played();
     const without = pausePanel(document, match, { onResume: () => {}, onQuit: () => {} });
@@ -99,7 +124,7 @@ describe('in-match settings', () => {
     const withSettings = pausePanel(document, match, {
       onResume: () => {},
       onQuit: () => {},
-      settings: { leftHanded: false, sound: true },
+      settings: { leftHanded: false, sound: true, cameraMotion: 'full' as const },
     });
     expect(withSettings.querySelector('fieldset')).not.toBeNull();
   });

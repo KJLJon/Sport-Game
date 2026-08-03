@@ -17,6 +17,7 @@ import { CameraDirector } from '@/engine/render/director.ts';
 import {
   DEFAULT_CAMERA_PROFILE,
   legibleSpan,
+  type CameraMotion,
   type FramingSignal,
 } from '@/engine/render/framing.ts';
 
@@ -35,7 +36,7 @@ function signal(overrides: Partial<FramingSignal> = {}): FramingSignal {
   };
 }
 
-function setup(options: { reducedMotion?: boolean } = {}) {
+function setup(options: { motion?: CameraMotion } = {}) {
   const camera = new Camera({
     ...VIEW,
     ...PITCH,
@@ -179,7 +180,7 @@ describe('handoff (T-12.5)', () => {
 
 describe('reduced motion (T-12.7)', () => {
   it('holds one zoom whatever the phase of play', () => {
-    const { camera, director } = setup({ reducedMotion: true });
+    const { camera, director } = setup({ motion: 'reduced' });
     run(director, signal(), 2);
     const open = camera.scale;
 
@@ -191,14 +192,14 @@ describe('reduced motion (T-12.7)', () => {
   });
 
   it('still follows, because a fixed camera on a pitch is the problem this phase exists to fix', () => {
-    const { camera, director } = setup({ reducedMotion: true });
+    const { camera, director } = setup({ motion: 'reduced' });
     const before = camera.x;
     run(director, signal({ ball: { x: 85, y: 34, vx: 0, vy: 0 }, controlled: null }), 3);
     expect(camera.x).toBeGreaterThan(before + 10);
   });
 
   it('does not look ahead of a moving ball', () => {
-    const calm = setup({ reducedMotion: true });
+    const calm = setup({ motion: 'reduced' });
     const full = setup();
     // Fast enough that the lead alone carries the aim point out of the deadzone — below that, a
     // camera with lookahead and one without are indistinguishable, which is the deadzone working.
@@ -217,12 +218,12 @@ describe('reduced motion (T-12.7)', () => {
     run(director, signal({ pressure: 2 }), 3);
     const duelScale = camera.scale;
 
-    director.setReducedMotion(true);
+    director.setMotion('reduced');
     run(director, signal({ pressure: 2 }), 3);
     expect(camera.scale).toBeLessThan(duelScale);
-    expect(director.state.reducedMotion).toBe(true);
+    expect(director.state.motion).toBe('reduced');
 
-    director.setReducedMotion(false);
+    director.setMotion('full');
     run(director, signal({ pressure: 2 }), 3);
     expect(camera.scale).toBeGreaterThan(camera.scale * 0.99);
   });
@@ -309,7 +310,7 @@ describe('tap to look (T-12.4)', () => {
   it('still works when automatic camera motion is turned off', () => {
     // A setting that stops the camera moving on its own should not disable the control that moves
     // it deliberately.
-    const { camera, director } = setup({ reducedMotion: true });
+    const { camera, director } = setup({ motion: 'reduced' });
     const before = camera.x;
 
     director.peek(12, 20, 1);

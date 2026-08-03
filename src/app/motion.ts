@@ -24,14 +24,14 @@
  * `fixed` is worse to play and it is nobody's business but the player's whether they want it. An
  * accessibility setting that stops short of the option the player actually needs is not one.
  */
+import { CAMERA_MOTIONS, type CameraMotion } from '../engine/render/framing.ts';
 import { prefs } from '../storage/prefs.ts';
+
+export { CAMERA_MOTIONS, type CameraMotion };
 
 /** Preference keys, shared with Settings. */
 export const REDUCED_MOTION_KEY = 'display.reducedMotion';
 export const CAMERA_MOTION_KEY = 'display.cameraMotion';
-
-export const CAMERA_MOTIONS = ['full', 'reduced', 'fixed'] as const;
-export type CameraMotion = (typeof CAMERA_MOTIONS)[number];
 
 function isCameraMotion(value: unknown): value is CameraMotion {
   return CAMERA_MOTIONS.includes(value as CameraMotion);

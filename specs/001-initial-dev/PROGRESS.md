@@ -12,7 +12,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-12.8 — Culling and LOD against a moving viewport
+- **Task:** T-12.9 — Device pass
 - **Status:** in_progress
 - **Started:** 2026-08-03
 - **Branch:** `claude/phase-12-next-steps-xeminm`, off `main` at `0e03a2f` (PR #16 merged).
@@ -27,13 +27,13 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-12.2 — phase classification with hysteresis, per-phase zoom, `CameraDirector`
   - [x] T-12.5 — handoff pans on restarts and turnovers; a cut only when `snap()` is called
   - [x] T-12.6 — `SportModule.camera` seam and profile merging (no sport supplies one yet)
-  - [~] T-12.7 — director + `app/motion.ts` three-level setting; **no UI to set it yet**
+  - [x] T-12.7 — three-level camera setting, in the pause menu, switchable mid-match
   - [x] T-12.3 — off-screen awareness: ball, your athlete, nearest opponents, nearest teammates
   - [x] T-12.4 — minimap rework: field-shaped, viewport box, tap-to-look, 44 px floor
-  - [ ] T-12.8 — culling and LOD against the moving viewport
+  - [x] T-12.8 — culling and LOD against the moving viewport, via `Renderer.lodFor()`
   - [ ] T-12.9 — device pass
-- **Next step:** T-12.8 — culling and LOD against the moving viewport, deferred here from T-6.11
-  with a reason. Then T-12.7's settings UI, then T-12.9.
+- **Next step:** T-12.9 — the device pass, and it is the one task here nobody but the user can
+  finish. Everything else is verified `auto`.
 - **The one real design change so far.** T-6.12's fixed 45 m span was both the framing *and* the
   floor, which made every span above 45 m unreachable — a set piece could never actually be framed
   wide. `legibleSpan(viewWidth, profile)` replaces the constant with the question it was standing in
@@ -344,8 +344,8 @@ pitch. T-6.12 does the minimum to make soccer legible; this is the version worth
 | T-12.4 | Minimap rework: always-on, tap-to-look, readable at 44 px | M | `done` | | `tests/unit/modes/live/minimap.test.ts` | auto | The field’s own aspect rather than a hardcoded court’s, a viewport box, tap-to-look via `director.peek()`, and a 44 px floor. |
 | T-12.5 | Camera handoff on possession change, restarts, and goals — never a cut mid-action | M | `done` | | `tests/unit/engine/director.test.ts` | auto | A restart or a turnover pans; only `snap()` cuts, and dead-ball pans are allowed to be brisker than live ones. |
 | T-12.6 | Per-sport camera profiles through the seam, so a rink and a pitch frame differently | M | `done` | | `tests/unit/engine/director.test.ts`, `tests/unit/engine/framing.test.ts` | auto | `SportModule.camera` takes a partial profile; every phase span clamps to the field, so a court frames itself whole and no sport is named. |
-| T-12.7 | Reduced-motion and accessibility pass: no camera motion a player cannot turn off | M | `todo` | | | | |
-| T-12.8 | Culling and LOD against a moving viewport — draw what is on screen, not what exists | M | `todo` | | | | |
+| T-12.7 | Reduced-motion and accessibility pass: no camera motion a player cannot turn off | M | `done` | | `tests/unit/app/motion.test.ts`, `tests/unit/modes/live/screen.test.ts` | auto | Three levels, not a checkbox — `full` / `reduced` / `fixed` — in the pause menu because you find out mid-match, not on a settings screen. |
+| T-12.8 | Culling and LOD against a moving viewport — draw what is on screen, not what exists | M | `done` | | `tests/unit/engine/renderer.test.ts` | auto | `Renderer.lodFor()` owns the policy, the sport owns the drawing; the LOD tiers the art has honoured since Phase 2 were never once passed anything but FULL. |
 | T-12.9 | Device pass: framing on a 360 px phone in both orientations, one-handed | M | `todo` | | | | |
 
 ### Phase 13 — Visual overhaul: sprites and pseudo-3D (bonus)

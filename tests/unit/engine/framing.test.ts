@@ -22,6 +22,8 @@ import {
   spanFor,
   type FramingSignal,
 } from '@/engine/render/framing.ts';
+import { soccer } from '@/sports/soccer/index.ts';
+import { basketball } from '@/sports/basketball/index.ts';
 
 const PITCH_WIDTH = 105;
 
@@ -200,5 +202,35 @@ describe('profiles', () => {
     expect(profile.spans.openPlay).toBe(DEFAULT_CAMERA_PROFILE.spans.openPlay);
     expect(profile.duelRadius).toBe(3);
     expect(profile.lookahead).toBe(DEFAULT_CAMERA_PROFILE.lookahead);
+  });
+});
+
+/**
+ * T-12.6, from the other side: the two shipped sports do supply profiles, and the mechanism is a
+ * seam rather than a switch — nothing in the camera knows which of them it is framing.
+ */
+describe('the sports’ own profiles', () => {
+  it('frame a pitch and a court differently, without either being named in the camera', () => {
+    const pitch = cameraProfile(soccer.camera);
+    const court = cameraProfile(basketball.camera);
+
+    // A soccer duel starts a stride before contact; a basketball defender lives inside arm's length.
+    expect(pitch.duelRadius).toBeGreaterThan(court.duelRadius);
+    expect(pitch.spans.counter).toBeGreaterThan(court.spans.counter);
+  });
+
+  it('leaves a court showing the whole court in every phase but a duel', () => {
+    const court = cameraProfile(basketball.camera);
+    const still = { x: 14, y: 7.5, vx: 0, vy: 0 };
+
+    for (const phase of ['openPlay', 'counter', 'setPiece'] as const) {
+      expect(spanFor(phase, still, court, 28)).toBe(28);
+    }
+    expect(spanFor('duel', still, court, 28)).toBeLessThan(28);
+  });
+
+  it('inherits everything a sport did not mention', () => {
+    expect(cameraProfile(soccer.camera).lookahead).toBe(DEFAULT_CAMERA_PROFILE.lookahead);
+    expect(cameraProfile(basketball.camera).deadzone).toBe(DEFAULT_CAMERA_PROFILE.deadzone);
   });
 });

@@ -44,7 +44,8 @@ import {
   legibleSpan,
   type CameraProfile,
 } from '../../engine/render/framing.ts';
-import { cameraMotion } from '../../app/motion.ts';
+import { CAMERA_MOTION_KEY, cameraMotion, type CameraMotion } from '../../app/motion.ts';
+import { prefs } from '../../storage/prefs.ts';
 import { framingSignal } from './framing.ts';
 import { Renderer, type Canvas2D, type OffscreenLayer } from '../../engine/render/renderer.ts';
 import { MatchAudio } from './audio.ts';
@@ -153,7 +154,6 @@ export function liveScreen(options: LiveScreenOptions): Screen {
 
       // The sport's framing, or the defaults if it has no opinion (T-12.6).
       const profile = cameraProfile(options.sport.camera);
-      const motion = cameraMotion(window);
 
       const camera = new Camera({
         width: canvasHost.size.width,
@@ -161,27 +161,38 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         worldWidth: options.sport.field.width,
         worldHeight: options.sport.field.height,
         maxScale: 34,
-        // `fixed` is the player asking for no camera movement at all, which means fitting the whole
-        // field — the floor stops applying, because the floor exists to keep the camera zoomed in.
-        // Omitting `minScale` entirely is how the camera is told to fit.
-        ...(motion === 'fixed'
-          ? {}
-          : { minScale: zoomFloor(canvasHost.size.width, options.sport.field.width, profile) }),
         lookahead: profile.lookahead,
         maxLead: profile.maxLead,
         deadzone: profile.deadzone,
-        reducedMotion: motion !== 'full',
       });
 
-      const director =
-        motion === 'fixed'
-          ? null
-          : new CameraDirector({
-              camera,
-              profile,
-              fieldWidth: options.sport.field.width,
-              reducedMotion: motion === 'reduced',
-            });
+      const director = new CameraDirector({
+        camera,
+        profile,
+        fieldWidth: options.sport.field.width,
+      });
+
+      /**
+       * Applies the camera-motion setting (T-12.7), including the zoom floor it implies.
+       *
+       * `fixed` is the one that needs more than the director: a camera that does not move must show
+       * the whole field, so its floor is fit-the-field rather than the legibility floor — which
+       * exists precisely to keep the camera zoomed *in*.
+       */
+      const applyCameraMotion = (next: CameraMotion): void => {
+        director.setMotion(next);
+        const size = canvasHost.size;
+        camera.setMinScale(
+          next === 'fixed'
+            ? Math.min(
+                size.width / options.sport.field.width,
+                size.height / options.sport.field.height,
+              )
+            : zoomFloor(size.width, options.sport.field.width, profile),
+        );
+      };
+
+      applyCameraMotion(cameraMotion(window));
 
       const renderer = new Renderer((w, h) => offscreen(doc, w, h));
 
@@ -203,9 +214,7 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         camera.resize(size.width, size.height);
         // The floor is a function of the new width (T-12.2): a rotation changes how wide the camera
         // may go and still leave an athlete legible, so it is re-derived rather than carried over.
-        if (motion !== 'fixed') {
-          camera.setMinScale(zoomFloor(size.width, options.sport.field.width, profile));
-        }
+        applyCameraMotion(settings.cameraMotion);
         controlLayout = { ...DEFAULT_LAYOUT, width: size.width, height: size.height };
         touch.setLayout(controlLayout, defaultButtons(controlLayout));
         layout = hudLayout(size.width, size.height, readSafeArea(window, root));
@@ -234,11 +243,17 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         audio.setContext(new Ctor() as never);
       };
 
-      const settings: MatchSettings = { leftHanded: false, sound: true };
+      const settings: MatchSettings = {
+        leftHanded: false,
+        sound: true,
+        cameraMotion: cameraMotion(window),
+      };
       const applySettings = (): void => {
         controlLayout = { ...controlLayout, leftHanded: settings.leftHanded };
         touch.setLayout(controlLayout, defaultButtons(controlLayout));
         audio.setMuted(!settings.sound);
+        applyCameraMotion(settings.cameraMotion);
+        prefs.set(CAMERA_MOTION_KEY, settings.cameraMotion);
       };
 
       let paused = false;
@@ -300,12 +315,16 @@ export function liveScreen(options: LiveScreenOptions): Screen {
               options.sport.field.height,
             );
             if (point !== null) {
-              director?.peek(point.x, point.y);
+              director.peek(point.x, point.y);
               return;
             }
           }
-          if (kind === 'down') touch.pointerDown(e.pointerId, x, y);
-          else if (kind === 'move') touch.pointerMove(e.pointerId, x, y);
+          // Any other touch is play resuming: a peek the player has stopped caring about should
+          // not keep the camera away from the ball.
+          if (kind === 'down') {
+            director.endPeek();
+            touch.pointerDown(e.pointerId, x, y);
+          } else if (kind === 'move') touch.pointerMove(e.pointerId, x, y);
           else touch.pointerUp(e.pointerId);
         };
 
@@ -390,7 +409,7 @@ function draw(
   ctx: Canvas2D,
   renderer: Renderer,
   camera: Camera,
-  director: CameraDirector | null,
+  director: CameraDirector,
   match: LiveMatch,
   sport: SportModule,
   layout: HudLayout,
@@ -405,7 +424,7 @@ function draw(
   // The director frames by phase of play (T-12.2) from a signal that names no sport. A `null`
   // director is the player having asked for a camera that does not move at all (T-12.7): the camera
   // was built fitting the whole field and is simply left where it is.
-  director?.update(1 / 60, framingSignal(world, view, ball));
+  director.update(1 / 60, framingSignal(world, view, ball));
   const transform = camera.view();
 
   renderer.setStatic(
@@ -418,8 +437,14 @@ function draw(
   );
 
   renderer.submit('field', (c, v) => sport.render.drawField(c, sport.field, v));
-  renderer.submit('entities', (c) =>
-    sport.render.drawAthletes(c, match.sportState as never, world, view.status.controlled),
+  renderer.submit('entities', (c, v) =>
+    sport.render.drawAthletes(
+      c,
+      match.sportState as never,
+      world,
+      view.status.controlled,
+      renderer.lodFor(v),
+    ),
   );
   renderer.submit('ball', (c) => sport.render.drawBall(c, match.sportState as never, world, ball));
   renderer.submit('effects', (c, v) =>
@@ -541,6 +566,15 @@ function drawTouchControls(
 export interface MatchSettings {
   leftHanded: boolean;
   sound: boolean;
+  /**
+   * How much the camera may move (T-12.7).
+   *
+   * It is in the *match* settings rather than only in app Settings deliberately. Whether a camera
+   * makes you unwell is not a thing you find out on a settings screen — it is a thing you find out
+   * ninety seconds into a match, and the fix has to be reachable from there without losing the game
+   * you are in the middle of.
+   */
+  cameraMotion: CameraMotion;
 }
 
 export interface PausePanelOptions {
@@ -607,7 +641,7 @@ export function settingsPanel(
   legend.textContent = 'Match settings';
   group.appendChild(legend);
 
-  const rows: readonly [keyof MatchSettings, string][] = [
+  const rows: readonly ['leftHanded' | 'sound', string][] = [
     ['leftHanded', 'Left-handed controls'],
     ['sound', 'Sound'],
   ];
@@ -634,7 +668,54 @@ export function settingsPanel(
     group.appendChild(row);
   }
 
+  group.appendChild(cameraMotionRow(doc, settings, onChange));
   return group;
+}
+
+/**
+ * The camera-motion control (T-12.7): a real `<select>` with three named options, not a checkbox.
+ *
+ * Three because there are three answers, and the middle one is the useful one — "follows the play,
+ * but calmly" is what most people who dislike a moving camera actually want, and a checkbox forces
+ * them to choose between that and a pitch they cannot read. Each option says what it does rather
+ * than what it is called, because "Reduced" tells a player nothing about what they will see.
+ */
+function cameraMotionRow(
+  doc: Document,
+  settings: MatchSettings,
+  onChange: () => void,
+): HTMLElement {
+  const row = doc.createElement('div');
+  row.className = 'live-panel__setting live-panel__setting--wide';
+
+  const id = 'match-setting-cameraMotion';
+  const label = doc.createElement('label');
+  label.htmlFor = id;
+  label.textContent = 'Camera';
+
+  const select = doc.createElement('select');
+  select.id = id;
+
+  const choices: readonly [CameraMotion, string][] = [
+    ['full', 'Follows the play'],
+    ['reduced', 'Follows calmly — no zooming'],
+    ['fixed', 'Fixed — whole field, small players'],
+  ];
+  for (const [value, text] of choices) {
+    const option = doc.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    option.selected = settings.cameraMotion === value;
+    select.appendChild(option);
+  }
+
+  select.addEventListener('change', () => {
+    settings.cameraMotion = select.value as CameraMotion;
+    onChange();
+  });
+
+  row.append(label, select);
+  return row;
 }
 
 /** The post-match summary (`06` §4). Coins, XP, and achievements arrive with Phase 8. */

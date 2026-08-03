@@ -400,10 +400,19 @@ const render: SportRenderer = {
    * Bodies and kit. **Moved here from `modes/live/screen.ts` by T-6.16**, which found the shared
    * screen importing this module by name and therefore drawing soccer with basketball's art.
    */
-  drawAthletes(ctx, _state, world, controlled) {
+  drawAthletes(ctx, _state, world, controlled, lod) {
     const palette = paletteFor('dark');
     world.forEach((id) => {
       if (world.kind[id] === 1) return;
+
+      // Culling and LOD against the moving viewport (T-12.8). A court usually fits on screen whole,
+      // so this rarely excludes anybody here — and it costs one comparison to be correct when the
+      // camera does tighten onto a duel.
+      const radius = world.radius[id] as number;
+      const detail =
+        lod?.detail(world.x[id] as number, world.y[id] as number, radius) ?? Detail.FULL;
+      if (detail === null) return;
+
       const team = world.team[id] === 1 ? 1 : 0;
       drawAthlete(
         ctx,
@@ -411,8 +420,8 @@ const render: SportRenderer = {
         world.y[id] as number,
         world.facing[id] as number,
         palette.teams[team],
-        Detail.FULL,
-        { team, controlled: id === controlled, radius: world.radius[id] as number },
+        id === controlled ? Detail.FULL : detail,
+        { team, controlled: id === controlled, radius },
       );
     });
   },
@@ -578,6 +587,23 @@ export const basketball: SportModule<BasketballState> = {
   audio,
   arcade: BASKETBALL_ARCADE,
   playbook: basketballPlaybook,
+
+  /**
+   * How a court wants to be framed (T-12.6).
+   *
+   * A 28 × 15 court fits on a phone whole, so every span here except the duel's clamps to the court
+   * and basketball keeps the framing it has always had. The exception is deliberate: an isolation at
+   * the top of the key is the one moment in this sport where the other eight players are not the
+   * information, and 18 m still shows over half the court.
+   *
+   * `duelRadius` is tighter than soccer's because basketball defenders live inside arm's length,
+   * and at soccer's 5 m every possession would read as a duel.
+   */
+  camera: {
+    spans: { duel: 18, openPlay: 28, counter: 28, setPiece: 28 },
+    duelRadius: 2.4,
+    counterSpeed: 9,
+  },
 
   createState(setup: MatchSetup, world: World, rng: Rng): BasketballState {
     const squadSize = Math.min(setup.squadSize ?? this.meta.squadSize, roles.roles.length);
