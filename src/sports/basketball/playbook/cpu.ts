@@ -37,6 +37,8 @@ import type {
   PlaybookState,
   TurnResolution,
 } from '../../../modes/playbook/types.ts';
+import { levelOf } from '../../../modes/playbook/types.ts';
+import { repeatPenalty, scaleRead, varietyStrength } from '../../../modes/playbook/read.ts';
 import { DEFENSIVE_PROFILES, OFFENSIVE_PROFILES, areaOf, offensiveProfile } from './calls.ts';
 import { scoreDefence, scoreOffence, type ScoredCall } from './coach.ts';
 import { primaryOption, zoneValue, type BasketballPlaybookState } from './resolution.ts';
@@ -61,6 +63,36 @@ const NOISE_TO_TEMPERATURE = 1.4;
 
 /** How hard a read is allowed to push a call's score, in points-per-possession. */
 const READ_WEIGHT = 0.22;
+
+/**
+ * How hard leaning on one call is allowed to push it *down*, in the same units.
+ *
+ * **A fixed fraction of the read**, in both sports, rather than a number picked per sport. The two
+ * are in the same units as each other by construction — whatever a point of read is worth here, a
+ * repeat is worth a third of it — and that ratio is the statement being made: a CPU that varies
+ * harder than it exploits is choosing worse calls on purpose, which is a different thing from being
+ * hard to read.
+ *
+ * Landed at a third after the first attempt used two thirds (0.14) and cost basketball's Playbook
+ * Legend most of its edge: `pnpm ai:ladder` put it at +0.93 against Pro, down from +6.00, because
+ * it was varying off genuinely better calls. Variety is a tiebreak, not a strategy.
+ *
+ * @spec-ref 06-game-design.md §7 — exploits mismatches: no · rarely · often · consistently
+ */
+const REPEAT_WEIGHT = READ_WEIGHT / 3;
+
+/** The calls this side has made in the window, on the same side of the ball it is calling now. */
+function ownCalls(
+  turns: readonly TurnResolution[],
+  side: Side,
+  defending: boolean,
+  window = READ_WINDOW,
+): { call: CallId }[] {
+  return turns
+    .filter((turn) => (turn.attacking === side) !== defending)
+    .slice(-window)
+    .map((turn) => ({ call: defending ? turn.calls.defence.call : turn.calls.offence.call }));
+}
 
 /** What the CPU has noticed about one of the opponent's calls. */
 export interface CallRead {
@@ -152,10 +184,15 @@ export function readAdjustmentForOffence(
   return adjustment * READ_WEIGHT * 4;
 }
 
-/** Temperature for a difficulty. Higher noise, wider sampling, worse decisions. */
-export function temperatureFor(state: State): number {
+/**
+ * Temperature for a difficulty. Higher noise, wider sampling, worse decisions.
+ *
+ * Per side (T-7.10): the two CPUs in a regression batch are playing at different levels, and a
+ * temperature read off the match rather than off the caller would give them the same one.
+ */
+export function temperatureFor(state: State, side: Side = state.playerSide === 1 ? 0 : 1): number {
   return (
-    BASE_TEMPERATURE + difficultyProfile(state.difficulty).decisionNoise * NOISE_TO_TEMPERATURE
+    BASE_TEMPERATURE + difficultyProfile(levelOf(state, side)).decisionNoise * NOISE_TO_TEMPERATURE
   );
 }
 
@@ -190,20 +227,31 @@ export function cpuCall(
   const defending = side !== state.possession;
   const opponent: Side = side === 1 ? 0 : 1;
 
-  const scored = defending
-    ? scoreDefence(state, side).map((candidate) => ({
-        ...candidate,
-        score: candidate.score + readAdjustment(readTendencies(turns, opponent), candidate.call),
-      }))
-    : scoreOffence(state, side).map((candidate) => ({
-        ...candidate,
-        score: candidate.score + readAdjustmentForOffence(turns, side, candidate.call),
-      }));
+  // How hard this level reads, and how hard it works at not being read (T-7.6). Both are `06` §7's
+  // exploits row, which had no reader in the project until now: before this, a Rookie CPU punished
+  // a repeated call exactly as ruthlessly as a Legend one.
+  const level = levelOf(state, side);
+  const variety = varietyStrength(level);
+  const own = ownCalls(turns, side, defending);
+
+  const sheet = defending ? scoreDefence(state, side) : scoreOffence(state, side);
+  const scored = sheet.map((candidate) => ({
+    ...candidate,
+    score:
+      candidate.score +
+      scaleRead(
+        defending
+          ? readAdjustment(readTendencies(turns, opponent), candidate.call)
+          : readAdjustmentForOffence(turns, side, candidate.call),
+        level,
+      ) -
+      repeatPenalty(own, candidate.call, REPEAT_WEIGHT, variety, sheet.length),
+  }));
 
   if (scored.length === 0) return { side, call: defending ? 'man' : 'motion' };
 
   const ordered = [...scored].sort((a, b) => b.score - a.score || a.call.localeCompare(b.call));
-  const chosen = sample(ordered, temperatureFor(state), rng);
+  const chosen = sample(ordered, temperatureFor(state, side), rng);
 
   if (defending) {
     // Double the Star needs somebody to double, and the CPU names the athlete the opponent's own

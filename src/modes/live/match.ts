@@ -65,6 +65,11 @@ export interface MatchOptions {
   readonly rosters?: readonly (readonly Athlete[])[];
   /** The CPU's level (T-7.7). Absent means Pro — the balance harness runs at Pro by default. */
   readonly difficulty?: Difficulty;
+  /**
+   * A level per side, for the AI regression harness (T-7.10). Absent means both sides play at
+   * `difficulty`, which is every match a player actually plays.
+   */
+  readonly difficulties?: readonly [Difficulty, Difficulty];
   /** The player's assists (T-7.8). Absent means none — a headless match has no player. */
   readonly assists?: AssistSettings;
 }
@@ -109,6 +114,7 @@ export class LiveMatch {
         ...(options.squadSize === undefined ? {} : { squadSize: options.squadSize }),
         ...(options.rosters === undefined ? {} : { rosters: options.rosters }),
         ...(options.difficulty === undefined ? {} : { difficulty: options.difficulty }),
+        ...(options.difficulties === undefined ? {} : { difficulties: options.difficulties }),
         ...(options.assists === undefined ? {} : { assists: options.assists }),
       },
       this.world,

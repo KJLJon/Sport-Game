@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from '../../../src/engine/rng.ts';
 import {
   aimError,
+  commitChance,
   contestChance,
   powerError,
   reacted,
@@ -111,5 +112,63 @@ describe('contestChance', () => {
   it('stays a probability', () => {
     expect(contestChance(0.9, 1)).toBeLessThanOrEqual(1);
     expect(contestChance(-1, 1)).toBe(0);
+  });
+});
+
+describe('commitChance', () => {
+  const judgement = (level: keyof typeof DIFFICULTY_PROFILES): number =>
+    1 - DIFFICULTY_PROFILES[level].decisionNoise;
+
+  it('takes the good challenge more often than the hopeless one', () => {
+    const good = commitChance(0.5, 0.55, 0.95, judgement('legend'));
+    const hopeless = commitChance(0.5, 0.55, 0.05, judgement('legend'));
+
+    expect(good).toBeGreaterThan(hopeless * 3);
+  });
+
+  it('tells them apart better the better the level reads the game', () => {
+    const spread = (level: keyof typeof DIFFICULTY_PROFILES): number =>
+      commitChance(0.4, 0.55, 0.9, judgement(level)) -
+      commitChance(0.4, 0.55, 0.1, judgement(level));
+
+    expect(spread('legend')).toBeGreaterThan(spread('allStar'));
+    expect(spread('allStar')).toBeGreaterThan(spread('pro'));
+    expect(spread('pro')).toBeGreaterThan(spread('rookie'));
+  });
+
+  it('commits blind when the level cannot read it at all', () => {
+    for (const quality of [0, 0.3, 1]) {
+      expect(commitChance(0.4, 0.55, quality, 0)).toBeCloseTo(contestChance(0.4, 0.55));
+    }
+  });
+
+  it('leaves the average challenge exactly where aggression alone put it', () => {
+    // The property the whole design turns on: judgement redistributes commitment, it does not
+    // reduce it. Without this, every level defends worse and the balance pass is invalidated.
+    for (const level of ['rookie', 'pro', 'allStar', 'legend'] as const) {
+      const aggression = DIFFICULTY_PROFILES[level].aggression;
+      expect(commitChance(0.4, aggression, 0.5, judgement(level))).toBeCloseTo(
+        contestChance(0.4, aggression),
+      );
+    }
+  });
+
+  it('still lets aggression, and only aggression, say how much a level competes', () => {
+    const neutral = (level: keyof typeof DIFFICULTY_PROFILES): number =>
+      commitChance(0.4, DIFFICULTY_PROFILES[level].aggression, 0.5, judgement(level));
+
+    expect(neutral('legend')).toBeGreaterThan(neutral('pro'));
+    expect(neutral('pro')).toBeGreaterThan(neutral('rookie'));
+  });
+
+  it('stays a probability at every extreme', () => {
+    for (const quality of [0, 0.5, 1]) {
+      for (const judged of [0, 0.5, 1]) {
+        const chance = commitChance(1, 1, quality, judged);
+        expect(chance).toBeGreaterThanOrEqual(0);
+        expect(chance).toBeLessThanOrEqual(1);
+      }
+    }
+    expect(commitChance(0.4, 0.55, -3, 4)).toBeGreaterThanOrEqual(0);
   });
 });

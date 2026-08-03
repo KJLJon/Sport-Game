@@ -126,11 +126,19 @@ import {
   expectedPoints,
   offensiveSpot,
   screenSpot,
-  shouldCut,
   shouldHelp,
   zoneSpot,
   type Look,
 } from './cpu.ts';
+import {
+  cutUrge,
+  possessionValueFor,
+  rollOrPop,
+  rollTarget,
+  schemeFor,
+  screenChoice,
+} from './offball.ts';
+import { nearestOnSegment } from '../../engine/ai/team.ts';
 import { cycleControlled, pickControlled, shouldAutoSwitch, type Candidate } from './control.ts';
 import {
   DEFAULT_DIFFICULTY,
@@ -139,7 +147,7 @@ import {
   type Difficulty,
   type DifficultyProfile,
 } from '../../modes/difficulty.ts';
-import { aimError, contestChance, reactionChance } from '../../engine/ai/execution.ts';
+import { aimError, commitChance, reactionChance } from '../../engine/ai/execution.ts';
 import { NO_ASSISTS, defaultAssists, type AssistSettings } from '../../modes/assists.ts';
 import { BASKETBALL_ARCADE } from './arcade/index.ts';
 import { basketballPlaybook } from './playbook/index.ts';
@@ -257,6 +265,11 @@ export interface BasketballState extends SportState {
    * aggression, and for nothing else — no rating on either side is scaled by it (INV-1).
    */
   readonly difficulty: DifficultyProfile;
+  /**
+   * The level each side plays at (T-7.10). Normally both are `difficulty`; the AI regression
+   * harness sets them apart so a batch can measure one level against another.
+   */
+  readonly levels: [DifficultyProfile, DifficultyProfile];
   /** How much help the player gets (T-7.8). The CPU never reads these — they are input aids. */
   readonly assists: AssistSettings;
   /**
@@ -463,10 +476,25 @@ const STEP_MS = 1000 / 60;
  * lets T-3.6's coupling tests and the balance bands keep measuring what they were written against —
  * while Rookie waits half again as long and Legend barely waits at all.
  */
-function passReactionChance(state: BasketballState): number {
+function passReactionChance(state: BasketballState, side: CourtSide): number {
   const pro = reactionChance(DIFFICULTY_PROFILES.pro.cpuLatencyMs, STEP_MS);
-  const level = reactionChance(state.difficulty.cpuLatencyMs, STEP_MS);
+  const level = reactionChance(levelOf(state, side).cpuLatencyMs, STEP_MS);
   return Math.min(1, CPU_PASS_REACTION_PER_STEP * (level / pro));
+}
+
+/**
+ * The level one side is playing at. Every CPU decision goes through here rather than through
+ * `state.difficulty`, so that a match with two different levels behaves like two different
+ * opponents rather than like one (T-7.10). It is still never a rating (INV-1).
+ */
+function levelOf(state: BasketballState, side: CourtSide): DifficultyProfile {
+  return state.levels[side];
+}
+
+/** The level of whoever this entity plays for, or the match default if it plays for nobody. */
+function levelFor(state: BasketballState, id: EntityId): DifficultyProfile {
+  const side = state.sides.get(id);
+  return side === undefined ? state.difficulty : state.levels[side];
 }
 
 /**
@@ -636,6 +664,10 @@ export const basketball: SportModule<BasketballState> = {
       shooter: NO_ENTITY,
       cpuRelease: 0,
       difficulty: difficultyProfile(setup.difficulty ?? DEFAULT_DIFFICULTY),
+      levels: [
+        difficultyProfile(setup.difficulties?.[0] ?? setup.difficulty ?? DEFAULT_DIFFICULTY),
+        difficultyProfile(setup.difficulties?.[1] ?? setup.difficulty ?? DEFAULT_DIFFICULTY),
+      ],
       assists: assistsFor(setup),
       executionRng: rng.fork('execution'),
       shot: null,
@@ -869,7 +901,16 @@ function trySteal(
   const wants =
     input !== undefined
       ? wasPressed(input, Button.A)
-      : rng.bool(contestChance(CPU_STEAL_CHANCE_PER_STEP, state.difficulty.aggression));
+      : rng.bool(
+          // Willing, and then well placed (T-7.11): a reach from the edge of `stealReach` is the
+          // one that fouls, and the better the level reads it the less often it takes it.
+          commitChance(
+            CPU_STEAL_CHANCE_PER_STEP,
+            levelFor(state, defender).aggression,
+            1 - distance / DEFENCE.stealReach,
+            1 - levelFor(state, defender).decisionNoise,
+          ),
+        );
   if (!wants) return [];
 
   state.stealCooldown.set(defender, DEFENCE.stealCooldown);
@@ -948,7 +989,14 @@ function tryBlock(
   const wants =
     input !== undefined
       ? wasPressed(input, Button.B)
-      : rng.bool(contestChance(CPU_BLOCK_CHANCE_PER_STEP, state.difficulty.aggression));
+      : rng.bool(
+          commitChance(
+            CPU_BLOCK_CHANCE_PER_STEP,
+            levelFor(state, defender).aggression,
+            1 - distance / DEFENCE.blockReach,
+            1 - levelFor(state, defender).decisionNoise,
+          ),
+        );
   if (!wants) return [];
 
   state.stealCooldown.set(defender, DEFENCE.stealCooldown);
@@ -1059,7 +1107,7 @@ function driveFreeThrows(
           state.meter.window *
           0.7 *
           timingSpread(couplingOf(state, shooter)) *
-          releaseSpread(state.difficulty.executionError),
+          releaseSpread(levelFor(state, shooter).executionError),
     );
     return [];
   }
@@ -1312,7 +1360,7 @@ function driveShooting(
           state.meter.window *
           0.8 *
           timingSpread(couplingOf(state, carrier)) *
-          releaseSpread(state.difficulty.executionError),
+          releaseSpread(levelFor(state, carrier).executionError),
     );
     return [];
   }
@@ -1465,12 +1513,18 @@ function cpuDecision(
   const coupling = couplingOf(state, actor);
   // Two independent reasons to misread a look, added in quadrature because they are: how lost this
   // athlete is in this sport (T-3.6), and how good the CPU is meant to be at reading it (T-7.7).
-  const noise = Math.hypot(coupling.decisionNoise, levelNoise(state.difficulty));
+  const noise = Math.hypot(coupling.decisionNoise, levelNoise(levelOf(state, side)));
   const own = misjudge(lookFor(state, world, actor, side), noise, rng);
   const raw = bestTeammateLook(state, world, actor, side);
   const best = raw === null ? null : { ...raw, look: misjudge(raw.look, noise, rng) };
   const seconds = shotClockSeconds(state.rules);
-  return decide(own, best, laneContest(state, world, actor, side), seconds);
+  return decide(
+    own,
+    best,
+    laneContest(state, world, actor, side),
+    seconds,
+    teamPossessionValue(state, world, side),
+  );
 }
 
 /**
@@ -1657,7 +1711,9 @@ function drivePassing(
   // The decision says pass; the rate is how long it takes to see it, which is Phase 7's
   // reaction-latency dial (`06` §7) rather than a judgement — and, from T-3.6, how at home in
   // basketball this athlete is (`05` §3.3).
-  if (!rng.bool(delayReaction(passReactionChance(state), couplingOf(state, carrier)))) return [];
+  if (!rng.bool(delayReaction(passReactionChance(state, side), couplingOf(state, carrier)))) {
+    return [];
+  }
 
   const best = bestTeammateLook(state, world, carrier, side);
   if (best === null) return [];
@@ -1669,7 +1725,7 @@ function drivePassing(
     best.athlete,
     1,
     rng,
-    state.difficulty.executionError,
+    levelOf(state, side).executionError,
   );
 }
 
@@ -2089,8 +2145,23 @@ function stationSpot(
     // A cut beats a spot: the whole point of one is to leave it.
     if ((state.cutting.get(id) ?? 0) > 0) return { x: basket.x, y: basket.y };
     if (id === state.screener && state.screenSteps > 0) {
-      const screen = screenTarget(state, world, side);
-      if (screen !== null) return screen;
+      // Set it, then leave it. The second half of a screen is the roll — a screener who stands
+      // there until the timer runs out is a body in the lane, which is the defence's job (T-7.4).
+      if (state.screenSteps > CPU.screenSteps / 2) {
+        const screen = screenTarget(state, world, side);
+        if (screen !== null) return screen;
+      } else {
+        const ratings = state.ratings.get(id);
+        const handler = state.ballState.carrier;
+        if (ratings !== undefined && handler !== NO_ENTITY) {
+          return rollTarget(
+            rollOrPop(ratings),
+            { x: world.x[handler] as number, y: world.y[handler] as number },
+            side,
+            { x: world.x[id] as number, y: world.y[id] as number },
+          );
+        }
+      }
     }
     return offensiveSpot(index, side);
   }
@@ -2305,27 +2376,146 @@ function driveOffBall(state: BasketballState, world: World, rng: Rng): void {
   if (offence === -1 || carrier === NO_ENTITY || state.rules.restart !== null) return;
   if (state.rules.freeThrows !== null || !state.rules.frontcourt) return;
 
+  const basket = attackedBasket(offence);
+  const handler = { x: world.x[carrier] as number, y: world.y[carrier] as number };
+
   world.forEach((id) => {
     if ((world.kind[id] as number) !== Kind.ATHLETE) return;
     if (id === carrier || state.sides.get(id) !== offence) return;
     if ((state.cutting.get(id) ?? 0) > 0) return;
 
-    const basket = attackedBasket(offence);
-    const away = Math.hypot((world.x[id] as number) - basket.x, (world.y[id] as number) - basket.y);
-    if (shouldCut(away, true, rng)) state.cutting.set(id, CPU.cutSteps);
+    const ratings = state.ratings.get(id);
+    if (ratings === undefined) return;
+    const at = { x: world.x[id] as number, y: world.y[id] as number };
+
+    // The urge scales the tuned rate rather than replacing it (T-7.4): a cut is an event, and a
+    // boolean evaluated every step is a state. What changes is *who* cuts and when, not how often
+    // the offence cuts at all — which is what keeps T-2.13's balance meaningful.
+    const urge = cutUrge({
+      toBasket: Math.hypot(at.x - basket.x, at.y - basket.y),
+      separation: markerDistance(state, world, id, offence),
+      laneGap: laneGap(state, world, at, basket, offence),
+      toBall: Math.hypot(at.x - handler.x, at.y - handler.y),
+      ratings,
+      inSight: inSight(handler, basket, at),
+    });
+    if (urge > 0 && rng.bool(Math.min(1, CPU.cutChance * urge * CUT_URGE_SCALE))) {
+      state.cutting.set(id, CPU.cutSteps);
+    }
   });
 
-  // One screener at a time, and only a big — a guard screening for a guard is a Phase 7 refinement.
-  if (state.screener === NO_ENTITY && rng.bool(CPU.screenChance)) {
-    world.forEach((id) => {
-      if (state.screener !== NO_ENTITY) return;
-      if ((world.kind[id] as number) !== Kind.ATHLETE) return;
-      if (state.sides.get(id) !== offence || id === carrier) return;
-      if (isPerimeterRole(state, id)) return;
-      state.screener = id;
-      state.screenSteps = CPU.screenSteps;
+  if (state.screener !== NO_ENTITY) return;
+
+  // Who screens is a judgement — for a handler nobody is guarding, nobody does (T-7.4).
+  const looks: Parameters<typeof screenChoice>[0][number][] = [];
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    if (state.sides.get(id) !== offence || id === carrier) return;
+    const ratings = state.ratings.get(id);
+    if (ratings === undefined) return;
+    looks.push({
+      id,
+      distance: Math.hypot(
+        (world.x[id] as number) - handler.x,
+        (world.y[id] as number) - handler.y,
+      ),
+      handlerSeparation: markerDistance(state, world, carrier, offence),
+      ratings,
+      big: !isPerimeterRole(state, id),
     });
-  }
+  });
+
+  const choice = screenChoice(looks, { noise: levelNoise(levelOf(state, offence)), rng });
+  if (choice === null) return;
+  if (!rng.bool(Math.min(1, CPU.screenChance * choice.urge * SCREEN_URGE_SCALE))) return;
+  state.screener = choice.id;
+  state.screenSteps = CPU.screenSteps;
+}
+
+/**
+ * How much a per-step rate is raised so that a *well-judged* cut or screen happens about as often
+ * as T-2.13's flat one did. A utility in the 0.4–0.6 range is a good look, and multiplying a tuned
+ * rate by it would otherwise halve the amount of off-ball movement in the sport.
+ */
+const CUT_URGE_SCALE = 2.2;
+const SCREEN_URGE_SCALE = 2.2;
+
+/**
+ * What a possession is worth to the five athletes currently on this side, in points — the bar their
+ * own shots have to clear (T-7.4). Recomputed rather than cached: it moves with fatigue and with
+ * substitutions, and both of those are supposed to change what the offence settles for.
+ */
+function teamPossessionValue(state: BasketballState, world: World, side: CourtSide): number {
+  const team: AthleteRatings[] = [];
+  world.forEach((id) => {
+    if ((world.kind[id] as number) !== Kind.ATHLETE) return;
+    if (state.sides.get(id) !== side) return;
+    const ratings = state.ratings.get(id);
+    if (ratings !== undefined) team.push(ratings);
+  });
+  return possessionValueFor(team);
+}
+
+/** Metres from an athlete to whoever is marking them, or to the nearest opponent if nobody is. */
+function markerDistance(
+  state: BasketballState,
+  world: World,
+  id: EntityId,
+  side: CourtSide,
+): number {
+  const at = { x: world.x[id] as number, y: world.y[id] as number };
+  let nearest = Infinity;
+
+  world.forEach((other) => {
+    if ((world.kind[other] as number) !== Kind.ATHLETE) return;
+    if (state.sides.get(other) === side) return;
+    const d = Math.hypot((world.x[other] as number) - at.x, (world.y[other] as number) - at.y);
+    // Their own marker counts for what it is even if somebody else is momentarily closer.
+    if (state.marks.get(other) === id) nearest = Math.min(nearest, d);
+    else nearest = Math.min(nearest, d);
+  });
+
+  return nearest === Infinity ? COURT.length : nearest;
+}
+
+/** How clear the lane from `at` to the basket is: metres to the nearest defender standing in it. */
+function laneGap(
+  state: BasketballState,
+  world: World,
+  at: { x: number; y: number },
+  basket: { x: number; y: number },
+  side: CourtSide,
+): number {
+  let nearest = Infinity;
+  world.forEach((other) => {
+    if ((world.kind[other] as number) !== Kind.ATHLETE) return;
+    if (state.sides.get(other) === side) return;
+    const gap = nearestOnSegment(
+      { x: world.x[other] as number, y: world.y[other] as number },
+      at,
+      basket,
+    ).distance;
+    if (gap < nearest) nearest = gap;
+  });
+  return nearest === Infinity ? COURT.length : nearest;
+}
+
+/**
+ * Whether the handler can see a cutter: a cut that starts behind the ball is a cut nobody passes
+ * to. Anything inside a right angle either side of the way the handler is facing counts.
+ */
+function inSight(
+  handler: { x: number; y: number },
+  basket: { x: number; y: number },
+  cutter: { x: number; y: number },
+): boolean {
+  const fx = basket.x - handler.x;
+  const fy = basket.y - handler.y;
+  const cx = cutter.x - handler.x;
+  const cy = cutter.y - handler.y;
+  const lengths = Math.hypot(fx, fy) * Math.hypot(cx, cy);
+  if (lengths < 1e-6) return true;
+  return (fx * cx + fy * cy) / lengths > -0.35;
 }
 
 /** Redraws man assignments when the ball changes hands, and not on any other step. */
@@ -2340,6 +2530,19 @@ function refreshMarks(state: BasketballState, world: World): void {
     if ((world.kind[id] as number) !== Kind.ATHLETE) return;
     (state.sides.get(id) === offence ? attackers : defenders).push(id);
   });
+
+  // The scheme is chosen here rather than at tip-off (T-7.4): a 2-3 zone concedes the three to take
+  // away the rim, so whether it is the right answer depends on who is on the floor and on how many
+  // fouls the defence can still afford. Re-read every possession, which is when a defence sets up.
+  const defending: CourtSide = offence === 0 ? 1 : 0;
+  const scheme = schemeFor({
+    opponents: attackers.flatMap((id) => {
+      const ratings = state.ratings.get(id);
+      return ratings === undefined ? [] : [ratings];
+    }),
+    fouls: state.rules.teamFouls[defending],
+  });
+  state.zoneSide = scheme === 'zone' ? defending : -1;
 
   state.marks.clear();
   for (const [defender, attacker] of assignMarks(attackers, defenders)) {

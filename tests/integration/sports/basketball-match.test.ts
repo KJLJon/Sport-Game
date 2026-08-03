@@ -181,11 +181,20 @@ describe('a basketball match', () => {
   });
 
   it('still ends a stalled possession on the shot clock', () => {
-    const { events } = play('flow', BASKETBALL_RULES.periodSteps);
-    const violations = of(events, BasketballEvent.SHOT_CLOCK_VIOLATION);
-    const turnovers = of(events, EventKind.TURNOVER);
-    expect(violations.length).toBeGreaterThan(0);
-    expect(turnovers.length).toBeGreaterThanOrEqual(violations.length);
+    // Across seeds rather than one of them. T-7.4 made the shot bar depend on how good the offence
+    // is, so a quarter in which nobody happens to stall is now a normal quarter rather than a
+    // broken clock — what has to hold is that the violation still fires, and still costs the ball.
+    let violations = 0;
+    let turnovers = 0;
+    for (const seed of ['flow', 'flow2', 'stall', 'clock']) {
+      const { events } = play(seed, BASKETBALL_RULES.periodSteps);
+      const called = of(events, BasketballEvent.SHOT_CLOCK_VIOLATION).length;
+      violations += called;
+      turnovers += of(events, EventKind.TURNOVER).length;
+      expect(of(events, EventKind.TURNOVER).length).toBeGreaterThanOrEqual(called);
+    }
+    expect(violations).toBeGreaterThan(0);
+    expect(turnovers).toBeGreaterThanOrEqual(violations);
   });
 
   it('alternates possession — one side does not keep the ball all quarter', () => {

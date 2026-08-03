@@ -67,6 +67,11 @@ export interface PlaybookMatchOptions<S = unknown> {
   /** Which side the human plays, or `-1` for CPU-vs-CPU (the balance harness). */
   readonly playerSide?: Side;
   readonly difficulty?: Difficulty;
+  /**
+   * A level per side, for the AI regression harness (T-7.10). Absent means both sides play at
+   * `difficulty`, which is every match a player actually plays.
+   */
+  readonly difficulties?: readonly [Difficulty, Difficulty];
   /** `09` §2.4's frequency setting. Defaults to `standard`. */
   readonly keyMoments?: KeyMomentFrequency;
 }
@@ -119,6 +124,10 @@ export class PlaybookMatch<S = unknown> {
 
     const playerSide = options.playerSide ?? 0;
     const difficulty = options.difficulty ?? DEFAULT_DIFFICULTY;
+    const difficulties: readonly [Difficulty, Difficulty] = [
+      options.difficulties?.[0] ?? difficulty,
+      options.difficulties?.[1] ?? difficulty,
+    ];
     const setup = {
       seed: options.seed,
       difficulty,
@@ -130,6 +139,7 @@ export class PlaybookMatch<S = unknown> {
       sport: options.sport,
       turnKind: options.adapter.turnKind,
       difficulty,
+      difficulties,
       playerSide,
       turn: 0,
       period: 1,

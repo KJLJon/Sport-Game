@@ -139,11 +139,14 @@ const ZONE_SHADE = 0.4;
  * The bar a shot has to clear, in expected points. Falls to nothing as the clock runs out, because
  * a shot you do not take is worth zero.
  */
-export function shotBar(shotClockSeconds: number): number {
+export function shotBar(
+  shotClockSeconds: number,
+  possessionValue: number = CPU.possessionValue,
+): number {
   if (shotClockSeconds <= CPU.urgencyTo) return 0;
-  if (shotClockSeconds >= CPU.urgencyFrom) return CPU.possessionValue;
+  if (shotClockSeconds >= CPU.urgencyFrom) return possessionValue;
   const t = (shotClockSeconds - CPU.urgencyTo) / (CPU.urgencyFrom - CPU.urgencyTo);
-  return CPU.possessionValue * t;
+  return possessionValue * t;
 }
 
 /** Expected points from a shot: what it is worth times how often it goes in. */
@@ -157,8 +160,13 @@ export function expectedPoints(probability: number, value: number): number {
  * @spec-ref 06-game-design.md §3.1 — shot outcome is driven by ratings, not by a coin flip; the
  * same numbers therefore drive the decision to take it.
  */
-export function shouldShoot(probability: number, value: number, shotClockSeconds: number): boolean {
-  return expectedPoints(probability, value) >= shotBar(shotClockSeconds);
+export function shouldShoot(
+  probability: number,
+  value: number,
+  shotClockSeconds: number,
+  possessionValue?: number,
+): boolean {
+  return expectedPoints(probability, value) >= shotBar(shotClockSeconds, possessionValue);
 }
 
 /** What the ball-handler has decided to do. */
@@ -190,8 +198,14 @@ export function decide(
   best: { look: Look; open: boolean } | null,
   laneContest: number,
   shotClockSeconds: number,
+  /**
+   * What this offence's possession is worth if the shot is declined. Defaults to the average team's
+   * (T-2.13's tuned constant); T-7.4's `possessionValueFor()` reads it off the five on the floor,
+   * so a side that cannot shoot takes the shot it has and a side that can passes it up.
+   */
+  possessionValue?: number,
 ): DecisionName {
-  if (own.expected >= shotBar(shotClockSeconds)) return Decision.SHOOT;
+  if (own.expected >= shotBar(shotClockSeconds, possessionValue)) return Decision.SHOOT;
   if (best !== null && best.open && best.look.expected > own.expected + CPU.passMargin) {
     return Decision.PASS;
   }

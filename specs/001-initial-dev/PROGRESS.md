@@ -12,19 +12,100 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-7.2 — role system. **`done`** and pushed. Phase 7 is 4 of 11 (T-7.1, T-7.2, T-7.7,
-  T-7.8). PR **#15** is open as a draft.
-- **Branch:** `claude/continue-building-isc6sx`, off `main` at `826ed25` (`v0.6.0` deployed; the
-  user has played it).
-- **Next step:** `pnpm -s next` — **T-7.3 (team coordination, XL)** is now unblocked and is the
-  critical path to T-7.4 and T-7.5. It is the one that consumes `engine/ai/roles.ts`; until it
-  lands, the duty tables are a seam with no reader. T-7.6 (Playbook AI depth) and T-7.9 (CPU team
-  generation, `haiku`) are ready and independent of it.
-- **Open finding carried into Phase 7 and still open:** Live soccer scores 7.5 goals a match on 16.9
-  shots (band 1.2–5.5) at 44.5% conversion. T-7.7's reaction gate fixed the *volume* half — 58.5
-  shots down to 16.9, inside band — and what is left is that nobody stops the carrier walking into
-  the box, so the shots taken are from on top of the keeper. **T-7.5** (press lines, defensive
-  shape) is where that closes; T-7.11 measures it again.
+- **Task:** T-7.9 — CPU team generation. **`done`** and pushed. **Phase 7 is 11 of 11 — every task
+  is done, and Gate 7 is the next thing.** PR **#16** is open as a draft.
+- 🚦 **Gate 7 evaluated 2026-08-03: NOT PASSED**, and the reasons are the familiar two plus one that
+  is specific to this phase. Every automatable check is green — 3 066 unit tests, 45 E2E, coverage
+  95.1%, bench and budgets inside, **all three balance harnesses in band at once for the first time
+  in the project**, `pnpm ai:ladder` zero findings. What is missing: the device matrix (`12` §7) and
+  a tagged deploy, both six gates deep, and two of `03`'s own criteria that are statements about a
+  *person* — "comfortably winnable by a newcomer", "beats an experienced player more often than
+  not". No batch closes those, and the harness deliberately does not claim to. Full record in
+  [phase 7 notes](./notes/phase-7.md#gate-record).
+- 👉 **The two things only the user can do:** mark PR #16 ready so it can merge and be tagged (a tag
+  is what deploys, and nothing can be tagged off an unmerged branch), then play it. **Nothing in
+  Phase 7 has been played by a human** — four difficulty levels across two sports and three modes,
+  tuned entirely against batch output.
+- **Branch:** `claude/continue-building-di8hng`, off `main` at `0036a29` (PR #15 merged; `v0.6.0`
+  is what the user has played).
+- **Next step:** **T-7.11 (balance pass #3)** is unblocked and is now the phase's most important
+  task by some distance — `pnpm ai:ladder` says the Live difficulty ladder is *inverted* in both
+  sports (see the finding below). T-7.6 and T-7.9 are ready and independent.
+- ✅ **T-7.10 found soccer's ladder collapsing at the top; T-7.11 fixed it.** The commit roll for a
+  tackle never looked at `tackleTiming`, so `relentless` lunged from the edge of its reach as often
+  as it lunged on the ball — difficulty was *punishing* the levels that competed hardest.
+  `commitChance()` adds the missing judgement channel, mean-preserving so it redistributes
+  challenges rather than reducing them. 30 paired matches per level, margin against Pro:
+
+  | | rookie | pro | allStar | legend |
+  |---|---|---|---|---|
+  | basketball · live | −12.73 | +0.00 | −0.53 | **+5.00** |
+  | basketball · playbook | −2.13 | +0.00 | +4.20 | **+6.00** |
+  | soccer · live | −0.77 | +0.00 | +1.10 | **+1.20** |
+  | soccer · playbook | −0.43 | +0.00 | +0.43 | **−0.07** |
+
+  `pnpm ai:ladder` reports **zero findings**. Re-run with `AI_MATCHES=15` for 30 a level.
+- ✅ ~~**Playbook soccer's Legend is not better than its All-Star.**~~ **Closed by T-7.6.** The cause
+  was the one guessed: with sampling temperature as Playbook's only difficulty channel, Legend took
+  the argmax nearly every turn, which against an opponent that reads tendencies is maximally
+  exploitable. `exploits` — carried in every difficulty profile since Phase 4 and never read — now
+  drives both counter-calling and the CPU's own variety. At **160** Playbook matches a level:
+
+  | | rookie | pro | allStar | legend |
+  |---|---|---|---|---|
+  | basketball · playbook | −3.73 | +0.00 | +3.70 | **+8.35** |
+  | soccer · playbook | −0.20 | +0.00 | +0.14 | **+0.30** |
+
+- ⚠️ **Use `AI_MODE=playbook AI_MATCHES=80` before believing a Playbook finding.** Two intermediate
+  30-match runs produced findings that both vanished at 160. Playbook batches are seconds; Live is
+  minutes. Do not tune against a 30-match Playbook number.
+- 🟡 **Soccer's Playbook ladder is thin** — the whole four-level spread is half a goal, against
+  basketball's twelve points. It passes, and it is a real observation about the mode: soccer's
+  intents score close together, so a level has little room to show an edge. If it ever needs to feel
+  more different, the lever is the spread of the scores, not the sampling.
+- ⚠️ **An earlier version of this block claimed the ladder was inverted in both sports. That was the
+  harness, not the game** — it rolled a different roster per side and paired legs on different
+  seeds, so it was measuring the draw. Fixed in `c1f01ae`; the table above is from the fixed tool,
+  and Pro reading exactly `50.0% / +0.00` in all four groups is the tool certifying itself.
+- **What T-7.3 landed:** `src/engine/ai/team.ts` — `createTeam(...).plan(situation)` returns one
+  `Assignment` per athlete (job, intent, target, mark, urgency) from the duty table, the phase
+  clock, the block, the press, the marks, and the help line. `src/engine/ai/marking.ts` holds the
+  one-to-one matching and its stickiness. Tested against both real duty tables, so the seam is
+  known to fit; **T-7.5 is where it acquires its first reader.**
+- **What T-7.9 landed:** `src/teams/cpu-team.ts` — an opponent with a name, kit, crest, style, and a
+  squad shaped to it. `shapeToward()` moves points around without changing how many there are, which
+  is the INV-1 guarantee in the form a roster generator could break it. Not wired to a screen: the
+  mode that picks an opponent is Phase 8's (T-8.1).
+- **What T-7.6 landed:** `src/modes/playbook/read.ts` — `scaleRead()` makes counter-calling a level,
+  `repeatPenalty()` stops the CPU having tells. Both sports wire them into their call scoring, with
+  the repeat weight expressed as `READ_WEIGHT / 3` so the trade is stated rather than hidden. Soccer
+  Playbook's `NOISE_TO_TEMPERATURE` 0.3 → 0.55 to give Rookie somewhere to be bad.
+- **What T-7.11 landed:** `commitChance()` in `engine/ai/execution.ts`, wired into soccer's tackle
+  and basketball's steal and block; soccer's `SHOOTING_RANGE` 22 m → 27 m. **Soccer balance is green
+  on all ten bands for the first time** (goals 3.75, shots 14.7, conversion 25.5% against a 30%
+  ceiling), basketball green on all fifteen and improved (fouls 11.4 → 10.2).
+- **What T-7.10 landed:** `tools/ai-regression.ts` (`pnpm ai:ladder`) plus the change that made it
+  possible — a **level per side** through both modes. `difficulties` is optional everywhere and
+  absent means "both sides play at `difficulty`", so no match a player plays changed; the soccer
+  balance run is byte-identical.
+- **What T-7.5 landed:** `src/sports/soccer/tactics.ts` plus the wiring in `index.ts` —
+  `planTeams()` runs the team layer for both sides once a step, outfield athletes take their target
+  from the assignment, and a presser seeks the ball. Soccer's own two situations, the offside trap
+  and the counter, are laid over the plan afterwards. The keeper stays `keeper.ts`'s.
+- **What T-7.4 landed:** `src/sports/basketball/offball.ts` — the pick-and-roll (set, then roll or
+  pop by the screener's own ratings), cuts and screens scored through T-7.1 instead of fired on a
+  flat rate, a scheme re-read every possession, and a shot bar that knows how good the offence is.
+  Balance re-run: all fifteen measures in band, and the shooting ones improved.
+- ~~**Open finding carried since T-6.18:** Live soccer scores 7.5 goals a match.~~ **Closed by
+  T-7.5.** Goals per match 7.5 → **3.25** (band 1.2–5.5) on 10.6 shots (band 8–45), because a named
+  athlete is now sent at the carrier instead of eleven shading towards the ball.
+- ~~**What is left of it:** Live conversion is 30.7% against a 30% ceiling.~~ **Closed by T-7.11** at
+  **25.5%**, and from the attacking side rather than the defensive one: `SHOOTING_RANGE` 22 m → 27 m.
+  Both earlier attempts to fix it defensively made it worse, because suppressing shot volume removes
+  the *bad* shots first.
+- **Also worth somebody's attention:** seed `plans` produces a red card inside ten seconds of a
+  soccer match. Found while writing T-7.5's integration test. Not investigated — the foul rates are
+  T-6.13's and the balance run's overall numbers are fine, but that looks fast.
 - **Also fixed this session:** soccer's `Shoot` and `Pass` buttons had never been wired to anything
   — the CPU decision ran for the player's carrier too. That is a direct answer to half of the
   user's "not easy to control", and it is worth asking them to try soccer again once tagged.
@@ -263,15 +344,15 @@ there; this file is read at every session start and the notes file only when you
 |---|---|---|---|---|---|---|---|
 | T-7.1 | Utility-scoring decision framework shared across sports and modes | L | `done` | | `tests/unit/engine/ai-{utility,decider}.test.ts` | `auto` — 32 unit tests | Considerations multiply so a veto is fatal, and difficulty enters only as score jitter and reaction latency (INV-1). [notes](./notes/phase-7.md#t-71) |
 | T-7.2 | Role system: per-sport role tables driving off-ball movement and responsibility | L | `done` | | `tests/unit/engine/ai-roles.test.ts` | `auto` — 27 unit tests | Anchor, ball-shade, leash, and a named job per role per phase; basketball’s table is literal, soccer’s is derived from its formations. [notes](./notes/phase-7.md#t-72) |
-| T-7.3 | Team coordination: formation shape, phase of play, pressing triggers, help defence, transition | XL | `todo` | | | | |
-| T-7.4 | Basketball Live AI depth: pick-and-roll, cuts, zone vs man, rating-driven shot selection | L | `todo` | | | | |
-| T-7.5 | Soccer Live AI depth: build-up phases, press lines, offside trap, counter-attacks | L | `todo` | | | | |
-| T-7.6 | Playbook AI depth for both sports: tendency modelling, counter-calling | L | `todo` | | | | |
+| T-7.3 | Team coordination: formation shape, phase of play, pressing triggers, help defence, transition | XL | `done` | | `tests/unit/engine/ai-{team,marking}.test.ts` | `auto` — 51 unit tests, including both real duty tables | One `plan()` per side per tick turns eleven duties into eleven assignments: the block, a named press, sticky one-to-one marks, and help that never comes off the ball. [notes](./notes/phase-7.md#t-73) |
+| T-7.4 | Basketball Live AI depth: pick-and-roll, cuts, zone vs man, rating-driven shot selection | L | `done` | | `tests/unit/sports/basketball/offball.test.ts` | `auto` — 28 unit tests; balance re-run, all fifteen measures in band | Cuts, screens, the roll, the scheme, and the shot bar are all judgements now: FG% 36.8 → 38.1 and three-point share 52.2% → 48.8% without taking more shots. [notes](./notes/phase-7.md#t-74) |
+| T-7.5 | Soccer Live AI depth: build-up phases, press lines, offside trap, counter-attacks | L | `done` | | `tests/unit/sports/soccer/tactics.test.ts`, `tests/integration/sports/soccer-match.test.ts` | `auto` — 17 new tests; balance re-run, goals and shots now in band, conversion 30.7% vs a 30% ceiling | **The oldest open finding is closed:** Live goals per match 7.5 → 3.25 on 10.6 shots, because somebody is finally sent at the carrier. [notes](./notes/phase-7.md#t-75) |
+| T-7.6 | Playbook AI depth for both sports: tendency modelling, counter-calling | L | `done` | | `tests/unit/modes/playbook-read.test.ts`, `tests/unit/sports/soccer/playbook/cpu.test.ts` | `auto` — 13 new unit tests; `AI_MODE=playbook` ladder at 160 matches per level, zero findings | `exploits` had been carried in every difficulty profile and never read: counter-calling is now a level, and a level that reads you also varies itself so it cannot be read back. [notes](./notes/phase-7.md#t-76) |
 | T-7.7 | Difficulty model across all three modes — latency, noise, error, aggression, assists, arcade windows (INV-1) | M | `done` | | `tests/unit/engine/ai-execution.test.ts`, `tests/unit/modes/difficulty.test.ts`, `tests/invariants/inv-01-difficulty-never-scales-ratings.test.ts` | `auto`; basketball balance green, soccer Live still out of band (T-6.18’s open finding, now a different shape) | Difficulty now reaches Live through four named channels and nothing else; found and fixed that soccer’s Shoot/Pass buttons had never been wired. [notes](./notes/phase-7.md#t-77) |
 | T-7.8 | Assist system: aim, pass, auto-switch, timing forgiveness; independent of difficulty; no-assist bonus | M | `done` | | `tests/unit/modes/assists.test.ts`, `tests/unit/ui/assists.test.ts` | `auto`; balance green | Four dials with a screen at `#/settings/controls`; the level sets the default and the player’s choice then wins at every level. [notes](./notes/phase-7.md#t-78) |
-| T-7.9 | CPU team generation: coherent opponents and identities scaled to difficulty | M | `todo` | | | | |
-| T-7.10 | AI regression harness: headless batches per difficulty per mode, asserted win-rate bands | M | `todo` | | | | |
-| T-7.11 | Balance pass #3: tune all four levels against the target win-rate curve | L | `todo` | | | | |
+| T-7.9 | CPU team generation: coherent opponents and identities scaled to difficulty | M | `done` | | `tests/unit/teams/cpu-team.test.ts` | `auto` — 19 unit tests, including the per-athlete points identity across all four levels | Difficulty buys **coherence, never points**: US-7.2 forbids the obvious reading of "scaled to difficulty", and US-7.1's "coherent lineup, recognisable style" is what actually scales. [notes](./notes/phase-7.md#t-79) |
+| T-7.10 | AI regression harness: headless batches per difficulty per mode, asserted win-rate bands | M | `done` | | `tests/sim/ai-ladder.test.ts` | `auto` — 13 unit tests; `pnpm ai:ladder` run at 30 paired matches per level per mode | Paired seeds and mirrored rosters, so Pro against itself is exactly 50% — and with that, **soccer's ladder collapses above All-Star in both modes** while basketball's is healthy. [notes](./notes/phase-7.md#t-710) |
+| T-7.11 | Balance pass #3: tune all four levels against the target win-rate curve | L | `done` | | `tests/unit/engine/ai-execution.test.ts` | `auto` — 6 new unit tests; `pnpm ai:ladder` zero findings, both balance harnesses green | Difficulty had been *punishing* the levels that competed hardest — the commit roll never looked at whether the challenge was any good. [notes](./notes/phase-7.md#t-711) |
 
 ### Phase 8 — Modes hub, progression, achievements, economy
 
@@ -406,6 +487,7 @@ One row per gate: the result and what it turned on. The full evaluation — ever
 | 3 — Athletes & roster (v0.2) | 2026-07-28 | **NOT PASSED** | Same two blockers, unchanged. Nothing in Phase 3 alters the analysis. | [phase 3 notes](./notes/phase-3.md#gate-record) |
 | 5 — Playbook (v0.4) | 2026-07-29 | **NOT PASSED** | Every automatable check green, and unlike Gate 4 **all four of `03`'s criteria are machine-checkable and are met**: a full match, key moments, hot seat, and Live/Playbook agreement within ±8. Blocked only on the device matrix and the deploy, now four gates deep. Playbook's eFG% is 46.6% against Live's 44.6% without tuning. | [phase 5 notes](./notes/phase-5.md#gate-record) |
 | 4 — Arcade (v0.3) | 2026-07-28 | **NOT PASSED** | Same two blockers, now three gates deep. Two of `03`'s four criteria ("fun standalone", "a child can start one unaided") are claims about a person, not a program, and no test will close them. 1 941 tests, coverage 94.9%. | [phase 4 notes](./notes/phase-4.md#gate-record) |
+| 7 — CPU AI depth & difficulty ladder | 2026-08-03 | **NOT PASSED** | Every automatable check green and, for the first time in the project, **all three balance harnesses in band at once** — soccer's ten included. `pnpm ai:ladder` reports zero findings. 3 066 unit, 45 E2E, coverage 95.1%. Two of `03`'s four criteria ("comfortably winnable by a newcomer", "beats an experienced player more often than not") are claims about a person and no batch closes them; the device matrix and the deploy are the same blockers, now **six gates deep**. | [phase 7 notes](./notes/phase-7.md#gate-record) |
 | 6 — Soccer · all three modes (v0.5) | 2026-07-31 | **NOT PASSED** | Every automatable check green: 2 788 unit, 45 E2E, coverage 94.9%, bench 0.058 ms/step at 11v11, budgets inside. All three of `03`'s criteria met, the third (`engine/` touched only for core improvements) demonstrably so — three changes, none naming a sport. Blocked on the device matrix and the deploy, now **five gates deep**, with five mini-games never played by a human. One open finding handed to Phase 7: Live soccer scores 12.8 goals a match on shot *volume*, not conversion. | [phase 6 notes](./notes/phase-6.md#gate-record) |
 
 ---

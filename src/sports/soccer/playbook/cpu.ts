@@ -42,6 +42,8 @@ import type {
   PlaybookState,
   TurnResolution,
 } from '../../../modes/playbook/types.ts';
+import { levelOf } from '../../../modes/playbook/types.ts';
+import { repeatPenalty, scaleRead, varietyStrength } from '../../../modes/playbook/read.ts';
 import {
   DEFAULT_INTENTS,
   callFrom,
@@ -75,8 +77,15 @@ const BASE_TEMPERATURE = 0.012;
 /**
  * How much `decisionNoise` widens it. At Legend (0.04) the CPU is close to taking its best option;
  * at Rookie (0.35) it is sampling most of the row.
+ *
+ * **Raised from 0.3 by T-7.6 because soccer's Playbook ladder is thin.** A soccer match is two
+ * goals, and its intents score close together, so a level's edge has less room to show than in
+ * basketball — 160 matches a level put Rookie at 44.4% against Pro, on the wrong side of the
+ * regression harness's 44% ceiling with the ladder otherwise correctly ordered. Widening the
+ * sampling is the honest lever for that: a Rookie CPU that picks worse *more often* is what the
+ * level is supposed to be, and it costs no rating (INV-1).
  */
-const NOISE_TO_TEMPERATURE = 0.3;
+const NOISE_TO_TEMPERATURE = 0.55;
 
 /**
  * What a 20-point rating edge on what an option asks for is worth, in the same odds-shift units the
@@ -104,6 +113,38 @@ const FIT_WEIGHT = 0.05;
  * still presses through a read telling it not to, which is the right way round.
  */
 const READ_WEIGHT = 0.08;
+
+/**
+ * How hard leaning on one intent is allowed to push it *down*, in the same units as `READ_WEIGHT`.
+ *
+ * A third of the read, the same ratio basketball uses, so the two sports make the same statement
+ * about how variety trades against call quality: it is a tiebreak, not a strategy.
+ *
+ * **This constant is priced in turns.** Variety reaches the `tempo` dimension along with every
+ * other, so a CPU that stops always calling `patient` plays a slightly faster match — at 0.05 the
+ * mean came out at 24.1 against T-6.14's ceiling of 24. Worth knowing before raising it.
+ */
+const REPEAT_WEIGHT = READ_WEIGHT / 3;
+
+/** What this side has chosen on one dimension lately, in the role it is calling now. */
+function ownIntents(
+  turns: readonly TurnResolution[],
+  side: Side,
+  role: Role,
+  dimension: IntentDimension,
+  window = SOCCER_READ_WINDOW,
+): { call: CallId }[] {
+  const defending = role === 'defence';
+  return turns
+    .filter((turn) => (turn.attacking === side) !== defending)
+    .slice(-window)
+    .flatMap((turn) => {
+      const call = defending ? turn.calls.defence : turn.calls.offence;
+      const intents = call.intents as Partial<Record<string, CallId>> | undefined;
+      const chosen = intents?.[dimension];
+      return chosen === undefined ? [] : [{ call: chosen }];
+    });
+}
 
 /** What a tired squad pays for an option that asks for work. */
 const EFFORT_WEIGHT = 0.6;
@@ -291,10 +332,15 @@ export function readValue(
   return value * READ_WEIGHT;
 }
 
-/** Temperature for a difficulty. Higher noise, wider sampling, worse decisions. */
-export function temperatureFor(state: State): number {
+/**
+ * Temperature for a difficulty. Higher noise, wider sampling, worse decisions.
+ *
+ * Per side (T-7.10): the two CPUs in a regression batch are playing at different levels, and a
+ * temperature read off the match rather than off the caller would give them the same one.
+ */
+export function temperatureFor(state: State, side: Side = state.playerSide === 1 ? 0 : 1): number {
   return (
-    BASE_TEMPERATURE + difficultyProfile(state.difficulty).decisionNoise * NOISE_TO_TEMPERATURE
+    BASE_TEMPERATURE + difficultyProfile(levelOf(state, side)).decisionNoise * NOISE_TO_TEMPERATURE
   );
 }
 
@@ -328,9 +374,20 @@ export function scoreDimension(
   turns: readonly TurnResolution[],
 ): { id: CallId; score: number }[] {
   const opponent: Side = side === 1 ? 0 : 1;
-  return optionsFor(dimension).map((option) => ({
+  // How hard this level reads, and how hard it works at not being read (T-7.6). Both are `06` §7's
+  // exploits row; before this the read was a constant and Playbook's only difficulty channel was
+  // the sampling temperature, which is why T-7.10 measured Legend as no better than All-Star.
+  const level = levelOf(state, side);
+  const variety = varietyStrength(level);
+  const own = ownIntents(turns, side, role, dimension);
+
+  const options = optionsFor(dimension);
+  return options.map((option) => ({
     id: option.id,
-    score: scoreOption(option, state, side, role, phase) + readValue(option, turns, opponent, role),
+    score:
+      scoreOption(option, state, side, role, phase) +
+      scaleRead(readValue(option, turns, opponent, role), level) -
+      repeatPenalty(own, option.id, REPEAT_WEIGHT, variety, options.length),
   }));
 }
 
@@ -407,7 +464,7 @@ export function cpuCall(
   for (const dimension of dimensionsFor(role)) {
     chosen[dimension] = sample(
       scoreDimension(dimension, state, side, role, phase, turns),
-      temperatureFor(state),
+      temperatureFor(state, side),
       rng.fork(dimension),
     );
   }
