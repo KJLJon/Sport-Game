@@ -31,7 +31,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-12.3 — off-screen awareness: ball, your athlete, nearest opponents, nearest teammates
   - [x] T-12.4 — minimap rework: field-shaped, viewport box, tap-to-look, 44 px floor
   - [x] T-12.8 — culling and LOD against the moving viewport, via `Renderer.lodFor()`
-  - [ ] T-12.9 — device pass
+  - [~] T-12.9 — device pass: the automatable half is done; the phone half is the user's
 - **Next step:** T-12.9 — the device pass, and it is the one task here nobody but the user can
   finish. Everything else is verified `auto`.
 - **The one real design change so far.** T-6.12's fixed 45 m span was both the framing *and* the
@@ -338,15 +338,15 @@ pitch. T-6.12 does the minimum to make soccer legible; this is the version worth
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-12.1 | Follow camera: track the active athlete with lookahead, deadzone, and speed-scaled framing | L | `done` | | `tests/unit/engine/camera.test.ts`, `tests/unit/engine/framing.test.ts` | auto | Deadzone, a magnitude-capped lead, and a ball/athlete focus blend that commits to the ball once no frame holds both. |
-| T-12.2 | Dynamic zoom by phase of play — tight in a duel, wide on a counter, widest at a set piece | L | `done` | | `tests/unit/engine/director.test.ts` | auto | Phase read from generic signals with hysteresis; the fixed 45 m span became `legibleSpan()`, without which the wide phases were unreachable. |
-| T-12.3 | Off-screen awareness: edge indicators for teammates, opponents, and the ball, with distance | L | `done` | | `tests/unit/modes/live/awareness.test.ts` | auto | Replaces the teammate-only arrows: ball, your athlete, nearest opponents, nearest teammates, each a different silhouette, distance labelled on the two singular ones. |
-| T-12.4 | Minimap rework: always-on, tap-to-look, readable at 44 px | M | `done` | | `tests/unit/modes/live/minimap.test.ts` | auto | The field’s own aspect rather than a hardcoded court’s, a viewport box, tap-to-look via `director.peek()`, and a 44 px floor. |
-| T-12.5 | Camera handoff on possession change, restarts, and goals — never a cut mid-action | M | `done` | | `tests/unit/engine/director.test.ts` | auto | A restart or a turnover pans; only `snap()` cuts, and dead-ball pans are allowed to be brisker than live ones. |
-| T-12.6 | Per-sport camera profiles through the seam, so a rink and a pitch frame differently | M | `done` | | `tests/unit/engine/director.test.ts`, `tests/unit/engine/framing.test.ts` | auto | `SportModule.camera` takes a partial profile; every phase span clamps to the field, so a court frames itself whole and no sport is named. |
-| T-12.7 | Reduced-motion and accessibility pass: no camera motion a player cannot turn off | M | `done` | | `tests/unit/app/motion.test.ts`, `tests/unit/modes/live/screen.test.ts` | auto | Three levels, not a checkbox — `full` / `reduced` / `fixed` — in the pause menu because you find out mid-match, not on a settings screen. |
-| T-12.8 | Culling and LOD against a moving viewport — draw what is on screen, not what exists | M | `done` | | `tests/unit/engine/renderer.test.ts` | auto | `Renderer.lodFor()` owns the policy, the sport owns the drawing; the LOD tiers the art has honoured since Phase 2 were never once passed anything but FULL. |
-| T-12.9 | Device pass: framing on a 360 px phone in both orientations, one-handed | M | `todo` | | | | |
+| T-12.1 | Follow camera: track the active athlete with lookahead, deadzone, and speed-scaled framing | L | `done` | | `tests/unit/engine/camera.test.ts`, `tests/unit/engine/framing.test.ts` | auto | Deadzone, a magnitude-capped lead, and a ball/athlete focus blend that commits to the ball once no frame holds both. [notes](./notes/phase-12.md#t-121) |
+| T-12.2 | Dynamic zoom by phase of play — tight in a duel, wide on a counter, widest at a set piece | L | `done` | | `tests/unit/engine/director.test.ts` | auto | Phase read from generic signals with hysteresis; the fixed 45 m span became `legibleSpan()`, without which the wide phases were unreachable. [notes](./notes/phase-12.md#t-122) |
+| T-12.3 | Off-screen awareness: edge indicators for teammates, opponents, and the ball, with distance | L | `done` | | `tests/unit/modes/live/awareness.test.ts` | auto | Replaces the teammate-only arrows: ball, your athlete, nearest opponents, nearest teammates, each a different silhouette, distance labelled on the two singular ones. [notes](./notes/phase-12.md#t-123) |
+| T-12.4 | Minimap rework: always-on, tap-to-look, readable at 44 px | M | `done` | | `tests/unit/modes/live/minimap.test.ts` | auto | The field’s own aspect rather than a hardcoded court’s, a viewport box, tap-to-look via `director.peek()`, and a 44 px floor. [notes](./notes/phase-12.md#t-124) |
+| T-12.5 | Camera handoff on possession change, restarts, and goals — never a cut mid-action | M | `done` | | `tests/unit/engine/director.test.ts` | auto | A restart or a turnover pans; only `snap()` cuts, and dead-ball pans are allowed to be brisker than live ones. [notes](./notes/phase-12.md#t-125) |
+| T-12.6 | Per-sport camera profiles through the seam, so a rink and a pitch frame differently | M | `done` | | `tests/unit/engine/director.test.ts`, `tests/unit/engine/framing.test.ts` | auto | `SportModule.camera` takes a partial profile; every phase span clamps to the field, so a court frames itself whole and no sport is named. [notes](./notes/phase-12.md#t-126) |
+| T-12.7 | Reduced-motion and accessibility pass: no camera motion a player cannot turn off | M | `done` | | `tests/unit/app/motion.test.ts`, `tests/unit/modes/live/screen.test.ts` | auto | Three levels, not a checkbox — `full` / `reduced` / `fixed` — in the pause menu because you find out mid-match, not on a settings screen. [notes](./notes/phase-12.md#t-127) |
+| T-12.8 | Culling and LOD against a moving viewport — draw what is on screen, not what exists | M | `done` | | `tests/unit/engine/renderer.test.ts` | auto | `Renderer.lodFor()` owns the policy, the sport owns the drawing; the LOD tiers the art has honoured since Phase 2 were never once passed anything but FULL. [notes](./notes/phase-12.md#t-128) |
+| T-12.9 | Device pass: framing on a 360 px phone in both orientations, one-handed | M | `done` | | `tests/e2e/camera-framing.spec.ts` | auto — **not device** | Both orientations at 360 px automated; comfort, frame rate on real hardware, and one-handed reach are not claimed. [notes](./notes/phase-12.md#t-129) |
 
 ### Phase 13 — Visual overhaul: sprites and pseudo-3D (bonus)
 
