@@ -13,13 +13,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { recordingCanvas } from '../../../helpers/canvas.ts';
-import { World } from '@/engine/world.ts';
 import {
-  DEFAULT_HUD_THEME,
   boxRows,
-  drawEdgeIndicators,
   drawHud,
-  drawMinimap,
   foulLabel,
   formatElapsedClock,
   DEFAULT_HUD_SPEC,
@@ -27,7 +23,6 @@ import {
   formatActionClock,
   formatClock,
   hudLayout,
-  offScreenIndicators,
   type SafeArea,
 } from '@/modes/live/hud.ts';
 import { applyEvent, createBoxScore } from '@/modes/live/box-score.ts';
@@ -103,9 +98,12 @@ describe('layout', () => {
     expect(hudLayout(200, 100).scale).toBeGreaterThanOrEqual(0.75);
   });
 
-  it('keeps the minimap at the court s aspect ratio', () => {
+  it('reserves an area for the minimap inside the safe area', () => {
+    // The *shape* of the map is the field's and lives in `minimap.ts` since T-12.4; what stays here
+    // is where there is room for it.
     const layout = hudLayout(800, 400);
-    expect(layout.minimap.width / layout.minimap.height).toBeCloseTo(28 / 15, 1);
+    expect(layout.minimap.width).toBeGreaterThan(0);
+    expect(layout.minimap.height).toBeGreaterThan(0);
   });
 });
 
@@ -154,26 +152,6 @@ describe('reading it without colour (INV-11)', () => {
     const texts = ctx.ofKind('fillText').map((c) => String(c.args[0]));
     expect(texts).toContain('SHOT CLOCK');
   });
-
-  it('rings the controlled athlete on the minimap instead of tinting them', () => {
-    const world = new World({ width: 28, height: 15, cellSize: 3, capacity: 8 });
-    const a = world.spawn({ x: 5, y: 5, team: 0 });
-    world.spawn({ x: 20, y: 9, team: 1 });
-
-    const ctx = recordingCanvas();
-    drawMinimap(
-      ctx,
-      view({ status: { ...view().status, controlled: a } }),
-      world,
-      28,
-      15,
-      hudLayout(800, 400),
-    );
-
-    // Two dots plus one ring: the ring is the extra arc, and it is a shape.
-    expect(ctx.ofKind('arc')).toHaveLength(3);
-    expect(ctx.ofKind('stroke').length).toBeGreaterThan(0);
-  });
 });
 
 describe('the scoreboard', () => {
@@ -209,77 +187,6 @@ describe('the scoreboard', () => {
     const charging = recordingCanvas();
     drawHud(charging, view({ status: { ...view().status, meter: 0.6 } }), hudLayout(800, 400));
     expect(charging.ofKind('fillRect').length).toBeGreaterThan(idleRects);
-  });
-});
-
-describe('off-screen teammates', () => {
-  function world() {
-    const w = new World({ width: 28, height: 15, cellSize: 3, capacity: 8 });
-    return w;
-  }
-
-  it('points at a teammate the camera cannot see, and not at one it can', () => {
-    const w = world();
-    const near = w.spawn({ x: 4, y: 4, team: 0 });
-    const far = w.spawn({ x: 26, y: 14, team: 0 });
-    const layout = hudLayout(800, 400);
-
-    // A camera zoomed in enough that the far corner is off the edge.
-    const toScreen = (x: number, y: number) => ({ x: x * 40, y: y * 40 });
-    const indicators = offScreenIndicators(w, view(), toScreen, layout);
-
-    expect(indicators.map((i) => i.athlete)).toContain(far);
-    expect(indicators.map((i) => i.athlete)).not.toContain(near);
-  });
-
-  it('never points at the opposition or at the athlete you are already controlling', () => {
-    const w = world();
-    const controlled = w.spawn({ x: 27, y: 14, team: 0 });
-    w.spawn({ x: 27, y: 1, team: 1 });
-    const layout = hudLayout(800, 400);
-
-    const indicators = offScreenIndicators(
-      w,
-      view({ status: { ...view().status, controlled } }),
-      (x, y) => ({ x: x * 40, y: y * 40 }),
-      layout,
-    );
-    expect(indicators).toHaveLength(0);
-  });
-
-  it('keeps every arrow inside the viewport, not half off the edge', () => {
-    const w = world();
-    w.spawn({ x: 27, y: 14, team: 0 });
-    const layout = hudLayout(800, 400);
-    const margin = 26;
-
-    const indicators = offScreenIndicators(
-      w,
-      view(),
-      () => ({ x: 5000, y: -3000 }),
-      layout,
-      margin,
-    );
-    for (const indicator of indicators) {
-      expect(indicator.x).toBeLessThanOrEqual(layout.width - margin);
-      expect(indicator.x).toBeGreaterThanOrEqual(margin);
-      expect(indicator.y).toBeGreaterThanOrEqual(margin);
-    }
-  });
-
-  it('draws one arrow per indicator', () => {
-    const ctx = recordingCanvas();
-    drawEdgeIndicators(
-      ctx,
-      [
-        { athlete: 1, x: 10, y: 10, angle: 0, distance: 100 },
-        { athlete: 2, x: 20, y: 20, angle: 1, distance: 100 },
-      ],
-      DEFAULT_HUD_THEME,
-    );
-    expect(ctx.ofKind('fill')).toHaveLength(2);
-    expect(ctx.ofKind('save')).toHaveLength(2);
-    expect(ctx.ofKind('restore')).toHaveLength(2);
   });
 });
 

@@ -262,3 +262,59 @@ describe('per-sport profiles (T-12.6)', () => {
     expect(camera.scale).toBeGreaterThan(VIEW.width / 20);
   });
 });
+
+/**
+ * T-12.4. Tap-to-look is the one camera movement the player asks for directly, which is why it
+ * behaves differently from every other one here — including being available when the automatic
+ * movements have been turned off.
+ */
+describe('tap to look (T-12.4)', () => {
+  it('goes where it was pointed and comes back on its own', () => {
+    const { camera, director } = setup();
+    run(director, signal(), 1);
+
+    director.peek(15, 20, 1);
+    expect(director.peeking).toBe(true);
+
+    run(director, signal(), 0.9);
+    expect(camera.x).toBeLessThan(40);
+
+    // The play carried on while the player was looking elsewhere.
+    run(director, signal({ ball: { x: 80, y: 34, vx: 0, vy: 0 }, controlled: null }), 3);
+    expect(director.peeking).toBe(false);
+    expect(camera.x).toBeGreaterThan(70);
+  });
+
+  it('pans back rather than cutting back', () => {
+    const { camera, director } = setup();
+    director.peek(10, 10, 0.1);
+    run(director, signal(), 0.15);
+
+    const away = camera.x;
+    director.update(FRAME, signal());
+
+    // One frame of return, not a teleport: coming back is a handoff like any other.
+    expect(camera.x).toBeGreaterThan(away);
+    expect(camera.x).toBeLessThan(45);
+    expect(director.state.handoff).toBeGreaterThan(0);
+  });
+
+  it('can be abandoned the moment the player touches the stick', () => {
+    const { director } = setup();
+    director.peek(10, 10, 5);
+    director.endPeek();
+    expect(director.peeking).toBe(false);
+  });
+
+  it('still works when automatic camera motion is turned off', () => {
+    // A setting that stops the camera moving on its own should not disable the control that moves
+    // it deliberately.
+    const { camera, director } = setup({ reducedMotion: true });
+    const before = camera.x;
+
+    director.peek(12, 20, 1);
+    run(director, signal(), 0.8);
+
+    expect(camera.x).toBeLessThan(before - 10);
+  });
+});

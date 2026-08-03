@@ -64,15 +64,15 @@ import type { Difficulty } from '../difficulty.ts';
 import { lastDifficulty, loadAssists } from '../last-played.ts';
 import type { AssistSettings } from '../assists.ts';
 import {
+  DEFAULT_HUD_THEME,
   boxRows,
-  drawEdgeIndicators,
   drawHud,
-  drawMinimap,
   hudLayout,
-  offScreenIndicators,
   type HudLayout,
   type SafeArea,
 } from './hud.ts';
+import { drawMinimap, minimapFrame, minimapPoint } from './minimap.ts';
+import { drawEdgeMarkers, edgeMarkers } from './awareness.ts';
 import { teamLine } from './box-score.ts';
 
 /**
@@ -283,6 +283,27 @@ export function liveScreen(options: LiveScreenOptions): Screen {
           const rect = canvasHost.canvas.getBoundingClientRect();
           const x = e.clientX - rect.left;
           const y = e.clientY - rect.top;
+          if (kind === 'down') {
+            // A tap on the minimap is a look, not a thumb on the stick (T-12.4). Checked before the
+            // input router sees it, because a stick that spawned under the minimap would both steer
+            // the athlete and move the camera from one touch.
+            const frame = minimapFrame(
+              layout,
+              options.sport.field.width,
+              options.sport.field.height,
+            );
+            const point = minimapPoint(
+              frame,
+              x,
+              y,
+              options.sport.field.width,
+              options.sport.field.height,
+            );
+            if (point !== null) {
+              director?.peek(point.x, point.y);
+              return;
+            }
+          }
           if (kind === 'down') touch.pointerDown(e.pointerId, x, y);
           else if (kind === 'move') touch.pointerMove(e.pointerId, x, y);
           else touch.pointerUp(e.pointerId);
@@ -407,12 +428,23 @@ function draw(
 
   renderer.submit('hud', (c) => {
     drawHud(c, view, layout, sport.hud);
-    drawMinimap(c, view, world, sport.field.width, sport.field.height, layout);
+    drawMinimap(
+      c,
+      minimapFrame(layout, sport.field.width, sport.field.height),
+      view,
+      world,
+      sport.field.width,
+      sport.field.height,
+      { viewport: camera.viewport(), ball },
+    );
 
     const point = { x: 0, y: 0 };
-    drawEdgeIndicators(
+    drawEdgeMarkers(
       c,
-      offScreenIndicators(world, view, (wx, wy) => camera.worldToScreen(wx, wy, point), layout),
+      edgeMarkers(world, view, ball, (wx, wy) => camera.worldToScreen(wx, wy, point), layout),
+      layout,
+      DEFAULT_HUD_THEME,
+      view.playerSide,
     );
 
     if (input.showTouchControls) {

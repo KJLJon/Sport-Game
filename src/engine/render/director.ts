@@ -90,6 +90,8 @@ export class CameraDirector {
   private lastFocus: { x: number; y: number } | null = null;
   private lastPossession: 0 | 1 | -1 = -1;
   private handoffLeft = 0;
+  private peekLeft = 0;
+  private peekAt: { x: number; y: number } | null = null;
   private currentPhase: PlayPhase = 'openPlay';
   private currentSpan = 0;
 
@@ -142,8 +144,36 @@ export class CameraDirector {
     this.camera.resetFollowRate();
   }
 
+  /**
+   * Looks somewhere the play is not, for a few seconds, and then goes back on its own (T-12.4).
+   *
+   * This is the minimap's tap-to-look, and it is the one camera movement the player asks for
+   * directly — so it is *not* suppressed under reduced motion. A setting that exists to stop the
+   * camera moving on its own should not also disable the control that moves it deliberately.
+   */
+  peek(x: number, y: number, seconds = 1.6): void {
+    this.peekAt = { x, y };
+    this.peekLeft = Math.max(seconds, 0);
+  }
+
+  /** Abandons a peek early — the player has touched the stick, so play is what they want to see. */
+  endPeek(): void {
+    this.peekLeft = 0;
+    this.peekAt = null;
+  }
+
+  get peeking(): boolean {
+    return this.peekLeft > 0;
+  }
+
   /** One frame. `rng` is only used for shake, and only when motion is on (INV-2). */
   update(dt: number, signal: FramingSignal, rng?: Rng): void {
+    if (this.peekLeft > 0) {
+      this.updatePeek(dt, rng);
+      this.lastPossession = signal.possession;
+      return;
+    }
+
     const focus = this.focus(signal);
 
     this.currentPhase = this.reduced ? 'openPlay' : this.tracker.update(dt, signal);
@@ -155,6 +185,33 @@ export class CameraDirector {
     this.camera.update(dt, focus, rng);
     this.lastFocus = { x: focus.x, y: focus.y };
     this.lastPossession = signal.possession;
+  }
+
+  /**
+   * A frame spent looking where the player pointed.
+   *
+   * The deadzone is dropped so the peek actually centres on the requested point, and the span is
+   * whatever open play would have used — a peek is for orientation, and a tight frame at the far
+   * end of the pitch orientates nobody.
+   */
+  private updatePeek(dt: number, rng?: Rng): void {
+    this.peekLeft = Math.max(0, this.peekLeft - dt);
+
+    const target = this.peekAt;
+    if (target === null) return;
+
+    this.currentSpan = this.span('openPlay', { x: target.x, y: target.y, vx: 0, vy: 0 });
+    this.camera.requestScale(scaleForSpan(this.viewWidth(), this.currentSpan));
+    this.camera.setDeadzone(0);
+    this.camera.update(dt, { x: target.x, y: target.y, vx: 0, vy: 0 }, rng);
+
+    if (this.peekLeft > 0) return;
+
+    // Coming back is a handoff like any other: the play has moved on while the player was looking
+    // elsewhere, so returning to it must pan rather than cut.
+    this.peekAt = null;
+    this.handoffLeft = this.handoffSeconds;
+    this.lastFocus = { x: this.camera.x, y: this.camera.y };
   }
 
   /**
