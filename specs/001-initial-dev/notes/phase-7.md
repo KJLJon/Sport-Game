@@ -457,3 +457,67 @@ better outcome gives out above All-Star. **T-7.11 owns it.**
 today, on purpose. What runs in the suite is `judge()` against fixtures — so the bands cannot rot
 silently — plus the one thing a batch cannot check about itself: that swapping which side is Legend
 actually produces a different match.
+
+### T-7.11
+
+*Balance pass #3: tune all four levels against the target win-rate curve*
+
+**The bug, and it was a real one rather than a tuning nudge.** A CPU defender's decision to challenge
+was `contestChance(base, aggression)` and nothing else — no reference to whether *this* challenge was
+any good. `tackleTiming(distance, 'standing')` was computed on the line *after* the commit roll and
+handed straight to `resolveTackle`, so the number that says "you are about to swing at nothing" was
+already in scope and simply not consulted. `relentless` therefore meant "lunge from the edge of your
+reach as often as you lunge when you are on the ball", and the ladder measured the consequence:
+Legend conceded 53.6 fouls a match against Pro's 47.5 and lost to a level it outclasses in latency,
+noise, and execution error. The same shape was in basketball's steal and block.
+
+**`commitChance()` is mean-preserving, and that is the design, not an implementation detail.** The
+first version scaled willingness down by how badly placed the challenge was. It fixed the ladder and
+broke the game: judgement became a second aggression dial, every level defended less, and soccer went
+from 3.25 goals a match to **4.85** with its cross-mode ratio out of band at 2.06×. The version that
+shipped normalises the gate at a neutral challenge, so a level commits exactly as often *on average*
+as aggression alone said it would and judgement (`1 - decisionNoise`) only decides *which* ones. There
+is a test asserting exactly that property for all four levels, because losing it silently invalidates
+every balance band in the project.
+
+**The soccer conversion finding closed from the attacking side, which is the opposite of where it
+looked.** Conversion sat at 31.6% against a 30% ceiling — the last soccer band out, and out since
+T-6.18. Two attempts to fix it defensively both made it *worse* (more helpers → 34.6%; a higher,
+wider press → 34.9%) for the same reason each time: suppressing shot volume removes the *bad* shots
+first, so what survives converts better. It was never a defence problem. `SHOOTING_RANGE` had been
+tightened to 22 m by T-6.18 to stop a placeholder shooting from halfway, and with the defence T-7.5
+gave soccer, 22 m meant the CPU only ever shot from a position it had earned. **27 m** — the edge of
+the area, which is where a soccer team does have a go — took conversion to **25.5%** on 14.7 shots
+with goals per match unmoved.
+
+**Where the four levels ended up.** 30 paired matches per level per sport-and-mode, against Pro,
+margin in points or goals — `pnpm ai:ladder`, zero findings:
+
+| | rookie | pro | allStar | legend |
+|---|---|---|---|---|
+| basketball · live | −12.73 | +0.00 | −0.53 | **+5.00** |
+| basketball · playbook | −2.13 | +0.00 | +4.20 | **+6.00** |
+| soccer · live | −0.77 | +0.00 | +1.10 | **+1.20** |
+| soccer · playbook | −0.43 | +0.00 | +0.43 | **−0.07** |
+
+Soccer Live was flat and inverted (−0.40 / +0.27 / −0.37) and is now a ladder. Basketball Live's
+Rookie fell from −0.17 to −12.73, which is what "comfortably winnable by a newcomer" should look like
+in a sport that scores 78 points a side.
+
+**Both balance harnesses are green, soccer for the first time.** All ten soccer bands
+(goals 3.75, shots 14.7, conversion 25.5%, ratio 1.60×) and all fifteen basketball bands, with
+basketball's fouls falling 11.4 → 10.2 and steals 9.2 → 8.3 — defenders reaching less recklessly,
+which is the change working rather than a side effect.
+
+**Left open, honestly.** *Playbook soccer's Legend is still not better than its All-Star* (−0.07
+against +0.43). It passes the bands and the direction check, so it is not a gate failure, but it is
+not right either. Playbook's only difficulty channel is the call-sampling temperature, and at
+Legend's `decisionNoise: 0.04` the CPU is very close to picking the argmax every turn — which against
+an opponent that reads tendencies is the most *predictable* thing it could do. Minimal decision noise
+making a CPU exploitable is a genuine design finding and it belongs to **T-7.6** (tendency modelling,
+counter-calling), which is the task that owns Playbook's read model.
+
+**Feel note.** Not played by a human this session. The ladder is a batch result, and the half of
+`06` §7 that is written about a person — "comfortably winnable by a newcomer", "beats an experienced
+player more often than not" — still needs somebody to sit down with it. That is Gate 7's device
+matrix, and it should not be signed off from a table of margins.
