@@ -584,3 +584,50 @@ goals and its intents score close together, so a level has far less room to show
 basketball — the whole ladder spans half a goal. `NOISE_TO_TEMPERATURE` went 0.3 → 0.55 to give
 Rookie somewhere to be bad, which was enough to clear the band. If soccer's Playbook levels ever
 need to feel more different than this, the lever is the *spread of the scores*, not the sampling.
+
+### T-7.9
+
+*CPU team generation: coherent opponents and identities scaled to difficulty*
+
+**"Scaled to difficulty" cannot mean what it sounds like, and the user stories say so.** Read
+carelessly, `03`'s row asks for a Legend opponent that fields better athletes. US-7.2 forbids it in
+as many words — *"difficulty never alters any athlete's attributes or ratings on either team, and
+this is verified by a test"* — and `06` §7 gives the reason: stat-cheating difficulty makes wins feel
+unearned. Generating a stronger roster is stat-cheating with an extra step; the athlete card would
+be honest and the match would still be rigged.
+
+US-7.1 says what actually scales, and it is the more interesting reading anyway: *"the CPU fields a
+**coherent** lineup and plays to a **recognisable style**."* So a level buys **coherence**, not
+points:
+
+- Every level draws from the same budget. The squad's total attribute points are identical at Rookie
+  and at Legend, seed for seed — and *per athlete*, not just in aggregate, because a generator that
+  took from one athlete and gave to another would pass a squad-total test while handing the CPU a
+  star. Both are asserted.
+- What rises is how well those points fit the style the team plays. A Legend opponent's athletes are
+  *shaped* for what it does; a Rookie's are the same points spread anywhere, so it fields a
+  collection rather than a team.
+
+`06` §7's `tactics` row is the dial, because "was this side assembled by somebody who knows what they
+are doing" is the same question as "does it use advanced tactics", one turn earlier.
+
+**`shapeToward()` is the whole INV-1 argument in one function.** Coherence decides the *shape* of a
+spread and has no way to decide its *size*: points are taken proportionally from what the style does
+not want and given proportionally to what it does, and `settle()` puts the rounding residue back so
+the total is exact rather than exact-on-average. A Legend opponent's centre-back is not a better
+athlete than a Rookie opponent's — they are a better centre-back.
+
+**The move is bounded at both ends, which the first version got wrong.** Capping only what the
+unwanted attributes could spare meant a style wanting a single attribute piled every spare point
+onto it: `speed` came out at 99 from a flat 50 spread. The move is now bounded by what the wanted
+attributes can *hold* as well, so a style is recognisable rather than a spike — and 45% of the
+available room is the ceiling even then.
+
+**Five styles, and the constraints on the list are tested rather than trusted:** no two want the same
+three attributes (or two opponents would be indistinguishable) and between them they want all eleven
+(or some attribute is dead weight in every opponent the game generates).
+
+**Not yet wired to a screen.** `generateCpuTeam()` returns a `Team`, its athletes, and its style;
+nothing calls it, because the mode that picks an opponent is Phase 8's modes hub (T-8.1) and the
+pre-match screen that would show the style and blurb does not exist. The generator is the part that
+belongs to this phase.

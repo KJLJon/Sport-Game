@@ -12,8 +12,14 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-7.6 — Playbook AI depth. **`done`** and pushed. Phase 7 is 10 of 11 — **T-7.9 (CPU
-  team generation) is the only task left before Gate 7.** PR **#16** is open as a draft.
+- **Task:** T-7.9 — CPU team generation. **`done`** and pushed. **Phase 7 is 11 of 11 — every task
+  is done, and Gate 7 is the next thing.** PR **#16** is open as a draft.
+- 🚦 **Gate 7 has not been run.** What is already true: the full suite is green (172 files, 3 066
+  tests), all three balance harnesses are in band, and `pnpm ai:ladder` reports zero findings. What
+  is *not* done is the half of Gate 7 that needs a person — `06` §7's bands are written about a
+  human ("comfortably winnable by a newcomer", "beats an experienced player more often than not")
+  and no batch can stand in for that. `12` §7's device matrix is also outstanding. **Ask the user
+  to play it before signing the gate off.**
 - **Branch:** `claude/continue-building-di8hng`, off `main` at `0036a29` (PR #15 merged; `v0.6.0`
   is what the user has played).
 - **Next step:** **T-7.11 (balance pass #3)** is unblocked and is now the phase's most important
@@ -60,6 +66,10 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   clock, the block, the press, the marks, and the help line. `src/engine/ai/marking.ts` holds the
   one-to-one matching and its stickiness. Tested against both real duty tables, so the seam is
   known to fit; **T-7.5 is where it acquires its first reader.**
+- **What T-7.9 landed:** `src/teams/cpu-team.ts` — an opponent with a name, kit, crest, style, and a
+  squad shaped to it. `shapeToward()` moves points around without changing how many there are, which
+  is the INV-1 guarantee in the form a roster generator could break it. Not wired to a screen: the
+  mode that picks an opponent is Phase 8's (T-8.1).
 - **What T-7.6 landed:** `src/modes/playbook/read.ts` — `scaleRead()` makes counter-calling a level,
   `repeatPenalty()` stops the CPU having tells. Both sports wire them into their call scoring, with
   the repeat weight expressed as `READ_WEIGHT / 3` so the trade is stated rather than hidden. Soccer
@@ -334,7 +344,7 @@ there; this file is read at every session start and the notes file only when you
 | T-7.6 | Playbook AI depth for both sports: tendency modelling, counter-calling | L | `done` | | `tests/unit/modes/playbook-read.test.ts`, `tests/unit/sports/soccer/playbook/cpu.test.ts` | `auto` — 13 new unit tests; `AI_MODE=playbook` ladder at 160 matches per level, zero findings | `exploits` had been carried in every difficulty profile and never read: counter-calling is now a level, and a level that reads you also varies itself so it cannot be read back. [notes](./notes/phase-7.md#t-76) |
 | T-7.7 | Difficulty model across all three modes — latency, noise, error, aggression, assists, arcade windows (INV-1) | M | `done` | | `tests/unit/engine/ai-execution.test.ts`, `tests/unit/modes/difficulty.test.ts`, `tests/invariants/inv-01-difficulty-never-scales-ratings.test.ts` | `auto`; basketball balance green, soccer Live still out of band (T-6.18’s open finding, now a different shape) | Difficulty now reaches Live through four named channels and nothing else; found and fixed that soccer’s Shoot/Pass buttons had never been wired. [notes](./notes/phase-7.md#t-77) |
 | T-7.8 | Assist system: aim, pass, auto-switch, timing forgiveness; independent of difficulty; no-assist bonus | M | `done` | | `tests/unit/modes/assists.test.ts`, `tests/unit/ui/assists.test.ts` | `auto`; balance green | Four dials with a screen at `#/settings/controls`; the level sets the default and the player’s choice then wins at every level. [notes](./notes/phase-7.md#t-78) |
-| T-7.9 | CPU team generation: coherent opponents and identities scaled to difficulty | M | `todo` | | | | |
+| T-7.9 | CPU team generation: coherent opponents and identities scaled to difficulty | M | `done` | | `tests/unit/teams/cpu-team.test.ts` | `auto` — 19 unit tests, including the per-athlete points identity across all four levels | Difficulty buys **coherence, never points**: US-7.2 forbids the obvious reading of "scaled to difficulty", and US-7.1's "coherent lineup, recognisable style" is what actually scales. [notes](./notes/phase-7.md#t-79) |
 | T-7.10 | AI regression harness: headless batches per difficulty per mode, asserted win-rate bands | M | `done` | | `tests/sim/ai-ladder.test.ts` | `auto` — 13 unit tests; `pnpm ai:ladder` run at 30 paired matches per level per mode | Paired seeds and mirrored rosters, so Pro against itself is exactly 50% — and with that, **soccer's ladder collapses above All-Star in both modes** while basketball's is healthy. [notes](./notes/phase-7.md#t-710) |
 | T-7.11 | Balance pass #3: tune all four levels against the target win-rate curve | L | `done` | | `tests/unit/engine/ai-execution.test.ts` | `auto` — 6 new unit tests; `pnpm ai:ladder` zero findings, both balance harnesses green | Difficulty had been *punishing* the levels that competed hardest — the commit roll never looked at whether the challenge was any good. [notes](./notes/phase-7.md#t-711) |
 
