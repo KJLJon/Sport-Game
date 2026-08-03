@@ -241,8 +241,22 @@ describe('the defence turns up (T-7.5)', () => {
       }
     }
 
-    const defending = state.plans[state.rules.possession === 0 ? 1 : 0];
-    expect(defending?.pressers.length ?? 0).toBeGreaterThan(0);
+    // Over a stretch rather than at one instant: whether anybody is pressing on step 600 exactly
+    // depends on where the ball happens to be relative to the press line, which is a fact about
+    // that tick and not about the model. What has to be true is that the press fires.
+    const world = arena();
+    const rng = createRng('pressers');
+    const live = soccer.createState({ seed: 'pressers', playerSide: -1 }, world, rng);
+    const stepRng = rng.fork('sim');
+
+    let pressed = 0;
+    for (let i = 0; i < 1200; i++) {
+      soccer.step(live, world, new Map(), 1 / 60, stepRng);
+      const defending = live.plans[live.rules.possession === 0 ? 1 : 0];
+      if ((defending?.pressers.length ?? 0) > 0) pressed++;
+    }
+
+    expect(pressed).toBeGreaterThan(0);
   });
 });
 

@@ -130,7 +130,7 @@ import {
   difficultyProfile,
   type DifficultyProfile,
 } from '../../modes/difficulty.ts';
-import { aimError, contestChance, reacted } from '../../engine/ai/execution.ts';
+import { aimError, commitChance, reacted } from '../../engine/ai/execution.ts';
 import { NO_ASSISTS, defaultAssists, type AssistSettings } from '../../modes/assists.ts';
 import {
   createStamina,
@@ -156,12 +156,20 @@ const RESTART_READY_RANGE = 1.2;
  * — which already existed for exactly this and had no caller in Live — is what stops a shot from the
  * by-line where there is no goal to aim at.
  *
+ * **Widened again to 27 m by T-7.11, for the opposite reason to the one that narrowed it.** With the
+ * defence T-7.5 gave soccer, 22 m meant a carrier only ever shot from a position it had *earned*,
+ * and the conversion rate came out at 31.6% against a 30% ceiling — the last soccer band still out
+ * of range, and out because the shots were too good rather than too many. Two attempts to close it
+ * from the defensive side both made it worse: fewer shots removes the *bad* ones first. Letting the
+ * CPU have a go from the edge of the area is what a soccer team does, and it took conversion to
+ * 25.5% on 14.7 shots without moving goals per match.
+ *
  * This is a *threshold*, not tactics. Whether to shoot rather than work a better opening is the
  * judgement Phase 7's CPU makes; this only stops the placeholder taking shots nobody would take.
  *
  * @spec-ref 06-game-design.md §3.2
  */
-const SHOOTING_RANGE = 22;
+const SHOOTING_RANGE = 27;
 
 /** One simulation step, in milliseconds — the unit the reaction model works in. */
 const STEP_MS = 1000 / 60;
@@ -1112,7 +1120,19 @@ function contestCarrier(
     const input = inputs.get(id);
     if (input !== undefined) {
       if (!wasPressed(input, Button.A) && !wasPressed(input, Button.B)) continue;
-    } else if (!rng.bool(contestChance(TACKLE_COMMIT_PER_STEP, levelFor(state, id).aggression))) {
+    } else if (
+      // Willing, and then well placed (T-7.11). The timing of this challenge is already known —
+      // it is the same number `resolveTackle` is about to be handed — and a defender who can read
+      // it declines the ones that were only ever going to be free kicks.
+      !rng.bool(
+        commitChance(
+          TACKLE_COMMIT_PER_STEP,
+          levelFor(state, id).aggression,
+          tackleTiming(distance, 'standing'),
+          1 - levelFor(state, id).decisionNoise,
+        ),
+      )
+    ) {
       continue;
     }
 

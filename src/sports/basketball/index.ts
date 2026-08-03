@@ -147,7 +147,7 @@ import {
   type Difficulty,
   type DifficultyProfile,
 } from '../../modes/difficulty.ts';
-import { aimError, contestChance, reactionChance } from '../../engine/ai/execution.ts';
+import { aimError, commitChance, reactionChance } from '../../engine/ai/execution.ts';
 import { NO_ASSISTS, defaultAssists, type AssistSettings } from '../../modes/assists.ts';
 import { BASKETBALL_ARCADE } from './arcade/index.ts';
 import { basketballPlaybook } from './playbook/index.ts';
@@ -901,7 +901,16 @@ function trySteal(
   const wants =
     input !== undefined
       ? wasPressed(input, Button.A)
-      : rng.bool(contestChance(CPU_STEAL_CHANCE_PER_STEP, levelFor(state, defender).aggression));
+      : rng.bool(
+          // Willing, and then well placed (T-7.11): a reach from the edge of `stealReach` is the
+          // one that fouls, and the better the level reads it the less often it takes it.
+          commitChance(
+            CPU_STEAL_CHANCE_PER_STEP,
+            levelFor(state, defender).aggression,
+            1 - distance / DEFENCE.stealReach,
+            1 - levelFor(state, defender).decisionNoise,
+          ),
+        );
   if (!wants) return [];
 
   state.stealCooldown.set(defender, DEFENCE.stealCooldown);
@@ -980,7 +989,14 @@ function tryBlock(
   const wants =
     input !== undefined
       ? wasPressed(input, Button.B)
-      : rng.bool(contestChance(CPU_BLOCK_CHANCE_PER_STEP, levelFor(state, defender).aggression));
+      : rng.bool(
+          commitChance(
+            CPU_BLOCK_CHANCE_PER_STEP,
+            levelFor(state, defender).aggression,
+            1 - distance / DEFENCE.blockReach,
+            1 - levelFor(state, defender).decisionNoise,
+          ),
+        );
   if (!wants) return [];
 
   state.stealCooldown.set(defender, DEFENCE.stealCooldown);
