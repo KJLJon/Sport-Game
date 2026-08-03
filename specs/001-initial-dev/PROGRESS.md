@@ -12,47 +12,41 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-12.9 — Device pass
-- **Status:** in_progress
-- **Started:** 2026-08-03
+- **Task:** none. **Phase 12 is 9 of 9 done**, and Gate 12 was evaluated on 2026-08-03: **NOT
+  PASSED**, for reasons only the user can change. PR **#17** is open as a draft.
 - **Branch:** `claude/phase-12-next-steps-xeminm`, off `main` at `0e03a2f` (PR #16 merged).
-- **Why Phase 12 and not Phase 8.** The user asked. Phase 12's only dependency is T-1.8, met since
-  Phase 1, and T-6.12 deliberately stopped at "the minimum that makes a pitch legible" and labelled
-  the rest as this phase. `03` schedules it after v1.0 and lists it second in the cut order, so this
-  is a deliberate reordering, not a missed dependency — Phase 8 is untouched and still next after it.
-  The argument for taking it now: the one thing blocking Gate 7 is the user *playing* the game, and
-  the framing is what makes playing it on a phone unpleasant.
-- **Done so far:**
-  - [x] T-12.1 — deadzone, magnitude-capped lookahead, speed-scaled framing, ball/athlete focus blend
-  - [x] T-12.2 — phase classification with hysteresis, per-phase zoom, `CameraDirector`
-  - [x] T-12.5 — handoff pans on restarts and turnovers; a cut only when `snap()` is called
-  - [x] T-12.6 — `SportModule.camera` seam and profile merging (no sport supplies one yet)
-  - [x] T-12.7 — three-level camera setting, in the pause menu, switchable mid-match
-  - [x] T-12.3 — off-screen awareness: ball, your athlete, nearest opponents, nearest teammates
-  - [x] T-12.4 — minimap rework: field-shaped, viewport box, tap-to-look, 44 px floor
-  - [x] T-12.8 — culling and LOD against the moving viewport, via `Renderer.lodFor()`
-  - [~] T-12.9 — device pass: the automatable half is done; the phone half is the user's
-- **Next step:** T-12.9 — the device pass, and it is the one task here nobody but the user can
-  finish. Everything else is verified `auto`.
-- **The one real design change so far.** T-6.12's fixed 45 m span was both the framing *and* the
-  floor, which made every span above 45 m unreachable — a set piece could never actually be framed
-  wide. `legibleSpan(viewWidth, profile)` replaces the constant with the question it was standing in
-  for: how wide can this go before an athlete stops being a shape. It is per-viewport, so a tablet
-  is no longer framed as if it were a phone, and a 360 px phone gets a tighter cap than the old
-  constant gave it. `zoomFloor()` keeps its name and is now derived.
-- **Two sport-specific constants found in sport-generic code, both fixed.** `hudLayout` sized the
-  minimap at `(width * 15) / 28` — a basketball court's aspect, in a file whose header claims never
-  to have heard of basketball, which drew a 105 × 68 pitch squashed into a court's proportions. And
-  `offScreenIndicators` pointed at *teammates only*, which was defensible while the camera fitted
-  the field and became wrong the moment it stopped: the ball is what leaves the frame, and it had no
-  arrow at all.
-- **Files touched:** src/engine/render/{camera,framing,director}.ts,
-  src/modes/live/{framing,awareness,minimap,hud,screen}.ts, src/app/motion.ts,
-  src/modes/arcade/accessibility.ts, src/sports/types.ts
-- **Blockers:** none. Gate 7 is still open on the two human items (device matrix, tagged deploy) and
-  PR #16 is merged — **the user still has to tag a release for anything to ship**.
-- **Notes:** the motion preference moved out of `modes/arcade/accessibility.ts` into `app/motion.ts`
-  because the camera needed the same answer; arcade re-exports it, so no arcade import changed.
+- **Why Phase 12 ran before Phase 8.** The user asked, and the argument held: Phase 12's only
+  dependency (T-1.8) has been met since Phase 1, T-6.12 deliberately stopped at "the minimum that
+  makes a pitch legible" and labelled the rest as this phase, and the one thing blocking Gate 7 is
+  the user *playing* the game — which the framing was making unpleasant on a phone. `03` schedules
+  this phase after v1.0 and lists it second in the cut order, so it is a deliberate reordering, not
+  a missed dependency. **Phase 8 is untouched and is next.**
+- 🚦 **Gate 12: NOT PASSED.** Every automatable check green — 3 160 unit tests, 51 E2E (six of them
+  new, at 360 × 640 and 640 × 360), coverage 94.91%, bench 0.094 ms mean against a 4 ms budget,
+  bundle 70.8 KB gzip of 200. Two of `03`'s four criteria are met and tested. The other two cannot
+  be closed here: **"an athlete is legible on a 360 px phone"** is arithmetically satisfied (18 px,
+  against about 11 under the old fixed span) but legibility is a thing eyes do, and **"≥55 fps at
+  11v11 with the camera moving"** is a *render* measurement — `pnpm bench` measures the sim, which
+  was never the risk. Full record in [phase 12 notes](./notes/phase-12.md#gate-record).
+- 👉 **The two things only the user can do, unchanged since Gate 2 and now seven gates deep:** merge
+  PR #17 and **push a tag** — a tag is the only thing that deploys, the git proxy refuses tag pushes
+  from a session and the App has no `actions: write` — then **play it on a phone**. For a phase whose
+  entire subject is what a phone looks like, the unverified fraction is larger here than at any
+  previous gate.
+- **The three things to look at first when you do play it:**
+  1. **Does the camera make you unwell?** If so, the fix is in the pause menu: Camera → "Follows
+     calmly" or "Fixed". That control exists precisely because this is discovered mid-match.
+  2. **Does basketball feel worse?** Its duel span (18 m) is the one guess in the phase — an
+     isolation is the one moment where the other eight players are not the information. The revert
+     is the `camera:` block in `src/sports/basketball/index.ts`.
+  3. **Is an athlete actually big enough?** `minAthletePixels` is 18 in
+     `src/engine/render/framing.ts`. Raising it zooms every sport in; lowering it out.
+- **Next step:** Phase 8 — `pnpm -s next` lists T-8.2, T-8.4, T-8.5, T-8.11 and T-8.15 ready.
+- **Blockers:** none for the code. Gates 2 through 12 are all held by the same two user actions.
+- **Notes:** one fix outside the phase — `inv-11-cross-mode-parity`'s per-test budgets went from
+  120 s to 300 s. They were being blown by V8 coverage instrumentation, and Vitest writes **no
+  coverage report at all** for a failed run, so the coverage *gate* could not be evaluated because
+  of a timeout unrelated to coverage. Gate 7 fixed the same class of problem the same way.
 
 ---
 
@@ -386,6 +380,7 @@ One row per gate: the result and what it turned on. The full evaluation — ever
 | 4 — Arcade (v0.3) | 2026-07-28 | **NOT PASSED** | Same two blockers, now three gates deep. Two of `03`'s four criteria ("fun standalone", "a child can start one unaided") are claims about a person, not a program, and no test will close them. 1 941 tests, coverage 94.9%. | [phase 4 notes](./notes/phase-4.md#gate-record) |
 | 7 — CPU AI depth & difficulty ladder | 2026-08-03 | **NOT PASSED** | Every automatable check green and, for the first time in the project, **all three balance harnesses in band at once** — soccer's ten included. `pnpm ai:ladder` reports zero findings. 3 066 unit, 45 E2E, coverage 95.1%. Two of `03`'s four criteria ("comfortably winnable by a newcomer", "beats an experienced player more often than not") are claims about a person and no batch closes them; the device matrix and the deploy are the same blockers, now **six gates deep**. | [phase 7 notes](./notes/phase-7.md#gate-record) |
 | 6 — Soccer · all three modes (v0.5) | 2026-07-31 | **NOT PASSED** | Every automatable check green: 2 788 unit, 45 E2E, coverage 94.9%, bench 0.058 ms/step at 11v11, budgets inside. All three of `03`'s criteria met, the third (`engine/` touched only for core improvements) demonstrably so — three changes, none naming a sport. Blocked on the device matrix and the deploy, now **five gates deep**, with five mini-games never played by a human. One open finding handed to Phase 7: Live soccer scores 12.8 goals a match on shot *volume*, not conversion. | [phase 6 notes](./notes/phase-6.md#gate-record) |
+| 12 — Camera, framing, and readability | 2026-08-03 | **NOT PASSED** | All nine tasks done, every automatable check green: 3 160 unit, **51 E2E** including six new framing cases at 360 px in both orientations, coverage **94.91%**, bench and bundle budgets inside. Two of `03`'s four criteria are met and machine-checkable; the other two — an athlete *legible* on a phone, and ≥55 fps **with the camera moving** — are a render measurement and a claim about eyes, and neither can be closed without the device. Same two standing blockers, now **seven gates deep**, and for this phase the device matrix is the subject rather than a formality. | [phase 12 notes](./notes/phase-12.md#gate-record) |
 
 ---
 

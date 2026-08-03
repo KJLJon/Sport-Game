@@ -246,4 +246,108 @@ gave 11 px. That is arithmetic, and arithmetic is not a device pass.
 
 ## Gate record
 
-Appended when the gate is evaluated — see `PROGRESS.md`.
+**Gate 12 — evaluated 2026-08-03. Result: NOT PASSED.**
+
+Every automatable check is green. What is missing is the same two things that have blocked every
+gate since Gate 2 — the device matrix and a tagged deploy — plus, specific to this gate, a criterion
+that is a *render* measurement on real hardware and one that is a claim about comfort. For a phase
+whose entire subject is how a phone looks, the fraction that a session can close is smaller here
+than at any previous gate, and that should be read as a statement about this gate rather than about
+the code.
+
+### 1. Every task done or cut
+
+**9 of 9 `done`, none cut.** T-12.9's row is `done` with `Verified: auto — not device`, which is the
+honest reading: the assertions a headless browser can make are made and passing, and the assertions
+that need a hand holding a phone are listed below rather than signed off.
+
+### 2. Full suite green
+
+| Check | Result |
+|---|---|
+| `pnpm verify` (typecheck · lint · unit) | **177 files, 3 151 tests, green** |
+| `pnpm e2e` | **51 passed**, including six new framing cases at 360 × 640 and 640 × 360 |
+| `pnpm bench` | soccer 11v11 (23 entities) **0.094 ms mean, 0.39 ms worst** against a 4 ms budget |
+| `pnpm build && pnpm budget` | initial JS **70.8 KB gzip / 200 KB**; install **544.5 KB / 6 MB** |
+| `pnpm trace` · `pnpm api` · `pnpm progress:check` | regenerated and clean — 229 modules, 112 tasks |
+
+**One fragility was found and fixed during the gate run, and it is worth recording because it hid a
+gate check rather than a bug.** `tests/invariants/inv-11-cross-mode-parity.test.ts` plays hundreds of
+whole matches: about 2.5 minutes for the file under `pnpm test`, roughly double under V8 coverage
+instrumentation. Its 120 s per-test budgets cleared the first comfortably and the second by nothing,
+so `pnpm test:coverage` failed intermittently — and **Vitest writes no coverage report at all for a
+failed run**, so the coverage gate could not be evaluated because of a timeout that had nothing to do
+with coverage. The budgets are now 300 s. Gate 7 fixed the same class of problem the same way in
+`tests/sim/ai-ladder.test.ts`. Nothing in this phase made anything slower: every file it touches is
+render-side, and that harness is headless.
+
+### 3. Coverage thresholds (`12` §2)
+
+Hold, against an 85% floor overall and 80% branches:
+
+| | % |
+|---|---|
+| Statements / lines | **94.91%** (28 436 / 29 960) |
+| Branches | **92.05%** (7 727 / 8 394) |
+| Functions | **93.86%** (1 989 / 2 119) |
+
+The per-directory floors are enforced in `vitest.config.ts` and the run passed, so `athletes`,
+`economy`, `achievements` and `storage` are all above their 95%. Every module this phase added is at
+**100% lines**; the lowest branch coverage among them is `framing.ts` at 80%, which is the default
+arms of the optional-profile merge.
+
+`modes/live/framing.ts` sat at 7.7% lines when the gate first ran — exercised only through the
+screen, never directly. It is the bridge between a running match and the camera, and a `pressure`
+that counted the wrong side would have made the camera frame duels that were not happening with
+nothing failing. It now has its own tests and is at 100%.
+
+### 4. Invariants (`12` §3)
+
+None regressed, and two were *tightened* by accident of the work:
+
+- **INV-5** — two sport-specific constants were found hiding in sport-generic code and removed. The
+  minimap's aspect ratio was a hardcoded basketball court in `hud.ts`, a file whose header claims
+  never to have heard of basketball. Framing is now supplied by the sport through the seam.
+- **INV-11** — the four edge-marker kinds are distinguished by *silhouette*, with a test asserting
+  that no two kinds emit the same sequence of path calls; the minimap keeps a 44 px floor on both
+  axes.
+- **INV-8** remains true by construction: nothing in `engine/render` is read by the sim, and the
+  director advances on frame time.
+
+### 5. Device matrix (`12` §7)
+
+**Not run.** No device. Unchanged since Gate 2, now seven gates deep — and for this phase it is not
+a formality. Phase 12 is *about* what a phone looks like.
+
+### 6. Gate 12's own criteria (`03`)
+
+> *An athlete is legible on a 360 px-wide phone without pinch-zoom; the player can always tell where
+> the ball and the nearest opponent are, on screen or off; ≥55 fps holds at 11v11 with the camera
+> moving; and every camera motion has an off switch.*
+
+| Criterion | Result |
+|---|---|
+| The ball and the nearest opponent are always findable | **Met.** T-12.3 gives the ball, your athlete, and the nearest opponents their own markers, each a distinct silhouette, and T-12.4's minimap carries the rest with a viewport box. Both are unit-tested. |
+| Every camera motion has an off switch | **Met.** T-12.7's three levels, reachable mid-match from the pause menu, including a `fixed` camera that does not move at all. |
+| An athlete is legible on a 360 px phone | **Arithmetically met, not seen.** `legibleSpan` puts an athlete at 18 px on a 360 px viewport where the old fixed 45 m span gave about 11. That is a calculation, and legibility is a thing eyes do. |
+| ≥55 fps at 11v11 with the camera moving | **Not measured.** `pnpm bench` measures the *sim*, and the sim was never the risk — 0.094 ms of a 16.7 ms frame. Frame time with a moving camera, a redrawn static layer, and the new markers is a render measurement on real hardware. |
+
+### 7. Tag and deploy
+
+**Not done, and this is the user's to do.** The work is on `claude/phase-12-next-steps-xeminm`
+behind draft PR #17. `deploy.yml` fires on `push: tags: ['v*']` and `workflow_dispatch`, and neither
+is reachable from a sandboxed session — the git proxy refuses tag pushes and the GitHub App has no
+`actions: write`. **A tag is the only way to ship**, so nothing in this phase can be seen on a phone
+until PR #17 is merged and a tag is pushed.
+
+### 8. What a session cannot close here
+
+Beyond the two criteria above:
+
+- **Whether the framing is comfortable.** Legible and watchable are different properties.
+- **Whether basketball's 18 m duel span is an improvement.** It is a guess: an isolation is the one
+  moment in that sport where the other eight players are not the information. If basketball feels
+  worse than it did, that line in `sports/basketball/index.ts` is the revert.
+- **One-handed reach**, which is a fact about a hand.
+- **The feel note for the phase**, which cannot honestly be written by something that has not
+  played it.
