@@ -110,15 +110,14 @@ const READ_WEIGHT = 0.08;
 /**
  * How hard leaning on one intent is allowed to push it *down*, in the same units as `READ_WEIGHT`.
  *
- * Smaller than the read, deliberately: a CPU that varies harder than it exploits is choosing worse
- * calls on purpose, which is a different thing from being hard to read.
+ * A third of the read, the same ratio basketball uses, so the two sports make the same statement
+ * about how variety trades against call quality: it is a tiebreak, not a strategy.
  *
- * **0.03 rather than 0.05 because of the turn budget.** Variety reaches the `tempo` dimension along
- * with every other, so a CPU that stops always calling `patient` plays a slightly faster match —
- * at 0.05 the mean came out at 24.1 turns against T-6.14's ceiling of 24. Worth knowing before
- * raising it again: this constant is not free, it is priced in turns.
+ * **This constant is priced in turns.** Variety reaches the `tempo` dimension along with every
+ * other, so a CPU that stops always calling `patient` plays a slightly faster match — at 0.05 the
+ * mean came out at 24.1 against T-6.14's ceiling of 24. Worth knowing before raising it.
  */
-const REPEAT_WEIGHT = 0.03;
+const REPEAT_WEIGHT = READ_WEIGHT / 3;
 
 /** What this side has chosen on one dimension lately, in the role it is calling now. */
 function ownIntents(

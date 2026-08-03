@@ -67,12 +67,19 @@ const READ_WEIGHT = 0.22;
 /**
  * How hard leaning on one call is allowed to push it *down*, in the same units.
  *
- * Smaller than the read, deliberately: a CPU that varies harder than it exploits is a CPU choosing
- * worse calls on purpose, which is a different thing from being hard to read.
+ * **A fixed fraction of the read**, in both sports, rather than a number picked per sport. The two
+ * are in the same units as each other by construction — whatever a point of read is worth here, a
+ * repeat is worth a third of it — and that ratio is the statement being made: a CPU that varies
+ * harder than it exploits is choosing worse calls on purpose, which is a different thing from being
+ * hard to read.
+ *
+ * Landed at a third after the first attempt used two thirds (0.14) and cost basketball's Playbook
+ * Legend most of its edge: `pnpm ai:ladder` put it at +0.93 against Pro, down from +6.00, because
+ * it was varying off genuinely better calls. Variety is a tiebreak, not a strategy.
  *
  * @spec-ref 06-game-design.md §7 — exploits mismatches: no · rarely · often · consistently
  */
-const REPEAT_WEIGHT = 0.14;
+const REPEAT_WEIGHT = READ_WEIGHT / 3;
 
 /** The calls this side has made in the window, on the same side of the ball it is calling now. */
 function ownCalls(
