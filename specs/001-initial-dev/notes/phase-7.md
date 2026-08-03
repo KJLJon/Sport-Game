@@ -411,26 +411,47 @@ Absent, it *is* `state.difficulty`, so every match a player plays is unchanged �
 soccer balance run coming back byte-identical and by a test that a two-legend match and a
 `difficulty: 'legend'` match produce the same score.
 
-**It found something on its first real run, and the finding is large.** 30 matches per level per
-sport-and-mode:
+**The first version of this harness measured luck, and said so by disagreeing with itself.** It
+reported the same pairing at 36.7% on one seed set and 81.3% on another — a 45-point swing that no
+sampling story explains. Two defects, both mine:
+
+1. **The rosters were not the same.** A match left to itself rolls anonymous ratings from its seed,
+   *independently per side*. A random roster edge is worth more than a whole difficulty step, so the
+   tool was measuring the draw. Both sides now field the same squad.
+2. **The two legs of a pairing used different seeds**, so swapping the sides *averaged over* home
+   advantage instead of cancelling it. Both legs now share a seed and a squad and differ in exactly
+   one thing: which side got which level.
+
+That last change bought a free self-check. At the reference level both legs are literally the same
+match with the sides named the other way round, so Pro must come back at exactly 50% and a margin of
+exactly zero — and `judge()` reports it as a bug in the harness if it does not. Every group in the
+run below reads `50.0% / +0.00`, which is the tool certifying itself.
+
+**Margin, not win rate, is the headline.** A basketball match is 80 points a side and a soccer match
+is two goals; who won is one bit of that, and a batch small enough to run before a gate cannot see
+a difficulty step through it. The mean scoreline margin uses the whole scoreline and separates the
+levels an order of magnitude sooner — visible below, where basketball's win rates look flat and its
+margins are cleanly ordered.
+
+**What the fixed harness actually says.** 30 paired matches per level per sport-and-mode, every
+level against Pro, margin in points or goals:
 
 | | rookie | pro | allStar | legend |
 |---|---|---|---|---|
-| basketball · live | **56.7%** | 50.0% | 50.0% | **36.7%** |
-| basketball · playbook | 50.0% | 70.0% | 60.0% | 70.0% |
-| soccer · live | **58.3%** | 43.3% | **41.7%** | **33.3%** |
-| soccer · playbook | 40.0% | 45.0% | 53.3% | 58.3% |
+| basketball · live | −0.17 | +0.00 | +3.70 | **+5.40** |
+| basketball · playbook | −2.13 | +0.00 | +4.20 | **+6.00** |
+| soccer · live | −0.40 | +0.00 | +0.27 | **−0.37** |
+| soccer · playbook | −0.43 | +0.00 | +0.43 | **−0.07** |
 
-**The Live ladder is inverted, in both sports.** Rookie beats Pro; Legend loses to it. A ~20–25 point
-inversion in the same direction in two independent sports is not a 30-match sampling artefact.
-Playbook soccer is a correct ladder and entirely in band; Playbook basketball is noisy (its only
-difficulty channel is the sampling temperature, which is thin).
+**Basketball's ladder is healthy and soccer's collapses at the top.** Both basketball rows are
+monotone with a real gap; the only complaints against them are win-rate spread bands, which the
+margins say are noise. Soccer is flat in both modes and *inverted at the top*: Legend is no better
+than Rookie, and worse than All-Star.
 
-The hypothesis to test in T-7.11 is **aggression**: `contestChance()` scales tackle and steal
-commitment by it, so `relentless` lunges far more often — more fouls conceded, more free throws and
-free kicks given away, more turnovers from a defender who has left their feet. A level that competes
-harder is being *punished* for it. That is a difficulty-model bug, not a tuning nudge, and it is
-exactly the thing this harness exists to have caught.
+That it fails in **both** soccer modes is the useful part of the finding. Playbook soccer's only
+difficulty channel is the call-sampling temperature, so this is not simply Live's aggression
+punishing a relentless defender — something about how soccer converts a better decision into a
+better outcome gives out above All-Star. **T-7.11 owns it.**
 
 **Not in the suite.** `pnpm ai:ladder` is a pre-gate tool like `pnpm balance`, and it exits non-zero
 today, on purpose. What runs in the suite is `judge()` against fixtures — so the bands cannot rot

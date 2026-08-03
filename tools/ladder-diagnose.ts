@@ -56,7 +56,9 @@ function run(module: SportModule, label: string): void {
 
     for (let i = 0; i < MATCHES; i += 1) {
       for (const side of [0, 1] as const) {
-        const seed = `diag-${label}-${level}-${side}-${i}`;
+        // Paired, like `ai-regression.ts`: both legs share a seed and differ only in which side
+        // got which level, so what is left in the difference is the level.
+        const seed = `diag-${label}-${level}-${i}`;
         // The same squad on both sides, for the reason `ai-regression.ts` explains at length: a
         // random roster edge is worth more than a difficulty step.
         const squad = label === 'basketball' ? five(seed) : eleven(seed);
@@ -104,6 +106,7 @@ function run(module: SportModule, label: string): void {
 
 const isEntry = process.argv[1]?.endsWith('ladder-diagnose.ts') === true;
 if (isEntry) {
-  run(basketball, 'basketball');
-  run(soccer, 'soccer');
+  const only = process.env.DIAG_SPORT;
+  if (only !== 'soccer') run(basketball, 'basketball');
+  if (only !== 'basketball') run(soccer, 'soccer');
 }
