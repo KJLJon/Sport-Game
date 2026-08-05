@@ -35,15 +35,12 @@
  */
 import { createRng, type Rng } from '../engine/rng.ts';
 import { rollAthlete, seededId } from '../athletes/create.ts';
-import {
-  ATHLETE_BOUNDS,
-  ATTRIBUTE_IDS,
-  attributeTotal,
-  clamp,
-  type AttributeId,
-  type Athlete,
-  type Attributes,
-} from '../athletes/types.ts';
+import { uniqueName } from '../athletes/names.ts';
+// Moved to `athletes/shape.ts` by T-8.11, when packs became its second caller. Re-exported because
+// this is where it has been imported from since Phase 7.
+export { shapeToward } from '../athletes/shape.ts';
+import { shapeToward } from '../athletes/shape.ts';
+import { type AttributeId, type Athlete } from '../athletes/types.ts';
 import type { SportId } from '../sports/types.ts';
 import { difficultyProfile, type Difficulty } from '../modes/difficulty.ts';
 import { CREST_IDS, TEAM_PALETTES, type CrestId, type Team } from './types.ts';
@@ -183,9 +180,15 @@ export function generateCpuTeam(options: CpuTeamOptions): CpuTeam {
   const squadRng = root.fork('squad');
   const athletes: Athlete[] = [];
 
+  // Names come from their own fork (T-8.11). Two reasons: a CPU squad used to be "Kestrel 1" through
+  // "Kestrel 11", which is a list rather than a team sheet — and forking means the name draws cannot
+  // shift the attribute draws, so every existing seed still produces exactly the athletes it did.
+  const nameRng = root.fork('names');
+  const usedNames = new Set<string>();
+
   for (let index = 0; index < options.size; index += 1) {
     const athlete = rollAthlete(squadRng, {
-      displayName: `${nickname.slice(0, -1)} ${index + 1}`,
+      displayName: uniqueName(nameRng, usedNames),
       primarySport: options.sportId,
       rarity: 'common',
       source: 'created',
@@ -199,93 +202,6 @@ export function generateCpuTeam(options: CpuTeamOptions): CpuTeam {
   }
 
   return { team, athletes, style };
-}
-
-/**
- * Moves an athlete's points towards what the style wants, **without changing how many there are**.
- *
- * This is the whole of the INV-1 argument in one function: `coherence` decides the *shape* of a
- * spread and can never decide its *size*. A Legend opponent's centre-back is not a better athlete
- * than a Rookie opponent's, they are a better centre-back — which is a thing a player can see, and
- * a thing they can beat.
- *
- * Points are taken proportionally from what the style does not want and given proportionally to
- * what it does, which keeps the whole spread inside the attribute bounds without special cases and
- * leaves an athlete who is already shaped that way untouched.
- */
-export function shapeToward(
-  attributes: Attributes,
-  wants: readonly AttributeId[],
-  coherence: number,
-): Attributes {
-  const pull = clamp(coherence, 0, 1);
-  if (pull === 0 || wants.length === 0 || wants.length === ATTRIBUTE_IDS.length) return attributes;
-
-  const wanted = new Set<AttributeId>(wants);
-  const rest = ATTRIBUTE_IDS.filter((id) => !wanted.has(id));
-
-  // What the unwanted attributes can spare, and what the wanted ones can hold. The move is bounded
-  // by *both*: taking more than the style can absorb would pile every spare point onto whichever
-  // attribute had room, which is a caricature rather than a team — a style should be recognisable,
-  // not a spike.
-  const room = rest.reduce(
-    (total, id) => total + (attributes[id] - ATHLETE_BOUNDS.attribute.min),
-    0,
-  );
-  const headroom = wants.reduce(
-    (total, id) => total + (ATHLETE_BOUNDS.attribute.max - attributes[id]),
-    0,
-  );
-  const moved = Math.min(room, headroom) * pull * MAX_RESHAPE;
-  if (moved <= 0) return attributes;
-
-  const result = { ...attributes } as Record<AttributeId, number>;
-
-  for (const id of rest) {
-    const share = (attributes[id] - ATHLETE_BOUNDS.attribute.min) / room;
-    result[id] = attributes[id] - moved * share;
-  }
-  for (const id of wants) {
-    const share = (ATHLETE_BOUNDS.attribute.max - attributes[id]) / headroom;
-    result[id] = attributes[id] + moved * share;
-  }
-
-  return settle(result, attributeTotal(attributes));
-}
-
-/**
- * How much of the available room a fully coherent team may move. Well under half, deliberately: an
- * opponent whose every athlete is a spike is not a coherent team, it is a gimmick, and it would
- * also make the style unbeatable rather than recognisable.
- */
-const MAX_RESHAPE = 0.45;
-
-/**
- * Rounds to whole attributes and puts back whatever rounding cost, so the total is *exactly* what
- * it was. Without this the invariant test would pass on average and fail on a seed.
- */
-function settle(draft: Record<AttributeId, number>, target: number): Attributes {
-  const rounded = {} as Record<AttributeId, number>;
-  for (const id of ATTRIBUTE_IDS) {
-    rounded[id] = Math.round(
-      clamp(draft[id], ATHLETE_BOUNDS.attribute.min, ATHLETE_BOUNDS.attribute.max),
-    );
-  }
-
-  let drift = target - attributeTotal(rounded as Attributes);
-  // Spread the rounding residue one point at a time over the attributes that have room for it, so
-  // no single attribute absorbs a correction big enough to change the shape.
-  for (let guard = 0; drift !== 0 && guard < ATTRIBUTE_IDS.length * 4; guard += 1) {
-    for (const id of ATTRIBUTE_IDS) {
-      if (drift === 0) break;
-      const next = rounded[id] + Math.sign(drift);
-      if (next < ATHLETE_BOUNDS.attribute.min || next > ATHLETE_BOUNDS.attribute.max) continue;
-      rounded[id] = next;
-      drift -= Math.sign(drift);
-    }
-  }
-
-  return rounded as Attributes;
 }
 
 /** Two to four characters, from the place and the nickname — the non-colour identity channel. */

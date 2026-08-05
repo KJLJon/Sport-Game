@@ -12,7 +12,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-8.11 — Procedural athlete generator
+- **Task:** T-8.15 — Local player names and party flows
 - **Status:** in_progress
 - **Started:** 2026-08-03
 - **Branch:** `claude/phase-12-next-steps-xeminm` (Phase 12 landed on it; PR **#17**).
@@ -22,7 +22,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] T-8.2 — Live setup screen, shared setup model, rule switches, and the roster wiring
   - [x] T-8.4 — checkpoint on a timer and on backgrounding; resume offered on the home screen
   - [x] T-8.5 — match history, box scores, career stats, and the first real Progress screen
-  - [ ] T-8.11 · T-8.15
+  - [x] T-8.11 — archetypes, fictional names, rarity-scaled coherence
+  - [ ] T-8.15
 - **T-8.2 found two things that were built and never connected.**
   1. **Live matches never used your athletes.** `MatchOptions.rosters` existed and `liveScreen` had
      no way to be given it, so every Live match was played by athletes rolled from the seed while
@@ -63,7 +64,16 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   them, so a box score could be built and never attached to anybody. Progression's `applyMatch` has
   been asking its caller for the same mapping since Phase 3.
 - **The Progress tab is a real screen now** — it had been an "arrives in Phase 8" placeholder.
-- **Next step:** T-8.11 — procedural athlete generator.
+- **T-8.11's gap was shape, not spread.** `rollAthlete` has drawn every attribute from one gaussian
+  since T-3.2 — a correct spread that produces athletes with no identity, so eleven of them are
+  eleven slightly different blobs. Seven **archetypes** now lean the points (and the body) somewhere,
+  with coherence rising by rarity, so a Legendary is *pointed* rather than uniformly slightly better.
+  `shapeToward` moves points and never mints them, which is INV-1, and there is a test asserting the
+  total is untouched across every rarity and 25 seeds each.
+- **CPU squads were named "Kestrel 1" through "Kestrel 11"** — a list, not a team sheet. They now
+  draw from the shared name pools, off their own RNG fork so every existing seed still produces
+  exactly the athletes it did.
+- **Next step:** T-8.15 — local player names and party flows.
 - **Blockers:** none. Gates 2–12 all still held by the same two user actions (device matrix, tag).
 
 ---
@@ -277,7 +287,7 @@ there; this file is read at every session start and the notes file only when you
 | T-8.8 | Arcade unlock wiring: achievements gate arcade games, with a clear unlock moment | M | `todo` | | | | |
 | T-8.9 | Achievement UI: gallery, filters, progress bars, in-match toast, post-match summary | M | `todo` | | | | |
 | T-8.10 | Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match payout | M | `todo` | | | | |
-| T-8.11 | Procedural athlete generator: rarity-coherent attribute spreads, fictional names | L | `todo` | | | | |
+| T-8.11 | Procedural athlete generator: rarity-coherent attribute spreads, fictional names | L | `done` | | `tests/unit/athletes/generator.test.ts` | auto | Seven archetypes give a rolled athlete a shape and a body; coherence rises with rarity and the total never moves (INV-1). CPU squads stopped being numbered. [notes](./notes/phase-8.md#t-811) |
 | T-8.12 | Packs: tiers, prices, published odds, pity timers, reveal animation with skip | L | `todo` | | | | |
 | T-8.13 | Sell-back: valuation, squad-lock guard, confirmation, anti-farm invariants (INV-5, INV-6) | M | `todo` | | | | |
 | T-8.14 | Transfer market: rotating listings, tamper-resistant refresh, paid refreshes, buy-offers, seeded price walk | XL | `todo` | | | | |

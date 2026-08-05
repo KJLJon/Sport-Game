@@ -237,3 +237,48 @@ leaves a career line slightly short; 500 is about a year of daily play.
 box because a career table has eight columns and a 360 px phone has room for four. Results are the
 *words* "Won"/"Lost"/"Drew" rather than a coloured row (INV-11), and both tables carry real row and
 column headers so a screen reader can navigate them as the tabular data they are.
+
+### T-8.11
+
+*Procedural athlete generator*
+
+**The gap was shape, not spread.** `rollAthlete` has existed since T-3.2 and it draws every attribute
+from *one* gaussian around the rarity band's mean. That is a perfectly correct spread and it produces
+athletes with no identity: eleven of them are eleven slightly different blobs, all mediocre at
+everything, none of them anybody. A pack you open to find another blob is a pack not worth opening.
+
+**Seven archetypes**, each wanting a distinct pair of attributes and carrying a body bias to match —
+a Sprinter is light and a little short, an Anchor is tall and heavy and slow. No two want the same
+pair and every attribute is wanted by somebody, the same rule `CPU_STYLES` follows and for the same
+reason: an archetype nobody can distinguish is not one.
+
+**Coherence rises with rarity, and that is the whole design.** Rarity decides *how many* points an
+athlete has; the archetype decides *where they sit*; coherence decides how hard the archetype pulls.
+So a Legendary is not merely higher-total — it is more **pointed**, clearly the best sprinter you own
+rather than uniformly slightly better at everything. That is what makes a good pull feel different
+rather than only score higher.
+
+**INV-1 is the thing to be careful about here**, and it has the strictest test in the file: for every
+rarity, across 25 seeds each, a generated athlete's attribute total is *exactly* the total the rarity
+roll produced. `shapeToward` moves points and never mints them. It would be very easy — and
+completely invisible from the outside — for shaping to leak a few points, at which point rarity would
+stop being the only thing that decides how good somebody is.
+
+**`shapeToward` moved from `teams/cpu-team.ts` to `athletes/shape.ts`.** It was written for T-7.9 to
+shape an opponent to a team style; a pack rolling an archetype wants exactly the same operation, and
+a copy in `athletes/` would have been two implementations of the one function INV-1 rests on.
+`cpu-team.ts` re-exports it so nothing that imported it from there had to change.
+
+**Names had been written twice and were about to be written a third time.** `starter-roster.ts` kept
+a private pair of pools and `cpu-team.ts` kept place-and-nickname lists for teams. `athletes/names.ts`
+is the athlete half, extracted and widened — three name generators would have drifted into three
+different-sounding worlds. Every name is invented: `US-9.2` asks for fictional ones, and the reason
+is not squeamishness but that a roster reading like a licensed one invites exactly the comparison it
+should not.
+
+**It has a caller, deliberately.** This phase has already turned up three things built and never
+connected — `generateCpuTeam`, `CameraDirector.snap`, the LOD tiers — so the generator was not left
+waiting for T-8.12's packs. CPU squads were named "Kestrel 1" through "Kestrel 11", which is a list
+rather than a team sheet; they now draw from the shared pools. Names come from their own RNG fork, so
+the name draws cannot shift the attribute draws and **every existing seed still produces exactly the
+athletes it did** — the balance harnesses' numbers are untouched.
