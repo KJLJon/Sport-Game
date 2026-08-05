@@ -75,6 +75,7 @@ import {
   type MatchResumeState,
 } from '../checkpoint.ts';
 import { appDatabase } from '../../storage/app-db.ts';
+import { buildRecord } from '../../stats/record.ts';
 import {
   DEFAULT_HUD_THEME,
   boxRows,
@@ -130,6 +131,8 @@ export interface LiveScreenOptions {
   readonly rules?: Partial<MatchRules>;
   /** Which of the sport's laws are being enforced (T-8.2). Absent means all of them. */
   readonly ruleOptions?: RuleOptions;
+  /** Team names as they were at kick-off, recorded with the match (T-8.5). */
+  readonly teamNames?: readonly [string, string];
   /** Where an interrupted match left its clock and scoreboard (T-8.4). */
   readonly resumeFrom?: MatchResumeState;
   /**
@@ -323,11 +326,50 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         renderOverlay();
       };
 
+      /**
+       * Files the finished match (T-8.5). Once — `renderOverlay` runs on every frame that the
+       * finished flag changes *and* on every settings change, and a match recorded twice is a
+       * career counted twice.
+       */
+      let recorded = false;
+      const recordMatch = (): void => {
+        if (recorded) return;
+        recorded = true;
+
+        const view = match.view();
+        void appDatabase()
+          .then((db) =>
+            db.matches.record(
+              buildRecord({
+                id: `${options.seed}:${Date.now().toString(36)}`,
+                playedAt: Date.now(),
+                sportId: options.sport.id,
+                mode: 'live',
+                difficulty,
+                score: view.score,
+                playerSide: view.playerSide,
+                teamNames: options.teamNames ?? ['Home', 'Away'],
+                periodsPlayed: view.period,
+                events: match.bus.history(),
+                box: match.box,
+                ...(lineup === undefined ? {} : { lineup }),
+              }),
+            ),
+          )
+          .catch(() => {
+            // A match that was played is worth more than a record of it. Losing the record is bad;
+            // throwing on the summary screen the player is looking at is worse.
+          });
+      };
+
+      const lineup = options.sport.lineup?.(match.sportState as never);
+
       const renderOverlay = (): void => {
         overlay.replaceChildren();
         if (match.finished) {
           // A finished match is not an interrupted one (T-8.4).
           dropCheckpoint();
+          recordMatch();
           overlay.appendChild(summaryPanel(doc, match, () => context.navigate('/play')));
           return;
         }

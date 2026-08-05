@@ -603,6 +603,10 @@ export const basketball: SportModule<BasketballState> = {
    * and at soccer's 5 m every possession would read as a duel.
    */
   // Basketball whistles fouls and has no offside law, so only one switch is offered (T-8.2).
+  lineup(state) {
+    return state.athleteIds;
+  },
+
   ruleSwitches: ['fouls'],
 
   camera: {

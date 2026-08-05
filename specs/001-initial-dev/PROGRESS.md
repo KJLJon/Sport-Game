@@ -12,7 +12,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-8.5 — Stats store
+- **Task:** T-8.11 — Procedural athlete generator
 - **Status:** in_progress
 - **Started:** 2026-08-03
 - **Branch:** `claude/phase-12-next-steps-xeminm` (Phase 12 landed on it; PR **#17**).
@@ -21,7 +21,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 - **Done so far:**
   - [x] T-8.2 — Live setup screen, shared setup model, rule switches, and the roster wiring
   - [x] T-8.4 — checkpoint on a timer and on backgrounding; resume offered on the home screen
-  - [ ] T-8.5 · T-8.11 · T-8.15
+  - [x] T-8.5 — match history, box scores, career stats, and the first real Progress screen
+  - [ ] T-8.11 · T-8.15
 - **T-8.2 found two things that were built and never connected.**
   1. **Live matches never used your athletes.** `MatchOptions.rosters` existed and `liveScreen` had
      no way to be given it, so every Live match was played by athletes rolled from the seed while
@@ -52,7 +53,17 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   a no. A run is about a minute, so a resume would drop the player mid-swing at a timing game — and
   a *scored* run restored from persisted numbers is a personal best anyone could edit in devtools.
   The card says "Play again" there, because that is what the button does.
-- **Next step:** T-8.5 — stats store: match history, box scores, career stats per sport per mode.
+- **T-8.5 is where INV-9 finally paid for itself.** Live steps a simulation and Playbook resolves
+  turns, and both push the same events onto the same bus — so *one* builder makes both records and
+  never asks which mode it is looking at. `mode` is stored to label a row and to filter a career,
+  never to compute one differently, and there is a test asserting the two modes produce identical
+  lines from an identical stream.
+- **`SportModule.lineup()` is a new seam member**, and a small one: both sports already kept
+  entity → athlete-id maps to give an entity real ratings, and nothing outside the sport could read
+  them, so a box score could be built and never attached to anybody. Progression's `applyMatch` has
+  been asking its caller for the same mapping since Phase 3.
+- **The Progress tab is a real screen now** — it had been an "arrives in Phase 8" placeholder.
+- **Next step:** T-8.11 — procedural athlete generator.
 - **Blockers:** none. Gates 2–12 all still held by the same two user actions (device matrix, tag).
 
 ---
@@ -260,7 +271,7 @@ there; this file is read at every session start and the notes file only when you
 | T-8.2 | Match setup screens for Live and Playbook: sport, teams, difficulty, length, rules toggles | M | `done` | | `tests/unit/modes/match-setup.test.ts`, `tests/unit/modes/rule-options.test.ts`, `tests/e2e/play-hub.spec.ts` | auto | Also the first thing to hand Live your actual athletes, and `generateCpuTeam`’s first caller. Setup is a second target beside the card, not in front of it — `10` §2’s two taps still hold. [notes](./notes/phase-8.md#t-82) |
 | T-8.3 | Tournament mode: 4/8/16 bracket, persistence, results, rewards; playable in Live or Playbook | L | `todo` | | | | |
 | T-8.4 | Match checkpointing and resume-after-kill, all three modes | M | `done` | | `tests/unit/modes/checkpoint.test.ts`, `tests/e2e/live-match.spec.ts` | auto | Stores the match’s *public* state, not the sim: score and clock come back, positions and the box score do not, and the card says so. Arcade is deliberately not resumable. [notes](./notes/phase-8.md#t-84) |
-| T-8.5 | Stats store: match history, box scores, career stats per sport per mode | M | `todo` | | | | |
+| T-8.5 | Stats store: match history, box scores, career stats per sport per mode | M | `done` | | `tests/unit/stats/record.test.ts`, `tests/e2e/play-hub.spec.ts` | auto | One builder for both modes off one event stream — the mode labels a record, it never changes how one is computed. Adds `SportModule.lineup()` and the first real Progress screen. [notes](./notes/phase-8.md#t-85) |
 | T-8.6 | Achievement engine: declarative defs, event-stream evaluation, progress, once-only grants (INV-7) | L | `todo` | | | | |
 | T-8.7 | Achievement content: ~75 defs incl. arcade unlocks, cross-sport, cross-mode, hidden | L | `todo` | | | | |
 | T-8.8 | Arcade unlock wiring: achievements gate arcade games, with a clear unlock moment | M | `todo` | | | | |

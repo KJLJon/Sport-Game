@@ -306,7 +306,11 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
   },
   {
     pattern: '/progress',
-    value: stub('progress', 'Progress', 'Achievements, stats, and tournaments.', 'Phase 8'),
+    value: {
+      id: 'progress',
+      title: 'Progress',
+      load: async () => (await import('../ui/screens/history.ts')).historyScreen(),
+    },
   },
   {
     pattern: '/settings',

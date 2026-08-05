@@ -509,6 +509,10 @@ export const soccer: SoccerModule = {
    * span widens. `duelRadius` is generous because a soccer duel starts a stride before contact.
    */
   // Soccer whistles fouls and flags offside, so it is offered a switch for both (T-8.2).
+  lineup(state) {
+    return state.athleteIds;
+  },
+
   ruleSwitches: ['fouls', 'offside'],
 
   camera: {

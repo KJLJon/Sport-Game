@@ -421,6 +421,19 @@ export interface SportModule<S extends SportState = SportState> {
   readonly ruleSwitches?: readonly (keyof RuleOptions)[];
 
   /**
+   * Which athlete is playing each entity (T-8.5).
+   *
+   * Both shipped sports already keep this map — they need it to give an entity real ratings — and
+   * nothing outside the sport could read it, so a box score could be built and never attached to
+   * anybody. Career stats are the first thing that needs the join, and progression's `applyMatch`
+   * has been asking its caller for the same mapping since Phase 3.
+   *
+   * Optional: a sport whose entities are anonymous (the Phase-1 fixture, a rosterless harness
+   * match) returns nothing and its stats are recorded against the match rather than any athlete.
+   */
+  lineup?(state: S): ReadonlyMap<EntityId, string>;
+
+  /**
    * What to show about this sport right now. Optional so a Phase-1 test fixture stays valid; a
    * sport without it gets the generic HUD and nothing breaks.
    */

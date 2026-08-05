@@ -205,3 +205,18 @@ test('a deep link to a match still plays without going through setup', async ({ 
   await page.goto(`${BASE}#/play/live/soccer`);
   await expect(page.locator('canvas.live__canvas')).toBeVisible();
 });
+
+/**
+ * T-8.5. The Progress tab was a placeholder until now, so what is asserted is that it is a real
+ * screen with a real state — the empty one, which is what a fresh install actually shows.
+ */
+test('the Progress tab is a real screen, and says so when there is nothing in it', async ({
+  page,
+}) => {
+  await page.goto(`${BASE}#/progress`);
+
+  // `10` §10: an empty state that names the thing and offers the way to fill it.
+  await expect(page.getByText('No matches yet')).toBeVisible();
+  // Scoped to the content: the shell's tab bar has a "Play" link too.
+  await expect(page.locator('#main').getByRole('link', { name: 'Play' })).toBeVisible();
+});

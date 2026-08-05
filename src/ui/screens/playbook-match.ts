@@ -69,6 +69,7 @@ import {
   describeMatch,
   saveCheckpoint,
 } from '../../modes/checkpoint.ts';
+import { buildRecord } from '../../stats/record.ts';
 import { buildHash } from '../../app/router.ts';
 
 /**
@@ -180,6 +181,40 @@ export function playbookMatchScreen(): Screen {
       }
       detachResize = canvasHost.onResize(() => undefined);
       if (view !== null) canvasHost.attach(board, view);
+
+      /**
+       * Files the finished match (T-8.5).
+       *
+       * The *same* builder Live uses, fed the same event history off the same bus. Playbook keeps no
+       * running box score, so this one is derived from the events — which is not a mode branch but a
+       * caller handing over work it happens not to have done. That the two modes' records come out
+       * identically shaped from identical streams is INV-9 paying for itself.
+       */
+      let recorded = false;
+      const recordMatch = (): void => {
+        if (recorded) return;
+        recorded = true;
+
+        const state = match.view();
+        void appDatabase()
+          .then((db) =>
+            db.matches.record(
+              buildRecord({
+                id: `${setup.sport}-playbook:${Date.now().toString(36)}`,
+                playedAt: Date.now(),
+                sportId: module.id,
+                mode: 'playbook',
+                difficulty: setup.difficulty,
+                score: state.score,
+                playerSide: 0,
+                teamNames: ['Home', 'Away'],
+                periodsPlayed: state.period,
+                events: match.events,
+              }),
+            ),
+          )
+          .catch(() => {});
+      };
 
       /**
        * Records where this match has got to (T-8.4).
@@ -364,6 +399,7 @@ export function playbookMatchScreen(): Screen {
           void appDatabase()
             .then((db) => clearCheckpoint(db.db))
             .catch(() => {});
+          recordMatch();
           stage = 'over';
           renderStage();
           return;

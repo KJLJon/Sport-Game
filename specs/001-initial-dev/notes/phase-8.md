@@ -194,3 +194,46 @@ with no migration in between.
 **One clamp worth knowing about.** T-8.2 lets a player change match length between sessions, so a
 `periodStep` recorded in a full match can exceed a short period. Unclamped, the resumed period would
 start already expired and end on its first step.
+
+### T-8.5
+
+*Stats store: match history, box scores, career stats*
+
+**This is the task where INV-9 stopped being a rule and became a saving.** Live steps a simulation
+sixty times a second; Playbook resolves a turn at a time. Both push the same `SportEvent`s onto the
+same bus, so both arrive at `buildRecord` as an array of events and a final score, and it never asks
+which mode produced them. `mode` is stored so a row can *say* how a match was played and so a career
+can be filtered — never so that stats are computed differently. There is a test asserting the two
+modes produce byte-identical lines from an identical stream, because the failure it guards against
+is one nobody would notice: a Playbook assist counted by a slightly different rule, discovered
+months later in numbers nobody can attribute.
+
+**`SportModule.lineup()` is a new seam member and a small one.** Both shipped sports already kept an
+entity → athlete-id map — they need it to give an entity real ratings — and nothing outside the sport
+could read it. So a box score could be built and never attached to anybody, which makes career stats
+impossible. Progression's `applyMatch` has been asking *its* caller for exactly this mapping since
+Phase 3, so the join was already assumed to exist; this is the first thing to expose it.
+
+It is optional, and a sport that returns nothing records its box score with `athleteId: null`. Those
+lines are then **skipped** by `buildCareers` rather than pooled under a placeholder id — an "unknown
+athlete" whose career grew with every rosterless harness run would make the whole screen
+untrustworthy.
+
+**Careers are per sport, deliberately.** `05` §3 makes ratings per sport, so a career total that
+mixed basketball and soccer would be answering a question nobody asks. `byMode` sits alongside the
+total rather than replacing it: "how do I do in Playbook" is a real question and it is a *filter* on
+one set of numbers, not a second set.
+
+**A win is counted only for the side the player was on.** The opponent's athletes have real lines in
+every record, and crediting them with a result would record the player's own outcome twice — once as
+a win for them and once as a loss for the CPU, in a table that is supposed to be about the player's
+squad.
+
+**History is capped at 500 matches.** A record is small, but a store nothing prunes grows for as long
+as the app is installed, on a device whose quota is not ours. The honest cost is that a pruned match
+leaves a career line slightly short; 500 is about a year of daily play.
+
+**The Progress tab was a placeholder and is now a screen.** Two tables, each scrolling inside its own
+box because a career table has eight columns and a 360 px phone has room for four. Results are the
+*words* "Won"/"Lost"/"Drew" rather than a coloured row (INV-11), and both tables carry real row and
+column headers so a screen reader can navigate them as the tabular data they are.
