@@ -72,10 +72,10 @@ function summary(doc: Document, state: EconomyState): HTMLElement {
     class: 'wallet__summary',
     children: [
       el(doc, 'p', { class: 'wallet__balance-label', text: 'Balance' }),
+      // The pill names itself — it carries `role="img"` and the spelled-out amount — so there is
+      // nothing for this paragraph to label, and `aria-label` on a `<p>` is prohibited anyway.
       el(doc, 'p', {
         class: 'wallet__balance',
-        // The number, spelled out for a screen reader, and the pill's icon for everyone else.
-        attrs: { 'aria-label': `${state.balance.toLocaleString('en-US')} coins` },
         children: [coinPill(doc, { amount: state.balance })],
       }),
       el(doc, 'p', {

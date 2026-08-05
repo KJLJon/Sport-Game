@@ -373,6 +373,13 @@ Nobody had ever been paid one. Three lines in `arcade-game.ts` fixed it. The day
 is a bad afternoon, whereas the reverse order would credit coins the day never counted and break the
 daily cap — the thing that makes arcade unfarmable.
 
+**And the find had a twin.** `coinPill` (T-0.4) has carried `aria-label` on a bare `<span>` since
+the design system landed. That is a *prohibited* ARIA attribute — axe fails it as serious — and no
+sweep had ever caught it, because until this task the component existed only in the dev gallery,
+which the a11y sweep does not visit. The wallet was the first real screen to use it, and the Store
+audit went red on the first run. It now carries `role="img"`, as `starRating` beside it always has.
+Worth stating as a rule: **a component that only the gallery uses has not been tested.**
+
 **The Store tab is a real screen now**, which also removed the last `stub()` from the route table:
 every route in the app loads something real. Packs, the market, and selling land alongside the wallet
 at T-8.12 to T-8.14 rather than instead of it — all three spend from the balance it shows.
@@ -403,6 +410,9 @@ play, so no capped payout can sit inside a fixed ±25% per-minute band — the b
 XP, which is uncapped, and meaningless here. So the invariant test asserts what the cap is actually
 *for*: Live and Playbook pay identically, and a day of arcade is worth less than the same minutes
 spent playing matches.
+
+**Verified in a real browser.** The a11y and smoke E2E suite runs green against a build, including
+the Store audit that found the pill.
 
 **Feel note.** Finishing a match and watching four lines add themselves up to a number is the first
 time this game has felt like it has a *why* outside the match. "First win today +250" is the one that

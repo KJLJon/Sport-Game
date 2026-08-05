@@ -26,9 +26,12 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   farm — which `09` §7 rules out. The ceiling is fine; how fast it is reachable is not. Retuning it
   touches pack prices that do not exist yet, so it belongs to T-8.16. Written up in
   [notes/phase-8.md](./notes/phase-8.md#t-810).
-- 🧵 **The recurring find, again.** `modes/arcade/rewards.ts` has computed a coin award for every
-  scored run since T-4.13 and said in its own header that crediting it was "one call away". Nobody
-  had ever been paid one. A task is done when something a player can reach calls it.
+- 🧵 **The recurring find, twice more.** `modes/arcade/rewards.ts` has computed a coin award for
+  every scored run since T-4.13 and said in its own header that crediting it was "one call away" —
+  nobody had ever been paid one. And `coinPill` (T-0.4) has carried a *prohibited* `aria-label` on a
+  bare `<span>` since the design system landed; the Store a11y audit went red the first time a real
+  screen used it, because until now it lived only in the dev gallery, which the sweep does not
+  visit. **A component only the gallery uses has not been tested.**
 - **Next step:** T-8.3 (tournaments) or T-8.6 (achievement engine) — both can now pay real coins.
   T-8.6 → T-8.7 → T-8.8 is the longer chain and gates "every arcade game is unlockable through
   play", which is half of Gate 8.
@@ -245,7 +248,7 @@ there; this file is read at every session start and the notes file only when you
 | T-8.7 | Achievement content: ~75 defs incl. arcade unlocks, cross-sport, cross-mode, hidden | L | `todo` | | | | |
 | T-8.8 | Arcade unlock wiring: achievements gate arcade games, with a clear unlock moment | M | `todo` | | | | |
 | T-8.9 | Achievement UI: gallery, filters, progress bars, in-match toast, post-match summary | M | `todo` | | | | |
-| T-8.10 | Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match payout | M | `done` | | `tests/unit/economy/earning.test.ts`, `tests/unit/economy/wallet.test.ts`, `tests/unit/ui/wallet.test.ts`, `tests/integration/storage/economy.test.ts`, `tests/invariants/inv-12-reward-parity.test.ts` | auto | A payout is a pure function of a `MatchRecord`, so Live and Playbook pay the same coins with no mode to branch on; arcade is credited for the first time since T-4.13 computed it. Balance finding for T-8.16 recorded. [notes](./notes/phase-8.md#t-810) |
+| T-8.10 | Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match payout | M | `done` | | `tests/unit/economy/earning.test.ts`, `tests/unit/economy/wallet.test.ts`, `tests/unit/ui/wallet.test.ts`, `tests/integration/storage/economy.test.ts`, `tests/invariants/inv-12-reward-parity.test.ts` | auto + a11y/smoke E2E in Chromium | A payout is a pure function of a `MatchRecord`, so Live and Playbook pay the same coins with no mode to branch on; arcade is credited for the first time since T-4.13 computed it. Balance finding for T-8.16 recorded. [notes](./notes/phase-8.md#t-810) |
 | T-8.11 | Procedural athlete generator: rarity-coherent attribute spreads, fictional names | L | `done` | | `tests/unit/athletes/generator.test.ts` | auto | Seven archetypes give a rolled athlete a shape and a body; coherence rises with rarity and the total never moves (INV-1). CPU squads stopped being numbered. [notes](./notes/phase-8.md#t-811) |
 | T-8.12 | Packs: tiers, prices, published odds, pity timers, reveal animation with skip | L | `todo` | | | | |
 | T-8.13 | Sell-back: valuation, squad-lock guard, confirmation, anti-farm invariants (INV-5, INV-6) | M | `todo` | | | | |

@@ -87,9 +87,13 @@ describe('the wallet screen', () => {
 
     const ctx = context();
     await walletScreen().mount(ctx);
-    expect(ctx.host.querySelector('.wallet__balance')?.getAttribute('aria-label')).toBe(
-      '1,250 coins',
-    );
+
+    // On the pill itself, which carries the role that makes the label legal.
+    const pill = ctx.host.querySelector('.wallet__balance .coin-pill');
+    expect(pill?.getAttribute('aria-label')).toBe('1,250 coins');
+    expect(pill?.getAttribute('role')).toBe('img');
+    // A label on the paragraph would be an ARIA violation, not a second chance to be read.
+    expect(ctx.host.querySelector('.wallet__balance')?.hasAttribute('aria-label')).toBe(false);
   });
 });
 
