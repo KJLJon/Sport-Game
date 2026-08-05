@@ -12,38 +12,28 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-8.10 — Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match
-  payout
-- **Status:** in_progress
-- **Started:** 2026-08-05
-- **Branch:** `claude/continue-session-c1lrpo`, off `main` at `956d3e9` (PR #17 merged).
-- **Why T-8.10 before T-8.3.** `pnpm -s next` lists T-8.3, T-8.6, T-8.10. T-8.3's own line ends in
-  "results, **rewards**", and a tournament that pays 1 500 coins into a wallet that does not exist
-  would have to be built twice. The economy is also the Gate 8 spine (T-8.10 → T-8.13), so it goes
-  first and T-8.3 gets a real payout when it lands.
-- **Done so far:**
-  - [x] `modes/day.ts` — one UTC day boundary, shared by the daily challenge and the day bonus
-  - [x] `economy/types.ts` — the `economy` singleton: balance, ledger, lifetime totals, repair
-  - [x] `economy/earning.ts` — `05` §5.3's table, sport-neutral milestones, itemised payout
-  - [x] `economy/wallet.ts` — pure balance rules, first-win-of-the-day settled atomically
-  - [x] `economy/repository.ts` — the store, with writes serialised behind one promise chain
-  - [x] Credit Live, Playbook, and arcade — all three now settle into the wallet
-  - [x] `ui/components/payout.ts` — the itemisation, on both post-match screens (`06` §4)
-  - [x] Wallet screen: the Store tab is a real screen now, balance and ledger (US-9.5)
-  - [x] Component tests for the payout panel, the wallet screen, and the Live summary
-  - [ ] Feel note, notes/phase-8.md entry, `pnpm api` + `pnpm trace`, task row to `done`
-- **Next step:** finish the bookkeeping and mark T-8.10 done; then T-8.6 (achievement engine) or
-  T-8.3 (tournaments), both of which can now pay real coins.
-- **Files touched:** src/modes/day.ts, src/modes/arcade/daily.ts, src/economy/*, src/storage/app-db.ts,
-  src/ui/components/payout.ts, src/ui/components.css, src/modes/live/screen.ts,
-  src/ui/screens/playbook-match.ts, src/ui/screens/arcade-game.ts, tests/unit/economy/*,
-  tests/integration/storage/economy.test.ts
+- **Task:** none. **T-8.10 is done** — the wallet, its ledger, `05` §5.3's earning table, and the
+  itemised payout on both post-match screens. PR **#18** is open as a draft.
+- **Branch:** `claude/continue-session-c1lrpo`, off `main` at `956d3e9`.
+- **Suite:** 188 files, **3 284 unit tests**, 57 E2E, typecheck and lint clean.
+- **What T-8.10 unblocked:** T-8.12 (packs) and T-8.13 (sell-back) both waited on the wallet.
+  `pnpm -s next` now lists **T-8.3, T-8.6, T-8.13** — T-8.12 also needs T-8.11, which is done, so it
+  is ready too.
+- ⚠️ **A balance finding for T-8.16, recorded not fixed.** With a match rate finally visible,
+  arcade's coin numbers from T-4.13 are badly front-loaded against it: a won 12-minute Live match
+  pays 250 coins, a 21-second three-star free-throw run pays 160, and the entire daily ceiling (320)
+  can be collected in under three minutes. For a player with five minutes, arcade is the efficient
+  farm — which `09` §7 rules out. The ceiling is fine; how fast it is reachable is not. Retuning it
+  touches pack prices that do not exist yet, so it belongs to T-8.16. Written up in
+  [notes/phase-8.md](./notes/phase-8.md#t-810).
+- 🧵 **The recurring find, again.** `modes/arcade/rewards.ts` has computed a coin award for every
+  scored run since T-4.13 and said in its own header that crediting it was "one call away". Nobody
+  had ever been paid one. A task is done when something a player can reach calls it.
+- **Next step:** T-8.3 (tournaments) or T-8.6 (achievement engine) — both can now pay real coins.
+  T-8.6 → T-8.7 → T-8.8 is the longer chain and gates "every arcade game is unlockable through
+  play", which is half of Gate 8.
 - **Blockers:** none for the code. **Gates 2 through 12 are all still held by the same two user
   actions:** the device matrix and a tagged deploy. A tag is the only thing that ships.
-- 🧵 **The recurring find, again, before a line was written.** `modes/arcade/rewards.ts` (T-4.13)
-  computes a coin award for every scored run and says in its own header that crediting it "is one
-  call away and belongs with the economy that owns the balance". Nobody has ever been paid one.
-  A task is done when something a player can reach calls it.
 
 ---
 
@@ -255,7 +245,7 @@ there; this file is read at every session start and the notes file only when you
 | T-8.7 | Achievement content: ~75 defs incl. arcade unlocks, cross-sport, cross-mode, hidden | L | `todo` | | | | |
 | T-8.8 | Arcade unlock wiring: achievements gate arcade games, with a clear unlock moment | M | `todo` | | | | |
 | T-8.9 | Achievement UI: gallery, filters, progress bars, in-match toast, post-match summary | M | `todo` | | | | |
-| T-8.10 | Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match payout | M | `in_progress` | | `tests/unit/economy/earning.test.ts`, `tests/unit/economy/wallet.test.ts`, `tests/integration/storage/economy.test.ts` | | Economy core landed; crediting the three modes and the wallet screen still to come. |
+| T-8.10 | Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match payout | M | `done` | | `tests/unit/economy/earning.test.ts`, `tests/unit/economy/wallet.test.ts`, `tests/unit/ui/wallet.test.ts`, `tests/integration/storage/economy.test.ts`, `tests/invariants/inv-12-reward-parity.test.ts` | auto | A payout is a pure function of a `MatchRecord`, so Live and Playbook pay the same coins with no mode to branch on; arcade is credited for the first time since T-4.13 computed it. Balance finding for T-8.16 recorded. [notes](./notes/phase-8.md#t-810) |
 | T-8.11 | Procedural athlete generator: rarity-coherent attribute spreads, fictional names | L | `done` | | `tests/unit/athletes/generator.test.ts` | auto | Seven archetypes give a rolled athlete a shape and a body; coherence rises with rarity and the total never moves (INV-1). CPU squads stopped being numbered. [notes](./notes/phase-8.md#t-811) |
 | T-8.12 | Packs: tiers, prices, published odds, pity timers, reveal animation with skip | L | `todo` | | | | |
 | T-8.13 | Sell-back: valuation, squad-lock guard, confirmation, anti-farm invariants (INV-5, INV-6) | M | `todo` | | | | |

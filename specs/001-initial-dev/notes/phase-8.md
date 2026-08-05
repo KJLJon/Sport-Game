@@ -314,3 +314,98 @@ four players because somebody looked at it would be inventing a party.
 **Where the names are, said out loud.** `US-17.3` promises local-only, and they live in preferences
 rather than IndexedDB — not in a backup, not in a roster export, not in a P2P handshake. The screen
 says that in a sentence, because a promise nobody can see is indistinguishable from one nobody kept.
+
+---
+
+### T-8.10
+
+*Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match payout*
+
+**Taken before T-8.3, which is lower-numbered.** T-8.3's own line ends in "results, **rewards**", and
+a tournament that pays 1 500 coins into a wallet that does not exist would have to be built twice.
+The economy is also the Gate 8 spine — T-8.10 → T-8.12 → T-8.13 → T-8.14 → T-8.16 — so it goes first
+and tournaments get a real payout when they land.
+
+**A payout is a pure function of a `MatchRecord`.** That one decision does most of the work.
+`buildRecord` (T-8.5) already turns either mode's event stream into the same record, so `matchPayout`
+takes the record and nothing else: no mode, no simulation, no clock. INV-6 is not upheld here by
+discipline — there is nowhere for a mode to be branched on, because a mode is not an argument. The
+invariant test asserts the consequence: the same record with `mode` swapped pays identically.
+
+**Performance milestones are relative, not absolute.** `05` §5.3 asks for "performance milestones,
+25–150 each, capped". Every milestone that comes to mind is basketball's — 20 points, a
+double-double — and a soccer match would never pay one. Branching on the sport would put a rule about
+basketball inside the economy, so instead each milestone reads a *ratio*: a share of the team's
+scoring, a margin as a fraction of the score, a turnover count against the opponent's. A 2–0 soccer
+win and a 100–80 basketball win both earn "Dominant win", and hockey gets the whole table for free.
+
+**Milestones read the scoreline, not the box score, for anything about the result.** The two can
+differ — an anonymous fixture records no lines at all, an own goal belongs to nobody's line — and a
+shutout awarded because the box score happened to be empty is a bug a test found within the hour.
+
+**Multipliers scale performance; the daily bonus does not.** `05` §5.3 lists the difficulty
+multiplier, the no-assist bonus and the flat awards in one table without saying what multiplies what.
+Both multipliers scale what you did — completion, the win, the milestones — and the
+first-win-of-the-day 250 is added flat afterwards. Scaling it too would make the first Legend win of
+the day worth 500 on its own, turning a "come back tomorrow" nudge into the biggest number on the
+screen.
+
+**Every multiplier line carries the coins it added, computed against the running total.** So the
+lines always sum to the headline, whatever the rounding does. A player who adds up the post-match
+screen and gets a different number stops trusting the screen; there is a test per difficulty level.
+
+**First-win-of-the-day is settled with the credit, not before it.** It is a fact about the wallet's
+history rather than about the match — has today already paid one — so `settleMatch` decides it and
+marks it in the same pure step, and the repository serialises the whole thing. Two matches finishing
+in the same second cannot both be "the first". A loss or a draw does not consume it either: an
+unlucky evening should not cost tomorrow morning's 250.
+
+**The repository queues every write.** A wallet is read-modify-write by nature, both match screens
+credit from a `.then()` on the shared database promise, and an arcade run can settle while a match is
+still writing. Without a queue the second write reads the old balance and the player is simply short.
+There is an integration test that issues three credits in one tick and expects all three.
+
+🧵 **The recurring find, again — and this time it was already written down.**
+`modes/arcade/rewards.ts` has computed a coin award for every scored run since T-4.13, and its own
+header says crediting it "is one call away and belongs with the economy that owns the balance".
+Nobody had ever been paid one. Three lines in `arcade-game.ts` fixed it. The day record is written
+*before* the credit deliberately: if the second write fails the player is short a run's coins, which
+is a bad afternoon, whereas the reverse order would credit coins the day never counted and break the
+daily cap — the thing that makes arcade unfarmable.
+
+**The Store tab is a real screen now**, which also removed the last `stub()` from the route table:
+every route in the app loads something real. Packs, the market, and selling land alongside the wallet
+at T-8.12 to T-8.14 rather than instead of it — all three spend from the balance it shows.
+
+#### ⚠️ A balance finding for T-8.16
+
+The match rate is now visible for the first time, and arcade's numbers from T-4.13 do not line up
+with it. Measured:
+
+| | Coins | Minutes | Per minute |
+|---|---|---|---|
+| Won Live match, Pro | 250 | 12 | 20.8 |
+| First three-star free-throw run | 160 | 0.35 | **453** |
+| 200 arcade runs (the day's ceiling) | 320 | 103 | 3.1 |
+
+Both arcade figures come from the same tuning; that is what a sharp decay plus a daily cap does. The
+problem is not the ceiling — 320 a day is about 1.3 matches, which is a reasonable place for arcade
+to sit — it is that **the whole ceiling can be collected in under three minutes**. For a player with
+five minutes, arcade is the efficient farm, which is exactly what `09` §7 rules out.
+
+Retuning it is a cross-mode balance decision: it means either much smaller star values or spreading
+the cap over the day, and both interact with pack prices that do not exist yet. That is T-8.16's job
+(economy balance pass, simulated over 200 matches), so this is recorded rather than quietly changed
+by the task that merely made it measurable.
+
+It also decided how INV-12's coin half is tested. A daily cap is a rate that falls the longer you
+play, so no capped payout can sit inside a fixed ±25% per-minute band — the band is meaningful for
+XP, which is uncapped, and meaningless here. So the invariant test asserts what the cap is actually
+*for*: Live and Playbook pay identically, and a day of arcade is worth less than the same minutes
+spent playing matches.
+
+**Feel note.** Finishing a match and watching four lines add themselves up to a number is the first
+time this game has felt like it has a *why* outside the match. "First win today +250" is the one that
+lands hardest — it is the only line that rewards coming back rather than playing well, and it makes
+tomorrow feel like something. The arcade credit is the opposite: 160 coins for twenty seconds reads
+as a bug even though it is the spec's own table, which is its own argument for the finding above.

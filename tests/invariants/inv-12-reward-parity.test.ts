@@ -15,15 +15,33 @@
  * fails, at 1.0 arcade is no longer the least. There is exactly one number in that range and this
  * file is why it is 0.8.
  *
- * **What is not, yet.** Coins. `src/economy/` is empty until T-8.9, so there is no Live coin rate to
- * compare against and no wallet to compare it in. What can be asserted about coins today is that
- * arcade's own payout is *bounded* — which is `09` §3.3's actual anti-farm mechanism — and that is
- * checked here. The cross-mode coin half of INV-12 becomes checkable at T-8.9 and Playbook's third
- * mode joins at T-5.11; this file is where all three meet.
+ * **Coins, since T-8.10.** There is a wallet now, so the coin half is checked at the bottom of this
+ * file — and it is checked in the two forms the spec actually supports. Live and Playbook settle
+ * the same `MatchRecord` through the same function, so the same match pays the same coins in both:
+ * that is parity by construction, and the test says so. Arcade is measured against `09` §3.3's own
+ * rule instead — bounded daily, and a day of it worth less than the same wall time spent playing
+ * matches.
+ *
+ * **Why arcade coins are not held to the ±25% band.** A daily cap is a rate that falls the longer
+ * you play, so no capped payout can sit inside a fixed per-minute band: measured over 200 runs
+ * arcade pays 3 coins a minute, and measured over its first run it pays several hundred. Both
+ * numbers are the same tuning. The band is meaningful for XP, which is uncapped and continuous, and
+ * meaningless for a payout whose whole design is front-loading plus a ceiling. What the cap *is*
+ * for — no mode being the efficient farm — is asserted directly.
+ *
+ * **A finding for T-8.16, recorded rather than fixed here.** With the match rate finally visible,
+ * arcade's numbers from T-4.13 are badly front-loaded against it: a 21-second three-star free-throw
+ * run pays 160 coins where a won 12-minute match pays 250, and the whole daily ceiling can be
+ * collected in under three minutes of play. That is the short-session efficient farm `09` §7 rules
+ * out. Retuning it is a cross-mode balance decision and belongs to T-8.16 (economy balance pass),
+ * not to the task that merely made it measurable — so it is written down in `notes/phase-8.md`
+ * rather than quietly changed here.
  */
 import { describe, expect, it } from 'vitest';
 import { ARCADE_LEARNING_RATE, arcadeProgression } from '../../src/modes/arcade/progression.ts';
 import { DAILY_COIN_CAP, awardRun } from '../../src/modes/arcade/rewards.ts';
+import { MATCH_COMPLETED_COINS, matchPayout } from '../../src/economy/earning.ts';
+import { MATCH_RECORD_VERSION, type MatchRecord } from '../../src/stats/types.ts';
 import { emptyDay } from '../../src/modes/arcade/records.ts';
 import { applyMatch } from '../../src/athletes/progression.ts';
 import { BASKETBALL_XP_AWARDS } from '../../src/sports/basketball/xp.ts';
@@ -246,5 +264,68 @@ describe('INV-12 — Playbook pays the same rate as Live (T-5.11)', () => {
     let day = emptyDay('2026-07-29');
     for (let i = 0; i < 50; i++) day = awardRun(withMoments, day).day;
     expect(day.coins).toBe(0);
+  });
+});
+
+/**
+ * The coin half, now that there is a wallet to pay into (T-8.10).
+ *
+ * `09` §7 asks that no mode be the efficient farm. For the two sim modes that is exact rather than
+ * approximate — they settle the same record through the same function — and for arcade it is the
+ * daily ceiling, measured against what the same minutes would pay in matches.
+ */
+describe('INV-12 — coins across modes (T-8.10)', () => {
+  function record(overrides: Partial<MatchRecord> = {}): MatchRecord {
+    return {
+      id: 'inv12-coins',
+      schemaVersion: MATCH_RECORD_VERSION,
+      playedAt: 0,
+      sportId: 'basketball',
+      mode: 'live',
+      difficulty: 'pro',
+      score: [88, 80],
+      playerSide: 0,
+      teamNames: ['Home', 'Away'],
+      periodsPlayed: 4,
+      lines: [],
+      ...overrides,
+    };
+  }
+
+  it('the same match pays the same coins in Live and Playbook', () => {
+    const live = matchPayout({ record: record({ mode: 'live' }) });
+    const playbook = matchPayout({ record: record({ mode: 'playbook' }) });
+    expect(playbook).toEqual(live);
+  });
+
+  it('a whole day of arcade is worth less than the same minutes of matches', () => {
+    const results = BASKETBALL_ARCADE.map((_, index) => play(index));
+
+    let day = emptyDay('2026-08-05');
+    let arcadeSeconds = 0;
+    let arcadeCoins = 0;
+    for (let i = 0; i < 200; i += 1) {
+      const result = results[i % results.length]!;
+      const reward = awardRun(result, day);
+      day = reward.day;
+      arcadeCoins += reward.coins;
+      arcadeSeconds += result.seconds;
+    }
+
+    // The worst a match can pay: turning up and losing, at the level that pays least.
+    const worstMatch = matchPayout({ record: record({ score: [80, 88], difficulty: 'rookie' }) });
+    const matchesInTheSameTime = Math.floor(arcadeSeconds / 60 / PLAYED_MINUTES);
+    const matchCoins = matchesInTheSameTime * worstMatch.total;
+
+    expect(arcadeCoins).toBe(DAILY_COIN_CAP);
+    expect(matchesInTheSameTime).toBeGreaterThan(1);
+    expect(arcadeCoins).toBeLessThan(matchCoins);
+  }, 60_000);
+
+  it('losing still pays, so nobody is punished for playing a hard level', () => {
+    // `05` §5.3 pays for completion, not for winning. A ladder that pays nothing for a loss is a
+    // ladder people stop climbing.
+    const lost = matchPayout({ record: record({ score: [80, 88] }) });
+    expect(lost.total).toBeGreaterThanOrEqual(MATCH_COMPLETED_COINS);
   });
 });
