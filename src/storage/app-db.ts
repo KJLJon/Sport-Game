@@ -27,6 +27,7 @@ import { AthleteRepository } from '../athletes/repository.ts';
 import { generateStarterRoster } from '../athletes/starter-roster.ts';
 import { TeamRepository } from '../teams/repository.ts';
 import { MatchRepository } from '../stats/repository.ts';
+import { EconomyRepository } from '../economy/repository.ts';
 import { Database } from './idb.ts';
 import { describeOutcome, runMigrations, type MigrationOutcome } from './migrations.ts';
 
@@ -36,6 +37,8 @@ export interface AppDatabase {
   readonly teams: TeamRepository;
   /** Match history and the box scores behind it (T-8.5). */
   readonly matches: MatchRepository;
+  /** The coin balance and its ledger (T-8.10). */
+  readonly economy: EconomyRepository;
   /** What the migration chain did on open. Shown by the data screens (`10` §10). */
   readonly migration: MigrationOutcome;
 }
@@ -67,6 +70,7 @@ async function open(onBlocked?: () => void): Promise<AppDatabase> {
     athletes: new AthleteRepository(db),
     teams: new TeamRepository(db),
     matches: new MatchRepository(db),
+    economy: new EconomyRepository(db),
     migration,
   };
 }

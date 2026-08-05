@@ -12,29 +12,35 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** none. **All five ready Phase 8 tasks are done** — T-8.2, T-8.4, T-8.5, T-8.11, T-8.15 —
-  on top of Phase 12, which is complete with Gate 12 recorded. PR **#17** is open as a draft.
-- **Branch:** `claude/phase-12-next-steps-xeminm`, off `main` at `0e03a2f`.
-- **Suite:** 184 files, **3 230 unit tests**, 57 E2E, typecheck and lint clean.
-- **What this session unblocked in Phase 8:** T-8.3 (needed T-8.2), T-8.6 and T-8.10 (needed T-8.5).
-  `pnpm -s next` now lists **T-8.3, T-8.6, T-8.10, T-8.15's siblings** as ready.
-- 🧵 **The recurring find, four times over.** This session kept turning up things that were built,
-  tested, and never connected to anything a player could reach:
-  1. `CameraDirector.snap()` — written with "the one place a cut is correct is a period boundary" in
-     its own docstring, and no caller. Half-time panned the camera the length of the pitch.
-  2. `generateCpuTeam` (T-7.9) — a named opponent with a crest and a style, never invoked.
-  3. **Live matches never used your athletes.** `MatchOptions.rosters` existed and `liveScreen` had
-     no way to be given it, so Live played rolled athletes while Playbook played your squad. INV-11's
-     parity harness passes rosters explicitly, so it could not see the difference either.
-  4. `Detail.FULL/REDUCED/MINIMAL` — honoured by both sports' art since Phase 2, never passed
-     anything but `FULL`. And `forgetPlayers()` (T-4.11) — no caller, so a local name could be typed
-     and never removed, which `US-17.3` explicitly requires.
-  **Worth a habit:** a task is not done when its module is written and tested. It is done when
-  something a player can reach calls it.
-- **Next step:** Phase 8 continues — T-8.3 (tournaments), T-8.6 (achievement engine), T-8.10 (wallet
-  and coin ledger) are all ready. Gate 8 needs the economy loop, so T-8.10 → T-8.13 is the spine.
+- **Task:** T-8.10 — Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match
+  payout
+- **Status:** in_progress
+- **Started:** 2026-08-05
+- **Branch:** `claude/continue-session-c1lrpo`, off `main` at `956d3e9` (PR #17 merged).
+- **Why T-8.10 before T-8.3.** `pnpm -s next` lists T-8.3, T-8.6, T-8.10. T-8.3's own line ends in
+  "results, **rewards**", and a tournament that pays 1 500 coins into a wallet that does not exist
+  would have to be built twice. The economy is also the Gate 8 spine (T-8.10 → T-8.13), so it goes
+  first and T-8.3 gets a real payout when it lands.
+- **Done so far:**
+  - [x] `modes/day.ts` — one UTC day boundary, shared by the daily challenge and the day bonus
+  - [x] `economy/types.ts` — the `economy` singleton: balance, ledger, lifetime totals, repair
+  - [x] `economy/earning.ts` — `05` §5.3's table, sport-neutral milestones, itemised payout
+  - [x] `economy/wallet.ts` — pure balance rules, first-win-of-the-day settled atomically
+  - [x] `economy/repository.ts` — the store, with writes serialised behind one promise chain
+  - [ ] Credit Live, Playbook, and arcade — the coins currently go nowhere
+  - [ ] Itemised payout on both post-match screens (`06` §4)
+  - [ ] Wallet screen: balance and ledger (US-9.5)
+- **Next step:** wire `db.economy.settleMatch()` into `modes/live/screen.ts` and
+  `ui/screens/playbook-match.ts`, then credit `awardRun`'s coins from `ui/screens/arcade-game.ts` —
+  T-4.13 computed them and left the crediting to this task.
+- **Files touched:** src/modes/day.ts, src/modes/arcade/daily.ts, src/economy/*, src/storage/app-db.ts,
+  tests/unit/economy/*, tests/integration/storage/economy.test.ts
 - **Blockers:** none for the code. **Gates 2 through 12 are all still held by the same two user
   actions:** the device matrix and a tagged deploy. A tag is the only thing that ships.
+- 🧵 **The recurring find, again, before a line was written.** `modes/arcade/rewards.ts` (T-4.13)
+  computes a coin award for every scored run and says in its own header that crediting it "is one
+  call away and belongs with the economy that owns the balance". Nobody has ever been paid one.
+  A task is done when something a player can reach calls it.
 
 ---
 
@@ -246,7 +252,7 @@ there; this file is read at every session start and the notes file only when you
 | T-8.7 | Achievement content: ~75 defs incl. arcade unlocks, cross-sport, cross-mode, hidden | L | `todo` | | | | |
 | T-8.8 | Arcade unlock wiring: achievements gate arcade games, with a clear unlock moment | M | `todo` | | | | |
 | T-8.9 | Achievement UI: gallery, filters, progress bars, in-match toast, post-match summary | M | `todo` | | | | |
-| T-8.10 | Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match payout | M | `todo` | | | | |
+| T-8.10 | Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match payout | M | `in_progress` | | `tests/unit/economy/earning.test.ts`, `tests/unit/economy/wallet.test.ts`, `tests/integration/storage/economy.test.ts` | | Economy core landed; crediting the three modes and the wallet screen still to come. |
 | T-8.11 | Procedural athlete generator: rarity-coherent attribute spreads, fictional names | L | `done` | | `tests/unit/athletes/generator.test.ts` | auto | Seven archetypes give a rolled athlete a shape and a body; coherence rises with rarity and the total never moves (INV-1). CPU squads stopped being numbered. [notes](./notes/phase-8.md#t-811) |
 | T-8.12 | Packs: tiers, prices, published odds, pity timers, reveal animation with skip | L | `todo` | | | | |
 | T-8.13 | Sell-back: valuation, squad-lock guard, confirmation, anti-farm invariants (INV-5, INV-6) | M | `todo` | | | | |
