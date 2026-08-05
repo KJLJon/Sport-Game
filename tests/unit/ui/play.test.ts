@@ -96,6 +96,18 @@ describe('the play hub', () => {
     ).toBe('#/play/live/soccer');
   });
 
+  it('offers setup as a second, smaller target rather than in place of playing (T-8.2)', () => {
+    const ctx = mount();
+
+    // The card itself still goes straight into a match: `10` §2 is "two taps to play", and T-8.1's
+    // criterion is two taps from a cold launch. A mandatory setup form would make that three.
+    const setup = ctx.host.querySelector<HTMLAnchorElement>('a.play-mode__setup');
+    expect(setup?.getAttribute('href')).toBe('#/play/setup/basketball');
+
+    // Only Live has choices worth a screen; Playbook's own route has been its setup since T-5.10.
+    expect(ctx.host.querySelectorAll('a.play-mode__setup')).toHaveLength(1);
+  });
+
   it('ignores a sport in the query that is not playable', () => {
     const ctx = mount({ query: { sport: 'underwater-hockey' } });
 

@@ -130,6 +130,7 @@ import {
   difficultyProfile,
   type DifficultyProfile,
 } from '../../modes/difficulty.ts';
+import { DEFAULT_RULE_OPTIONS, type RuleOptions } from '../../modes/match-setup.ts';
 import { aimError, commitChance, reacted } from '../../engine/ai/execution.ts';
 import { NO_ASSISTS, defaultAssists, type AssistSettings } from '../../modes/assists.ts';
 import {
@@ -199,6 +200,8 @@ export interface SoccerState extends SportState {
   readonly athleteIds: Map<EntityId, string>;
   readonly keepers: [EntityId, EntityId];
   readonly formations: [string, string];
+  /** Which of soccer's laws are being enforced this match (T-8.2). */
+  readonly ruleOptions: RuleOptions;
   readonly squads: [EntityId[], EntityId[]];
   controlled: EntityId;
   pass: PassInFlight | null;
@@ -505,6 +508,9 @@ export const soccer: SoccerModule = {
    * open grass — so `counterSpeed` drops to catch a clearance as well as a shot, and the counter
    * span widens. `duelRadius` is generous because a soccer duel starts a stride before contact.
    */
+  // Soccer whistles fouls and flags offside, so it is offered a switch for both (T-8.2).
+  ruleSwitches: ['fouls', 'offside'],
+
   camera: {
     spans: { duel: 26, openPlay: 45, counter: 64, setPiece: 78 },
     counterSpeed: 9.5,
@@ -625,6 +631,9 @@ export const soccer: SoccerModule = {
       shot: null,
       elapsed: 0,
       finished: false,
+      // The switches the player chose (T-8.2). Read at exactly two points — the foul roll and the
+      // offside judgement — and stored rather than passed so `step` need not thread a setup around.
+      ruleOptions: setup.ruleOptions ?? DEFAULT_RULE_OPTIONS,
     };
 
     startHalf(rules, 1, 0);
@@ -1075,7 +1084,12 @@ function settleLooseBall(
 
       // Offside is judged the moment the ball is touched, off the frozen snapshot (T-6.3).
       const inFlight = state.pass;
-      if (inFlight !== null && inFlight.offside !== null && judgeOffside(inFlight.offside, id)) {
+      if (
+        state.ruleOptions.offside &&
+        inFlight !== null &&
+        inFlight.offside !== null &&
+        judgeOffside(inFlight.offside, id)
+      ) {
         const offence = offsideOffence(inFlight.offside, id, step);
         state.pass = null;
         if (offence !== null) {
@@ -1178,7 +1192,7 @@ function contestCarrier(
       ];
     }
 
-    if (outcome.foul !== null) {
+    if (outcome.foul !== null && state.ruleOptions.fouls) {
       return commitFoul(
         state.rules,
         {

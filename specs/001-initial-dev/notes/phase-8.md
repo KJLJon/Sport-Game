@@ -82,3 +82,59 @@ the first time the thing has behaved like a product rather than a set of routes,
 not being there — you can see the shape of what is coming. The mode blurbs are doing real work: "One
 thumb, no reflexes needed. The easiest way in." is the sentence that would actually get a
 seven-year-old to pick Playbook over Live.
+
+### T-8.2
+
+*Match setup screens for Live and Playbook*
+
+**Two things were already built and simply not connected, and finding them was most of the task.**
+
+1. **Live matches never used your athletes.** `MatchOptions.rosters` had existed since T-3.17 and
+   `liveScreen` had no parameter to pass it, so every Live match was played by athletes rolled from
+   the seed while the player's squad sat in IndexedDB. Playbook used the real roster. Nothing looked
+   broken from the outside because both modes produced a plausible match — they were just playing
+   different games. INV-11's cross-mode parity harness could not see it either: it passes rosters to
+   both modes explicitly, which is exactly the path Live's screen did not have.
+2. **`generateCpuTeam` had no caller.** T-7.9 built a named opponent with a crest, a kit, and a
+   playing style, tested it, and nothing a player could reach ever invoked it. `resolveRosters` is
+   its first caller, and `CpuStyle.blurb`'s own comment — "for the pre-match screen when there is
+   one" — turned out to be describing this screen.
+
+**The spec conflict, and why the resolution is the better design anyway.** T-8.2 asks for a setup
+screen. `10` §2 promises "two taps to play" and T-8.1's gate criterion is *two taps from a cold
+launch reach a live match*. The first implementation put the screen in front of the Live card and
+three E2E tests immediately said so. The card still plays, and **"Set up a match" is a second,
+smaller target beneath it** — the fast path is untouched and configuring costs one extra tap. That
+is also the order `10` §8.1 describes, so the conflict was in the implementation rather than in the
+spec.
+
+**Rule switches are a bag the sport reads, not a branch the engine takes.** `RuleOptions` is
+`{ fouls, offside }`; a sport reads the ones it implements and ignores the rest, and declares which
+it honours through `SportModule.ruleSwitches` so the setup screen can offer a switch for offside to
+soccer and not to basketball without knowing which is which. The first draft *did* have a
+`{ soccer: true }` map in the screen — a sport id in mode code, which is precisely what INV-5
+forbids — and the seam capability replaced it.
+
+There are three foul sites in basketball and two rule sites in soccer, and each degrades to the
+sensible non-call: a reach-in becomes a failed steal, a tackle becomes a failed tackle, and a
+shooting foul leaves the shot standing as it fell with no free throws. `tests/unit/modes/
+rule-options.test.ts` asserts the simulation actually changes, with the fouls-on case as a control
+so "no fouls when off" cannot pass for the wrong reason.
+
+**Deliberately not shipped: an injuries toggle**, which `US-10.2` names. Nothing in either sport
+injures anybody during a match — `athletes/condition.ts` models injury as an *availability* state a
+match reads and never writes — so the switch would control nothing. It arrives when in-match
+injuries do.
+
+**Deliberately not shipped: rules toggles in Playbook.** Playbook gained the shared match-length
+control, so "Short" means the same thing in both modes. It did not gain the rule switches because
+soccer's Playbook adapter has no foul model at all — its own header says so — and a switch that does
+something in one sport and nothing in another, in one mode and not the other, is the half-working
+control this codebase keeps deciding is worse than none.
+
+**A CSS lesson worth writing down.** The first version of `match-setup.css` used invented token
+names (`--color-text-dim`, `--space-3`, `--radius-md`) each with a hardcoded fallback. Every one was
+unresolved, and because the fallbacks were dark-theme values nothing looked wrong — until the axe
+sweep hit the light theme and found the "dim" fallback rendering near-white on near-white at 1.04:1.
+**A fallback on a design token is a spelling mistake that renders.** The real names are `--text-lo`,
+`--space-12`, `--radius-12`, and they are now used without fallbacks so the next typo fails loudly.

@@ -12,41 +12,37 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** none. **Phase 12 is 9 of 9 done**, and Gate 12 was evaluated on 2026-08-03: **NOT
-  PASSED**, for reasons only the user can change. PR **#17** is open as a draft.
-- **Branch:** `claude/phase-12-next-steps-xeminm`, off `main` at `0e03a2f` (PR #16 merged).
-- **Why Phase 12 ran before Phase 8.** The user asked, and the argument held: Phase 12's only
-  dependency (T-1.8) has been met since Phase 1, T-6.12 deliberately stopped at "the minimum that
-  makes a pitch legible" and labelled the rest as this phase, and the one thing blocking Gate 7 is
-  the user *playing* the game — which the framing was making unpleasant on a phone. `03` schedules
-  this phase after v1.0 and lists it second in the cut order, so it is a deliberate reordering, not
-  a missed dependency. **Phase 8 is untouched and is next.**
-- 🚦 **Gate 12: NOT PASSED.** Every automatable check green — 3 160 unit tests, 51 E2E (six of them
-  new, at 360 × 640 and 640 × 360), coverage 94.91%, bench 0.094 ms mean against a 4 ms budget,
-  bundle 70.8 KB gzip of 200. Two of `03`'s four criteria are met and tested. The other two cannot
-  be closed here: **"an athlete is legible on a 360 px phone"** is arithmetically satisfied (18 px,
-  against about 11 under the old fixed span) but legibility is a thing eyes do, and **"≥55 fps at
-  11v11 with the camera moving"** is a *render* measurement — `pnpm bench` measures the sim, which
-  was never the risk. Full record in [phase 12 notes](./notes/phase-12.md#gate-record).
-- 👉 **The two things only the user can do, unchanged since Gate 2 and now seven gates deep:** merge
-  PR #17 and **push a tag** — a tag is the only thing that deploys, the git proxy refuses tag pushes
-  from a session and the App has no `actions: write` — then **play it on a phone**. For a phase whose
-  entire subject is what a phone looks like, the unverified fraction is larger here than at any
-  previous gate.
-- **The three things to look at first when you do play it:**
-  1. **Does the camera make you unwell?** If so, the fix is in the pause menu: Camera → "Follows
-     calmly" or "Fixed". That control exists precisely because this is discovered mid-match.
-  2. **Does basketball feel worse?** Its duel span (18 m) is the one guess in the phase — an
-     isolation is the one moment where the other eight players are not the information. The revert
-     is the `camera:` block in `src/sports/basketball/index.ts`.
-  3. **Is an athlete actually big enough?** `minAthletePixels` is 18 in
-     `src/engine/render/framing.ts`. Raising it zooms every sport in; lowering it out.
-- **Next step:** Phase 8 — `pnpm -s next` lists T-8.2, T-8.4, T-8.5, T-8.11 and T-8.15 ready.
-- **Blockers:** none for the code. Gates 2 through 12 are all held by the same two user actions.
-- **Notes:** one fix outside the phase — `inv-11-cross-mode-parity`'s per-test budgets went from
-  120 s to 300 s. They were being blown by V8 coverage instrumentation, and Vitest writes **no
-  coverage report at all** for a failed run, so the coverage *gate* could not be evaluated because
-  of a timeout unrelated to coverage. Gate 7 fixed the same class of problem the same way.
+- **Task:** T-8.4 — Match checkpointing and resume-after-kill
+- **Status:** in_progress
+- **Started:** 2026-08-03
+- **Branch:** `claude/phase-12-next-steps-xeminm` (Phase 12 landed on it; PR **#17**).
+- **Doing the five ready Phase 8 tasks** at the user's request: T-8.2 ✅, then T-8.4, T-8.5, T-8.11,
+  T-8.15. Phase 12 is done and Gate 12 recorded.
+- **Done so far:**
+  - [x] T-8.2 — Live setup screen, shared setup model, rule switches, and the roster wiring
+  - [ ] T-8.4 · T-8.5 · T-8.11 · T-8.15
+- **T-8.2 found two things that were built and never connected.**
+  1. **Live matches never used your athletes.** `MatchOptions.rosters` existed and `liveScreen` had
+     no way to be given it, so every Live match was played by athletes rolled from the seed while
+     the squad sat in the database. Playbook used the real roster, so nothing looked broken from
+     outside — the two modes were simply playing different games, and INV-11's parity harness passes
+     rosters explicitly so it could not see the difference either.
+  2. **`generateCpuTeam` (T-7.9) had no caller.** A named opponent with a kit and a playing style,
+     written and tested in Phase 7, was never invoked by anything a player could reach. It is now
+     the opponent in every Live match.
+- **The spec conflict it hit, and how it was resolved.** T-8.2 asks for a setup screen; `10` §2 and
+  T-8.1's own gate criterion promise *two taps from a cold launch to a live match*. Putting the
+  screen in front of the Live card makes that three, and three E2E tests said so. The card still
+  plays and **"Set up a match" is a second, smaller target beside it** — the fast path is untouched
+  and choosing costs one extra tap.
+- **Scope call:** Playbook gained the shared **length** control but not the rules toggles. Soccer's
+  Playbook adapter has no foul model at all (it says so in its own header), so a fouls switch would
+  do nothing in one sport and something in the other. Recorded rather than half-shipped.
+- **No injuries toggle**, though `US-10.2` names one: nothing in either sport injures anybody in a
+  match. `athletes/condition.ts` models injury as an *availability* state a match reads and never
+  writes. It arrives when in-match injuries do.
+- **Next step:** T-8.4 — checkpointing and resume-after-kill, all three modes.
+- **Blockers:** none. Gates 2–12 all still held by the same two user actions (device matrix, tag).
 
 ---
 
@@ -250,7 +246,7 @@ there; this file is read at every session start and the notes file only when you
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
 | T-8.1 | Home screen, mode selector, Quick Play (two taps from cold launch) | M | `done` | | `tests/unit/ui/play.test.ts`, `tests/unit/modes/last-played.test.ts`, `tests/e2e/play-hub.spec.ts` | auto+device | Pulled forward: the Play tab was still a Phase-0 placeholder, so no shipped mode was reachable by tapping — [notes](./notes/phase-8.md#t-81) |
-| T-8.2 | Match setup screens for Live and Playbook: sport, teams, difficulty, length, rules toggles | M | `todo` | | | | |
+| T-8.2 | Match setup screens for Live and Playbook: sport, teams, difficulty, length, rules toggles | M | `done` | | `tests/unit/modes/match-setup.test.ts`, `tests/unit/modes/rule-options.test.ts`, `tests/e2e/play-hub.spec.ts` | auto | Also the first thing to hand Live your actual athletes, and `generateCpuTeam`’s first caller. Setup is a second target beside the card, not in front of it — `10` §2’s two taps still hold. [notes](./notes/phase-8.md#t-82) |
 | T-8.3 | Tournament mode: 4/8/16 bracket, persistence, results, rewards; playable in Live or Playbook | L | `todo` | | | | |
 | T-8.4 | Match checkpointing and resume-after-kill, all three modes | M | `todo` | | | | |
 | T-8.5 | Stats store: match history, box scores, career stats per sport per mode | M | `todo` | | | | |

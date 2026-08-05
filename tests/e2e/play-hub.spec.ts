@@ -163,3 +163,45 @@ test('quitting a match lands on the hub, not a placeholder', async ({ page }) =>
   await expect(page.locator('.play-screen')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('Arrives in');
 });
+
+/**
+ * T-8.2. The setup screen sits between the hub and a Live match, and the two things worth asserting
+ * in a browser are that it is reachable and that it leads somewhere — a screen whose "Kick off"
+ * button 404s is worse than no screen.
+ */
+test('the Live card opens a setup screen, and it kicks off a match', async ({ page }) => {
+  await page.goto(`${BASE}#/play`);
+
+  // The card itself plays — `10` §2's two taps. Setup is the second, smaller target beside it.
+  await expect(page.locator('a.play-mode--ready').first()).toHaveAttribute(
+    'href',
+    /#\/play\/live\//,
+  );
+  await page.locator('a.play-mode__setup').first().click();
+
+  // The choices US-10.2 asks for. The opponent is generated (T-7.9), which until now nothing did.
+  await expect(page.locator('.match-setup__title')).toBeVisible();
+  await expect(page.locator('.setup-opponent__name')).not.toBeEmpty();
+  await expect(page.getByText('How long?')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Kick off' }).click();
+  await expect(page.locator('canvas.live__canvas')).toBeVisible();
+});
+
+test('re-rolling the opponent changes who you are playing', async ({ page }) => {
+  await page.goto(`${BASE}#/play/setup/basketball`);
+
+  const name = page.locator('.setup-opponent__name');
+  const before = await name.textContent();
+  await page.getByRole('button', { name: 'Another opponent' }).click();
+
+  // Seeded, so it is a different opponent rather than a re-render of the same one (INV-8).
+  await expect(name).not.toHaveText(before ?? '');
+});
+
+test('a deep link to a match still plays without going through setup', async ({ page }) => {
+  // A fresh install with no athletes must still open a match: the rosters are optional and the
+  // seeded fallback is what makes a shared link work for somebody who has never played.
+  await page.goto(`${BASE}#/play/live/soccer`);
+  await expect(page.locator('canvas.live__canvas')).toBeVisible();
+});

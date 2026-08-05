@@ -62,6 +62,7 @@ import { PARTY_LIMITS, seatPlayers } from '../../modes/local-players.ts';
 import { reducedMotion as motionReduced } from '../../modes/arcade/accessibility.ts';
 import type { Side } from '../../engine/match/events.ts';
 import { readSetup, splitRoster } from './playbook.ts';
+import { scalePeriodSteps } from '../../modes/match-setup.ts';
 
 /**
  * The match, with the sport's own between-turn state erased.
@@ -126,7 +127,11 @@ export function playbookMatchScreen(): Screen {
         seed: `playbook-${Date.now()}`,
         adapter,
         sport: module.id,
-        rules: module.rules,
+        // The player's chosen length (T-8.2), over the sport's own period.
+        rules: {
+          ...module.rules,
+          periodSteps: scalePeriodSteps(module.rules.periodSteps, setup.length),
+        },
         squads: adapter.squads(roster.home, roster.away),
         playerSide: 0,
         difficulty: setup.difficulty,

@@ -64,6 +64,9 @@ import { LiveMatch, type MatchView } from './match.ts';
 import type { Difficulty } from '../difficulty.ts';
 import { lastDifficulty, loadAssists } from '../last-played.ts';
 import type { AssistSettings } from '../assists.ts';
+import type { Athlete } from '../../athletes/types.ts';
+import type { MatchRules } from '../../engine/match/state-machine.ts';
+import type { RuleOptions } from '../match-setup.ts';
 import {
   DEFAULT_HUD_THEME,
   boxRows,
@@ -106,6 +109,19 @@ export interface LiveScreenOptions {
   readonly difficulty?: Difficulty;
   /** The player's assists (T-7.8). Absent means the ones they have saved, or their level's. */
   readonly assists?: AssistSettings;
+  /**
+   * The athletes playing, per side (T-8.2).
+   *
+   * **Absent used to be the only possibility**, which meant every Live match was played by athletes
+   * rolled from the seed while the player's squad sat in the database — Playbook used the real
+   * roster and Live did not. It stays optional because a deep link to `#/play/live/soccer` from a
+   * save with no athletes must still open a match rather than dead-end.
+   */
+  readonly rosters?: readonly (readonly Athlete[])[];
+  /** Period-length override from the setup screen (T-8.2). */
+  readonly rules?: Partial<MatchRules>;
+  /** Which of the sport's laws are being enforced (T-8.2). Absent means all of them. */
+  readonly ruleOptions?: RuleOptions;
 }
 
 /** Reads the safe-area insets the shell publishes as CSS custom properties (`10` §4). */
@@ -139,6 +155,9 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         playerSide: options.playerSide ?? 0,
         difficulty,
         assists: options.assists ?? loadAssists(difficulty),
+        ...(options.rosters === undefined ? {} : { rosters: options.rosters }),
+        ...(options.rules === undefined ? {} : { rules: options.rules }),
+        ...(options.ruleOptions === undefined ? {} : { ruleOptions: options.ruleOptions }),
       });
 
       const root = doc.createElement('div');

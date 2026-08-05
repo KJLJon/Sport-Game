@@ -25,12 +25,14 @@
 import type { Athlete } from '../../athletes/types.ts';
 import type { Difficulty } from '../difficulty.ts';
 import type { AssistSettings } from '../assists.ts';
+import type { RuleOptions } from '../match-setup.ts';
 import { createRng, type Rng } from '../../engine/rng.ts';
 import { EventBus, EventKind, type Side, type SportEvent } from '../../engine/match/events.ts';
 import {
   MatchPhase,
   MatchStateMachine,
   type MatchPhaseName,
+  type MatchRules,
 } from '../../engine/match/state-machine.ts';
 import { World } from '../../engine/world.ts';
 import { EMPTY_FRAME, type InputFrame } from '../../engine/input/types.ts';
@@ -72,6 +74,13 @@ export interface MatchOptions {
   readonly difficulties?: readonly [Difficulty, Difficulty];
   /** The player's assists (T-7.8). Absent means none — a headless match has no player. */
   readonly assists?: AssistSettings;
+  /**
+   * Overrides on the sport's `MatchRules` (T-8.2). In practice this is `periodSteps`, scaled by the
+   * match length the player chose; the sport owns everything else about what a period is.
+   */
+  readonly rules?: Partial<MatchRules>;
+  /** Per-match rule switches (T-8.2). Absent means every rule the sport has is on. */
+  readonly ruleOptions?: RuleOptions;
 }
 
 /**
@@ -116,13 +125,16 @@ export class LiveMatch {
         ...(options.difficulty === undefined ? {} : { difficulty: options.difficulty }),
         ...(options.difficulties === undefined ? {} : { difficulties: options.difficulties }),
         ...(options.assists === undefined ? {} : { assists: options.assists }),
+        ...(options.ruleOptions === undefined ? {} : { ruleOptions: options.ruleOptions }),
       },
       this.world,
       rng,
     );
     this.rng = rng.fork('sim');
 
-    this.machine = new MatchStateMachine(this.sport.rules, this.bus);
+    // The sport's own rules, with whatever the setup screen overrode (T-8.2). Period length is the
+    // only one a player can change: everything else about a period is the sport's.
+    this.machine = new MatchStateMachine({ ...this.sport.rules, ...options.rules }, this.bus);
     this.bus.on((event) => applyEvent(this.box, event));
     this.machine.start();
   }

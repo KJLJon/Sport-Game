@@ -147,6 +147,7 @@ import {
   type Difficulty,
   type DifficultyProfile,
 } from '../../modes/difficulty.ts';
+import { DEFAULT_RULE_OPTIONS, type RuleOptions } from '../../modes/match-setup.ts';
 import { aimError, commitChance, reactionChance } from '../../engine/ai/execution.ts';
 import { NO_ASSISTS, defaultAssists, type AssistSettings } from '../../modes/assists.ts';
 import { BASKETBALL_ARCADE } from './arcade/index.ts';
@@ -234,6 +235,8 @@ const roles: RoleTable = {
 };
 
 export interface BasketballState extends SportState {
+  /** Which of basketball's laws are being enforced this match (T-8.2). */
+  readonly ruleOptions: RuleOptions;
   readonly ball: EntityId;
   readonly ballState: BallState;
   /** Per-entity movement profiles, indexed by entity id. */
@@ -599,6 +602,9 @@ export const basketball: SportModule<BasketballState> = {
    * `duelRadius` is tighter than soccer's because basketball defenders live inside arm's length,
    * and at soccer's 5 m every possession would read as a duel.
    */
+  // Basketball whistles fouls and has no offside law, so only one switch is offered (T-8.2).
+  ruleSwitches: ['fouls'],
+
   camera: {
     spans: { duel: 18, openPlay: 28, counter: 28, setPiece: 28 },
     duelRadius: 2.4,
@@ -678,6 +684,9 @@ export const basketball: SportModule<BasketballState> = {
 
     const state: BasketballState = {
       sport: 'basketball',
+      // The switches the player chose (T-8.2). Stored rather than passed, so the three foul sites
+      // can read them without `step` threading a setup down to each one.
+      ruleOptions: setup.ruleOptions ?? DEFAULT_RULE_OPTIONS,
       ball: ballState.entity,
       ballState,
       profiles,
@@ -982,6 +991,8 @@ function trySteal(
   }
 
   if (result === StealResult.FOULED) {
+    // With fouls off (T-8.2) a reach-in is simply a failed steal: no whistle, play continues.
+    if (!state.ruleOptions.fouls) return [];
     return recordFoul(state.rules, defender, defenderSide, carrier, state.step, {
       ballX: world.x[state.ballState.entity] as number,
     });
@@ -1070,13 +1081,18 @@ function tryBlock(
       caromOffRim(world, state.ballState, shot.side, rng);
     }
     state.reboundLive = false;
-    events.push(
-      ...recordFoul(state.rules, defender, defenderSide, shot.shooter, state.step, {
-        shooting: true,
-        shotValue: shot.value,
-        made,
-      }),
-    );
+    // With fouls off (T-8.2) the contact happened and no whistle followed, so the shot stands as it
+    // fell — made or missed — and there are no free throws. Everything above this line still runs,
+    // which is why it is only the `recordFoul` that is skipped rather than the whole branch.
+    if (state.ruleOptions.fouls) {
+      events.push(
+        ...recordFoul(state.rules, defender, defenderSide, shot.shooter, state.step, {
+          shooting: true,
+          shotValue: shot.value,
+          made,
+        }),
+      );
+    }
     return events;
   }
 
@@ -1303,7 +1319,10 @@ function resolveDefenderContact(
       { x: world.vx[defender] as number, y: world.vy[defender] as number },
       { x: world.vx[carrier] as number, y: world.vy[carrier] as number },
     );
-    if (rng.bool(foulChance(defenderRatings, approach, closing) * result.severity)) {
+    if (
+      state.ruleOptions.fouls &&
+      rng.bool(foulChance(defenderRatings, approach, closing) * result.severity)
+    ) {
       state.contactWith = NO_ENTITY;
       return recordFoul(state.rules, defender, defenderSide, carrier, state.step, {
         ballX: world.x[state.ballState.entity] as number,

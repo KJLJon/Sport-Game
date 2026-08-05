@@ -12,6 +12,7 @@ import type { RouteDefinition } from './router.ts';
 import type { Screen, ScreenDefinition } from './screen.ts';
 import type { TabDefinition } from './shell.ts';
 import { placeholderScreen } from '../ui/screens/placeholder.ts';
+import type { Athlete } from '../athletes/types.ts';
 
 function stub(
   id: string,
@@ -46,13 +47,23 @@ function liveRoute(): ScreenDefinition {
     // mount and the real screen is built then. A thin adapter rather than a change to `liveScreen`,
     // which has no business knowing that a sport can arrive from a URL.
     load: async () => {
-      const [{ liveScreen }, { loadSport }, { isDifficulty }, { lastDifficulty }] =
-        await Promise.all([
-          import('../modes/live/screen.ts'),
-          import('../sports/playable.ts'),
-          import('../modes/difficulty.ts'),
-          import('../modes/last-played.ts'),
-        ]);
+      const [
+        { liveScreen },
+        { loadSport },
+        { isDifficulty },
+        { lastDifficulty },
+        { decodeSetup, scalePeriodSteps },
+        { resolveRosters, isRosterProblem },
+        { appDatabase },
+      ] = await Promise.all([
+        import('../modes/live/screen.ts'),
+        import('../sports/playable.ts'),
+        import('../modes/difficulty.ts'),
+        import('../modes/last-played.ts'),
+        import('../modes/match-setup.ts'),
+        import('../modes/rosters.ts'),
+        import('../storage/app-db.ts'),
+      ]);
       let inner: Screen | null = null;
       return {
         async mount(context) {
@@ -60,11 +71,39 @@ function liveRoute(): ScreenDefinition {
           // A level in the link wins over the remembered one, so a match is shareable at the
           // difficulty it was played at (US-7.2).
           const asked = context.query['difficulty'] ?? '';
+          const difficulty = isDifficulty(asked) ? asked : lastDifficulty();
+          const setup = { ...decodeSetup(context.query, sport.id), difficulty };
+
+          /**
+           * The athletes, if this save has any (T-8.2).
+           *
+           * A failure here is deliberately not an error screen: `#/play/live/soccer` from a fresh
+           * install has no athletes and must still open a match, which it does with the seeded ones
+           * `MatchSetup.rosters` was always optional for. The setup screen is where a player is told
+           * they are short; a deep link just plays.
+           */
+          let rosters: readonly (readonly Athlete[])[] | undefined;
+          try {
+            const resolved = await resolveRosters({
+              db: await appDatabase(),
+              sport,
+              teamId: setup.teamId,
+              opponentSeed: setup.opponentSeed,
+              difficulty,
+            });
+            if (!isRosterProblem(resolved)) rosters = resolved.rosters;
+          } catch {
+            // No database, no athletes, still a match.
+          }
+
           inner = liveScreen({
             sport,
             seed: newMatchSeed(),
             playerSide: 0,
-            difficulty: isDifficulty(asked) ? asked : lastDifficulty(),
+            difficulty,
+            ruleOptions: setup.rules,
+            rules: { periodSteps: scalePeriodSteps(sport.rules.periodSteps, setup.length) },
+            ...(rosters === undefined ? {} : { rosters }),
           });
           await inner.mount(context);
         },
@@ -100,6 +139,24 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
       id: 'play',
       title: 'Play',
       load: async () => (await import('../ui/screens/play.ts')).playScreen(),
+    },
+  },
+  {
+    // The Live setup screen (T-8.2). A separate route from the match itself, so a deep link to
+    // `#/play/live/soccer` still opens a match and the hub's Live card opens the choices first.
+    pattern: '/play/setup/:sport',
+    value: {
+      id: 'play-setup',
+      title: 'Set up a match',
+      load: async () => (await import('../ui/screens/match-setup.ts')).matchSetupScreen(),
+    },
+  },
+  {
+    pattern: '/play/setup',
+    value: {
+      id: 'play-setup',
+      title: 'Set up a match',
+      load: async () => (await import('../ui/screens/match-setup.ts')).matchSetupScreen(),
     },
   },
   {

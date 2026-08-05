@@ -33,6 +33,7 @@ import type { ArcadeGameDef } from '../modes/arcade/types.ts';
 import type { PlaybookAdapter } from '../modes/playbook/types.ts';
 import type { Difficulty } from '../modes/difficulty.ts';
 import type { AssistSettings } from '../modes/assists.ts';
+import type { RuleOptions } from '../modes/match-setup.ts';
 
 export type SportId = string;
 
@@ -173,6 +174,18 @@ export interface MatchSetup {
    * match wants: nobody is holding the stick.
    */
   readonly assists?: AssistSettings;
+  /**
+   * Per-match rule switches the player chose (T-8.2) — whether fouls are whistled, whether offside
+   * is flagged.
+   *
+   * **A sport reads the ones it implements and ignores the rest.** That is what lets one bag serve
+   * every sport without naming any of them: a sport with no offside law simply never looks at
+   * `offside`, and nothing needs to know which sports those are (INV-5).
+   *
+   * Absent means every rule is on, which is what a headless rules test, the balance harness, and a
+   * player who changed nothing all want.
+   */
+  readonly ruleOptions?: RuleOptions;
 }
 
 /** Whatever the sport needs to track. The engine treats it as opaque. */
@@ -397,6 +410,15 @@ export interface SportModule<S extends SportState = SportState> {
    * and the pitch each said so, not because the director knows which is which (INV-5).
    */
   readonly camera?: PartialCameraProfile;
+
+  /**
+   * Which of `RuleOptions`' switches this sport actually implements (T-8.2).
+   *
+   * A setup screen offers a switch only for a law the sport has. Without this the screen would need
+   * to know that soccer flags offside and basketball does not — a sport id in mode code, which is
+   * exactly what INV-5 forbids. Absent means the sport honours no switches and is offered none.
+   */
+  readonly ruleSwitches?: readonly (keyof RuleOptions)[];
 
   /**
    * What to show about this sport right now. Optional so a Phase-1 test fixture stays valid; a
