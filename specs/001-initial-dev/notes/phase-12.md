@@ -128,6 +128,17 @@ safe-area inset.
 
 *Camera handoff*
 
+**Where the cut actually happens.** `snap()` was written with this file's rule in its docstring —
+"the single place a cut is correct is a period boundary" — and for a while had **no caller at all**,
+which made the rule aspirational and left two smaller things wrong. A match opened by easing in from
+the widest zoom the floor allows rather than starting framed on the kickoff, and half-time panned
+the camera the length of the pitch as though the restart were live play. `screen.ts` now cuts on the
+first frame and on every `period.start`.
+
+It is a flag read on the next frame rather than a `snap()` inside the event handler: `period.start`
+is emitted *during* a step and the sport repositions everyone for the restart after it, so snapping
+in the handler would cut to where the players were a moment earlier.
+
 The ball teleports several times a match: a throw-in, a kickoff after a goal, a jump ball. The sim
 is right to teleport it and the camera must not follow suit. Anything that moves the focus further
 than `jumpDistance` (12 m — more than anything can travel under its own power in a frame, less than

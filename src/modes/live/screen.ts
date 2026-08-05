@@ -58,7 +58,7 @@ import {
   type ControlLayout,
 } from '../../engine/input/joystick.ts';
 import type { EntityId } from '../../engine/world.ts';
-import type { Side } from '../../engine/match/events.ts';
+import { EventKind, type Side } from '../../engine/match/events.ts';
 import type { SportModule } from '../../sports/types.ts';
 import { LiveMatch, type MatchView } from './match.ts';
 import type { Difficulty } from '../difficulty.ts';
@@ -193,6 +193,24 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       };
 
       applyCameraMotion(cameraMotion(window));
+
+      /**
+       * Whether the next frame should *cut* rather than pan (T-12.5).
+       *
+       * True at mount, so a match opens already framed on the kickoff instead of easing in from the
+       * widest zoom the floor allows — and true again at every period start, which is the one moment
+       * a cut is right. Everything else pans, including a restart mid-half.
+       *
+       * It is a flag read on the next frame rather than a `snap()` inside the event handler, because
+       * `period.start` is emitted during a step and the sport repositions everyone for the restart
+       * *after* it. Snapping there would cut to where the players were a moment ago.
+       */
+      const cue = { snap: true };
+      listeners.push(
+        match.bus.on((matchEvent) => {
+          if (matchEvent.kind === EventKind.PERIOD_START) cue.snap = true;
+        }),
+      );
 
       const renderer = new Renderer((w, h) => offscreen(doc, w, h));
 
@@ -379,6 +397,7 @@ export function liveScreen(options: LiveScreenOptions): Screen {
             renderer,
             camera,
             director,
+            cue,
             match,
             options.sport,
             layout,
@@ -410,6 +429,7 @@ function draw(
   renderer: Renderer,
   camera: Camera,
   director: CameraDirector,
+  cue: { snap: boolean },
   match: LiveMatch,
   sport: SportModule,
   layout: HudLayout,
@@ -421,10 +441,16 @@ function draw(
   const world = match.world;
   const ball = (match.sportState as { ball: EntityId }).ball;
 
-  // The director frames by phase of play (T-12.2) from a signal that names no sport. A `null`
-  // director is the player having asked for a camera that does not move at all (T-12.7): the camera
-  // was built fitting the whole field and is simply left where it is.
-  director.update(1 / 60, framingSignal(world, view, ball));
+  // The director frames by phase of play (T-12.2) from a signal that names no sport. Under the
+  // `fixed` motion setting it declines to move the camera at all (T-12.7), which is why this is an
+  // unconditional call rather than a branch here.
+  const signal = framingSignal(world, view, ball);
+  if (cue.snap) {
+    cue.snap = false;
+    director.snap(signal);
+  } else {
+    director.update(1 / 60, signal);
+  }
   const transform = camera.view();
 
   renderer.setStatic(

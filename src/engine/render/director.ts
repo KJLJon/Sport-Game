@@ -59,7 +59,10 @@ export interface DirectorOptions {
   readonly handoffSeconds?: number;
 }
 
-/** What the director did this frame. Exposed for the debug overlay and for tests. */
+/**
+ * What the director did this frame. Read by the tests, and the shape `drawDebugOverlay` wants
+ * whenever something wires that overlay up — nothing has since T-1.7 built it.
+ */
 export interface DirectorState {
   readonly phase: PlayPhase;
   readonly span: number;
