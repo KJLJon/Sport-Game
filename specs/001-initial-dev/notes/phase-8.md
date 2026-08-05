@@ -282,3 +282,35 @@ waiting for T-8.12's packs. CPU squads were named "Kestrel 1" through "Kestrel 1
 rather than a team sheet; they now draw from the shared pools. Names come from their own RNG fork, so
 the name draws cannot shift the attribute draws and **every existing seed still produces exactly the
 athletes it did** — the balance harnesses' numbers are untouched.
+
+### T-8.15
+
+*Local player names and party flows*
+
+**The model was finished; the flows were not.** `modes/local-players.ts` has stored, seated, renamed
+and forgotten local players since T-4.11. Two things were missing, and both were about reach rather
+than about code:
+
+1. **Playbook could never name its hot-seat opponent.** The only name fields in the app were on the
+   arcade hub, so a Playbook hot-seat player was "Player 2" for as long as they never opened Arcade
+   — which is precisely the "rather than Player 2" `US-17.3` is named for.
+2. **`forgetPlayers()` had no caller.** A name typed once could not be taken back out of the app.
+   That is the "editable or removable **at any time**" half of the story, and it is not a nicety: a
+   name somebody entered about a person who no longer plays, with nowhere to remove it, is a small
+   thing on entirely the wrong side of the line this project keeps.
+
+So: `ui/components/party.ts` holds the seat rows, used by Arcade (whose inline copy it replaced),
+Playbook's setup, and a new **Settings → People** screen that can remove the lot. Three copies of one
+control would have been three chances for them to save differently.
+
+**A name saves as it is typed.** There is no Save button because there is no moment a player would
+press one — they type a name and start a match, and a name lost between those two actions is the
+whole feature failing quietly.
+
+**Opening the People screen does not create people.** The seats are defaulted for display, and
+nothing is written unless a name is edited or something was already stored. A screen that recorded
+four players because somebody looked at it would be inventing a party.
+
+**Where the names are, said out loud.** `US-17.3` promises local-only, and they live in preferences
+rather than IndexedDB — not in a backup, not in a roster export, not in a P2P handshake. The screen
+says that in a sentence, because a promise nobody can see is indistinguishable from one nobody kept.

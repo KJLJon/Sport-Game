@@ -29,8 +29,17 @@ import { RARITIES, type Rarity } from '@/athletes/types.ts';
 
 const SPORTS = ['basketball', 'soccer'];
 
+/**
+ * `createdAt` is pinned in every case that compares two athletes.
+ *
+ * It is the one field on a generated athlete that is not a function of the seed — a pack athlete was
+ * created when the pack was opened — so leaving it to `Date.now()` makes an equality assertion pass
+ * or fail on whether the two calls landed in the same millisecond.
+ */
+const CREATED_AT = 1_700_000_000_000;
+
 function generate(seed: string, rarity: Rarity = 'rare') {
-  return generateAthlete(createRng(seed), { rarity, sports: SPORTS });
+  return generateAthlete(createRng(seed), { rarity, sports: SPORTS, createdAt: CREATED_AT });
 }
 
 describe('INV-1 — shape, never size', () => {
@@ -150,8 +159,9 @@ describe('squads', () => {
   });
 
   it('is deterministic as a whole', () => {
-    const a = generateSquad('squad', { rarity: 'epic', sports: SPORTS, size: 5 });
-    const b = generateSquad('squad', { rarity: 'epic', sports: SPORTS, size: 5 });
+    const options = { rarity: 'epic' as const, sports: SPORTS, size: 5, createdAt: CREATED_AT };
+    const a = generateSquad('squad', options);
+    const b = generateSquad('squad', options);
     expect(a.map((x) => x.athlete)).toEqual(b.map((x) => x.athlete));
   });
 });

@@ -234,7 +234,7 @@ describe('the party set-up (T-4.11, US-17.2)', () => {
     three!.checked = true;
     three!.dispatchEvent(new Event('change', { bubbles: true }));
 
-    expect(ctx.host.querySelectorAll('.arcade__seat-input')).toHaveLength(3);
+    expect(ctx.host.querySelectorAll('.party-seats__input')).toHaveLength(3);
     expect(ctx.host.querySelector('#arcade-format-elimination')).not.toBeNull();
   });
 
@@ -250,7 +250,7 @@ describe('the party set-up (T-4.11, US-17.2)', () => {
     two!.checked = true;
     two!.dispatchEvent(new Event('change', { bubbles: true }));
 
-    const first = ctx.host.querySelector<HTMLInputElement>('.arcade__seat-input');
+    const first = ctx.host.querySelector<HTMLInputElement>('.party-seats__input');
     first!.value = 'Ana';
     first!.dispatchEvent(new Event('input'));
 

@@ -34,6 +34,7 @@ import { KEY_MOMENT_FREQUENCIES, type KeyMomentFrequency } from '../../modes/pla
 import { TURN_SPEEDS, type TurnSpeed } from '../../modes/playbook/pace.ts';
 import { PARTY_LIMITS, seatPlayers } from '../../modes/local-players.ts';
 import { MATCH_LENGTHS, type MatchLength } from '../../modes/match-setup.ts';
+import { seatList } from '../components/party.ts';
 import { lengthSection } from '../components/setup.ts';
 import { DEFAULT_SPORT, isPlayable, loadSport } from '../../sports/playable.ts';
 import type { SportId } from '../../sports/types.ts';
@@ -155,6 +156,7 @@ export function playbookScreen(): Screen {
       // The remembered level is the default, but a level in the link still wins — the same rule
       // Live follows, so the two modes cannot disagree about what "your difficulty" means (US-7.2).
       let choice = { ...readSetup(context.query), difficulty: lastDifficulty() };
+      let seats = seatPlayers(PARTY_LIMITS.min);
       if (context.query['difficulty'] !== undefined) choice = readSetup(context.query);
       const module = await loadSport(choice.sport);
       const squadSize = module.meta.squadSize;
@@ -271,7 +273,6 @@ export function playbookScreen(): Screen {
           }),
         );
 
-        const seats = seatPlayers(PARTY_LIMITS.min);
         root.appendChild(
           segmented(doc, {
             legend: 'Opponent',
@@ -283,9 +284,31 @@ export function playbookScreen(): Screen {
             ],
             onChange: (value) => {
               choice = { ...choice, hotSeat: value === 'hotseat' };
+              render();
             },
           }),
         );
+
+        // Who is in the other seat, editable here (T-8.15). Until now the only place a local name
+        // could be typed was the arcade hub, so a Playbook hot-seat opponent stayed "Player 2" for
+        // as long as they never opened Arcade — which is precisely what `US-17.3` is about.
+        if (choice.hotSeat) {
+          root.appendChild(
+            el(doc, 'p', {
+              class: 'playbook-setup__hint',
+              text: 'Two people, one device. Names are kept on this device and never sent anywhere.',
+            }),
+          );
+          root.appendChild(
+            seatList(doc, {
+              players: seats,
+              onChange: (next) => {
+                seats = next;
+                render();
+              },
+            }),
+          );
+        }
 
         root.appendChild(
           button(doc, {

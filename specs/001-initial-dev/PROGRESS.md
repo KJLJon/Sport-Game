@@ -12,69 +12,29 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-8.15 — Local player names and party flows
-- **Status:** in_progress
-- **Started:** 2026-08-03
-- **Branch:** `claude/phase-12-next-steps-xeminm` (Phase 12 landed on it; PR **#17**).
-- **Doing the five ready Phase 8 tasks** at the user's request: T-8.2 ✅, then T-8.4, T-8.5, T-8.11,
-  T-8.15. Phase 12 is done and Gate 12 recorded.
-- **Done so far:**
-  - [x] T-8.2 — Live setup screen, shared setup model, rule switches, and the roster wiring
-  - [x] T-8.4 — checkpoint on a timer and on backgrounding; resume offered on the home screen
-  - [x] T-8.5 — match history, box scores, career stats, and the first real Progress screen
-  - [x] T-8.11 — archetypes, fictional names, rarity-scaled coherence
-  - [ ] T-8.15
-- **T-8.2 found two things that were built and never connected.**
-  1. **Live matches never used your athletes.** `MatchOptions.rosters` existed and `liveScreen` had
-     no way to be given it, so every Live match was played by athletes rolled from the seed while
-     the squad sat in the database. Playbook used the real roster, so nothing looked broken from
-     outside — the two modes were simply playing different games, and INV-11's parity harness passes
-     rosters explicitly so it could not see the difference either.
-  2. **`generateCpuTeam` (T-7.9) had no caller.** A named opponent with a kit and a playing style,
-     written and tested in Phase 7, was never invoked by anything a player could reach. It is now
-     the opponent in every Live match.
-- **The spec conflict it hit, and how it was resolved.** T-8.2 asks for a setup screen; `10` §2 and
-  T-8.1's own gate criterion promise *two taps from a cold launch to a live match*. Putting the
-  screen in front of the Live card makes that three, and three E2E tests said so. The card still
-  plays and **"Set up a match" is a second, smaller target beside it** — the fast path is untouched
-  and choosing costs one extra tap.
-- **Scope call:** Playbook gained the shared **length** control but not the rules toggles. Soccer's
-  Playbook adapter has no foul model at all (it says so in its own header), so a fouls switch would
-  do nothing in one sport and something in the other. Recorded rather than half-shipped.
-- **No injuries toggle**, though `US-10.2` names one: nothing in either sport injures anybody in a
-  match. `athletes/condition.ts` models injury as an *availability* state a match reads and never
-  writes. It arrives when in-match injuries do.
-- **T-8.4's honest limit, stated because the UI states it too.** A checkpoint is **not** a snapshot
-  of the simulation and cannot be without a seam change this task was not the place to make:
-  `SportState` is opaque to the engine by design, so serialising a live match would mean every sport
-  owing a `serialize`/`restore` pair. What is stored is the match's *public* state — setup, score,
-  period, clock — and a resume replays the setup and puts the scoreboard back. Positions, the box
-  score, fouls and stamina come back reset, and the card on the home screen says so in words.
-- **Arcade is deliberately not resumable**, which is the one place "all three modes" is answered with
-  a no. A run is about a minute, so a resume would drop the player mid-swing at a timing game — and
-  a *scored* run restored from persisted numbers is a personal best anyone could edit in devtools.
-  The card says "Play again" there, because that is what the button does.
-- **T-8.5 is where INV-9 finally paid for itself.** Live steps a simulation and Playbook resolves
-  turns, and both push the same events onto the same bus — so *one* builder makes both records and
-  never asks which mode it is looking at. `mode` is stored to label a row and to filter a career,
-  never to compute one differently, and there is a test asserting the two modes produce identical
-  lines from an identical stream.
-- **`SportModule.lineup()` is a new seam member**, and a small one: both sports already kept
-  entity → athlete-id maps to give an entity real ratings, and nothing outside the sport could read
-  them, so a box score could be built and never attached to anybody. Progression's `applyMatch` has
-  been asking its caller for the same mapping since Phase 3.
-- **The Progress tab is a real screen now** — it had been an "arrives in Phase 8" placeholder.
-- **T-8.11's gap was shape, not spread.** `rollAthlete` has drawn every attribute from one gaussian
-  since T-3.2 — a correct spread that produces athletes with no identity, so eleven of them are
-  eleven slightly different blobs. Seven **archetypes** now lean the points (and the body) somewhere,
-  with coherence rising by rarity, so a Legendary is *pointed* rather than uniformly slightly better.
-  `shapeToward` moves points and never mints them, which is INV-1, and there is a test asserting the
-  total is untouched across every rarity and 25 seeds each.
-- **CPU squads were named "Kestrel 1" through "Kestrel 11"** — a list, not a team sheet. They now
-  draw from the shared name pools, off their own RNG fork so every existing seed still produces
-  exactly the athletes it did.
-- **Next step:** T-8.15 — local player names and party flows.
-- **Blockers:** none. Gates 2–12 all still held by the same two user actions (device matrix, tag).
+- **Task:** none. **All five ready Phase 8 tasks are done** — T-8.2, T-8.4, T-8.5, T-8.11, T-8.15 —
+  on top of Phase 12, which is complete with Gate 12 recorded. PR **#17** is open as a draft.
+- **Branch:** `claude/phase-12-next-steps-xeminm`, off `main` at `0e03a2f`.
+- **Suite:** 184 files, **3 230 unit tests**, 57 E2E, typecheck and lint clean.
+- **What this session unblocked in Phase 8:** T-8.3 (needed T-8.2), T-8.6 and T-8.10 (needed T-8.5).
+  `pnpm -s next` now lists **T-8.3, T-8.6, T-8.10, T-8.15's siblings** as ready.
+- 🧵 **The recurring find, four times over.** This session kept turning up things that were built,
+  tested, and never connected to anything a player could reach:
+  1. `CameraDirector.snap()` — written with "the one place a cut is correct is a period boundary" in
+     its own docstring, and no caller. Half-time panned the camera the length of the pitch.
+  2. `generateCpuTeam` (T-7.9) — a named opponent with a crest and a style, never invoked.
+  3. **Live matches never used your athletes.** `MatchOptions.rosters` existed and `liveScreen` had
+     no way to be given it, so Live played rolled athletes while Playbook played your squad. INV-11's
+     parity harness passes rosters explicitly, so it could not see the difference either.
+  4. `Detail.FULL/REDUCED/MINIMAL` — honoured by both sports' art since Phase 2, never passed
+     anything but `FULL`. And `forgetPlayers()` (T-4.11) — no caller, so a local name could be typed
+     and never removed, which `US-17.3` explicitly requires.
+  **Worth a habit:** a task is not done when its module is written and tested. It is done when
+  something a player can reach calls it.
+- **Next step:** Phase 8 continues — T-8.3 (tournaments), T-8.6 (achievement engine), T-8.10 (wallet
+  and coin ledger) are all ready. Gate 8 needs the economy loop, so T-8.10 → T-8.13 is the spine.
+- **Blockers:** none for the code. **Gates 2 through 12 are all still held by the same two user
+  actions:** the device matrix and a tagged deploy. A tag is the only thing that ships.
 
 ---
 
@@ -291,7 +251,7 @@ there; this file is read at every session start and the notes file only when you
 | T-8.12 | Packs: tiers, prices, published odds, pity timers, reveal animation with skip | L | `todo` | | | | |
 | T-8.13 | Sell-back: valuation, squad-lock guard, confirmation, anti-farm invariants (INV-5, INV-6) | M | `todo` | | | | |
 | T-8.14 | Transfer market: rotating listings, tamper-resistant refresh, paid refreshes, buy-offers, seeded price walk | XL | `todo` | | | | |
-| T-8.15 | Local player names and party flows for hot-seat across Playbook and Arcade | M | `todo` | | | | |
+| T-8.15 | Local player names and party flows for hot-seat across Playbook and Arcade | M | `done` | | `tests/unit/ui/players.test.ts` | auto | The model existed since T-4.11; the *flows* did not. Playbook could never name its hot-seat opponent, and `forgetPlayers()` had no caller — so a name could be typed and never removed. [notes](./notes/phase-8.md#t-815) |
 | T-8.16 | Economy balance pass: pack EV vs sell value vs earn rate, simulated over 200 matches | M | `todo` | | | | |
 
 ### Phase 9 — UI/UX, accessibility, performance, data safety

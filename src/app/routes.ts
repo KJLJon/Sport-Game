@@ -313,6 +313,14 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
+    pattern: '/settings/players',
+    value: {
+      id: 'settings-players',
+      title: 'People on this device',
+      load: async () => (await import('../ui/screens/players.ts')).playersScreen(),
+    },
+  },
+  {
     pattern: '/settings',
     value: {
       id: 'settings',

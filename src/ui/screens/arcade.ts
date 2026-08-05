@@ -32,13 +32,8 @@ import { earnedAchievements, unlockStates } from '../../modes/arcade/unlocks.ts'
 import { ArcadeRepository, type ArcadeBest } from '../../modes/arcade/records.ts';
 import { ARCADE_MODES, type ArcadeGameDef, type ArcadeMode } from '../../modes/arcade/types.ts';
 import { PARTY_FORMATS, type PartyFormat } from '../../modes/arcade/party.ts';
-import {
-  PARTY_LIMITS,
-  loadPlayers,
-  renamePlayer,
-  savePlayers,
-  seatPlayers,
-} from '../../modes/local-players.ts';
+import { seatList } from '../components/party.ts';
+import { PARTY_LIMITS, loadPlayers, savePlayers, seatPlayers } from '../../modes/local-players.ts';
 import { appDatabase } from '../../storage/app-db.ts';
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { button } from '../components/button.ts';
@@ -269,27 +264,17 @@ export function arcadeScreen(): Screen {
        * because open/closed is exactly the state "am I playing with other people" needs.
        */
       const renderParty = (): void => {
-        const nameFields = players.map((player, index) =>
-          el(doc, 'label', {
-            class: 'arcade__seat',
-            children: [
-              el(doc, 'span', { class: 'sr-only', text: `Player ${index + 1} name` }),
-              el(doc, 'input', {
-                class: 'arcade__seat-input',
-                attrs: { type: 'text', value: player.name, maxlength: 16 },
-                on: {
-                  input: (event) => {
-                    players = renamePlayer(
-                      players,
-                      player.id,
-                      (event.target as HTMLInputElement).value,
-                    );
-                  },
-                },
-              }),
-            ],
+        // The shared seat list (T-8.15). This screen had the only name fields in the app, written
+        // inline; Playbook and Settings now need the same rows, and three copies of one control is
+        // three chances for them to save differently.
+        const nameFields = [
+          seatList(doc, {
+            players,
+            onChange: (next) => {
+              players = next;
+            },
           }),
-        );
+        ];
 
         partyHost.replaceChildren(
           el(doc, 'details', {

@@ -126,6 +126,14 @@ export interface GenerateOptions {
   readonly sports: readonly SportId[];
   /** Names already used, so a generated squad has no duplicates. Mutated. */
   readonly used?: Set<string>;
+  /**
+   * When this athlete came into existence.
+   *
+   * **The one field that is not a function of the seed**, and deliberately: a pack athlete was
+   * created when the pack was opened, and pretending otherwise would put a false timestamp in a
+   * record the roster screen sorts by. A caller that needs two runs to compare equal — a test, a
+   * fixture — passes one.
+   */
   readonly createdAt?: number;
   /** Forces an archetype. Tests and the starter roster use it; a pack never does. */
   readonly archetype?: Archetype;
