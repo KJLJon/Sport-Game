@@ -178,11 +178,13 @@ describe('settings screen', () => {
     settingsScreen().mount(ctx);
 
     const items = ctx.host.querySelectorAll('.settings-list__item');
-    expect(items).toHaveLength(6);
+    expect(items).toHaveLength(7);
     expect([...items].map((item) => item.id)).toEqual([
       'settings-controls',
       'settings-display',
       'settings-audio',
+      // People arrived with T-8.15, which gave local names somewhere to be removed from.
+      'settings-players',
       'settings-data',
       'settings-updates',
       'settings-about',
@@ -200,6 +202,7 @@ describe('settings screen', () => {
       '#/settings/app',
       '#/settings/controls',
       '#/settings/data',
+      '#/settings/players',
     ]);
 
     const unlinked = [...ctx.host.querySelectorAll('.settings-list__title')].filter(
@@ -213,7 +216,7 @@ describe('settings screen', () => {
     settingsScreen().mount(ctx);
 
     const summaries = ctx.host.querySelectorAll('.settings-list__summary');
-    expect(summaries).toHaveLength(6);
+    expect(summaries).toHaveLength(7);
     for (const summary of summaries) {
       expect(summary.textContent?.length ?? 0).toBeGreaterThan(10);
     }
@@ -232,6 +235,6 @@ describe('settings screen', () => {
     screen.mount(ctx);
     screen.mount(ctx);
 
-    expect(ctx.host.querySelectorAll('.settings-list__item')).toHaveLength(6);
+    expect(ctx.host.querySelectorAll('.settings-list__item')).toHaveLength(7);
   });
 });

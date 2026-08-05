@@ -25,6 +25,15 @@
  * noise cannot manufacture a pass. Between two near-matched rosters the difference is mostly
  * sampling error, and asserting a tolerance on it would be asserting the noise; those cases assert
  * the *ordering* instead, which is the claim `09` §7 actually makes.
+ *
+ * **Why every budget here is 300 s (T-12.9's gate run).** These tests play hundreds of whole matches,
+ * which is about two and a half minutes for the file under a plain `pnpm test` and roughly double
+ * that under V8 coverage instrumentation. The old 120 s budgets cleared the first comfortably and
+ * the second by nothing, so `pnpm test:coverage` failed intermittently — and Vitest writes no
+ * coverage report at all for a failed run, which meant the coverage *gate* could not be evaluated
+ * because of a timeout unrelated to coverage. Gate 7 fixed the same class of problem the same way in
+ * `tests/sim/ai-ladder.test.ts`. The budget still exists to catch a genuine hang; it is not a
+ * performance assertion, and nothing here got slower.
  */
 import { describe, expect, it } from 'vitest';
 import { simulateMatch } from '../../src/modes/live/match.ts';
@@ -133,7 +142,7 @@ describe('INV-11 — cross-mode outcome parity', () => {
     expect(live).toBeGreaterThan(80);
     expect(playbook).toBeGreaterThan(80);
     expect(Math.abs(live - playbook)).toBeLessThanOrEqual(TOLERANCE);
-  }, 120_000);
+  }, 300_000);
 
   it('agrees within ±8 points with the same mismatch reversed', async () => {
     const [home, away] = rosters('weak', 'strong', 'reversed');
@@ -143,7 +152,7 @@ describe('INV-11 — cross-mode outcome parity', () => {
     expect(live).toBeLessThan(20);
     expect(playbook).toBeLessThan(20);
     expect(Math.abs(live - playbook)).toBeLessThanOrEqual(TOLERANCE);
-  }, 120_000);
+  }, 300_000);
 
   it('gives neither side a structural edge, in either mode', async () => {
     const [home, away] = rosters('average', 'average', 'even');
@@ -156,7 +165,7 @@ describe('INV-11 — cross-mode outcome parity', () => {
     expect(
       Math.abs((await playbookWinRate(home, away, 'even', ORDERING_MATCHES)) - 50),
     ).toBeLessThan(band);
-  }, 120_000);
+  }, 300_000);
 
   it('ranks the same rosters the same way in both modes', async () => {
     // The claim `09` §7 actually makes is about *ordering*: "if a roster wins 70% in one mode and
@@ -176,7 +185,7 @@ describe('INV-11 — cross-mode outcome parity', () => {
       expect(await liveWinRate(home, away, label, ORDERING_MATCHES)).toBeGreaterThan(50);
       expect(await playbookWinRate(home, away, label, ORDERING_MATCHES)).toBeGreaterThan(50);
     }
-  }, 240_000);
+  }, 300_000);
 });
 
 describe('INV-11 — the two modes read the same ratings (`09` §7)', () => {
@@ -189,7 +198,7 @@ describe('INV-11 — the two modes read the same ratings (`09` §7)', () => {
     expect(await liveWinRate(home, away, 'determinism', n)).toBe(
       await liveWinRate(home, away, 'determinism', n),
     );
-  }, 120_000);
+  }, 300_000);
 });
 
 /**
@@ -273,5 +282,5 @@ describe('INV-11 — cross-mode outcome parity, soccer (T-6.18)', () => {
     expect(live, 'soccer Live').toBeGreaterThan(50);
     expect(playbook, 'soccer Playbook').toBeGreaterThan(50);
     // Explicit, because the default 5 s would fail on the Live batch alone.
-  }, 180_000);
+  }, 300_000);
 });

@@ -374,3 +374,117 @@ describe('a camera told not to fit the whole field (T-6.12)', () => {
     expect(camera.y).toBeLessThan(PITCH_H / 2);
   });
 });
+
+/**
+ * T-12.1. The deadzone and the lead cap are the two things that make a following camera watchable
+ * rather than merely correct, so both are tested for the property that motivated them: the world
+ * holds still under small movements, and the aim point never runs away from what it is aiming at.
+ */
+describe('deadzone and lead cap (T-12.1)', () => {
+  const PITCH = { worldWidth: 105, worldHeight: 68 };
+
+  function pitchCamera(overrides = {}) {
+    const cam = new Camera({
+      width: 900,
+      height: 460,
+      ...PITCH,
+      maxScale: 34,
+      minScale: 20,
+      ...overrides,
+    });
+    cam.snapTo(52.5, 34, 20);
+    return cam;
+  }
+
+  it('does not move at all while the target stays inside the deadzone', () => {
+    const cam = pitchCamera({ deadzone: 0.25 });
+    const before = { x: cam.x, y: cam.y };
+
+    // The viewport spans 45 × 23 world units at scale 20, so a quarter-deadzone is ±5.6 × ±2.9.
+    for (let i = 0; i < 60; i++) cam.update(FRAME, { x: 55, y: 35 });
+
+    expect(cam.x).toBeCloseTo(before.x, 6);
+    expect(cam.y).toBeCloseTo(before.y, 6);
+  });
+
+  it('follows once the target leaves it, and stops as soon as it is back on the boundary', () => {
+    const cam = pitchCamera({ deadzone: 0.25 });
+    follow(cam, { x: 75, y: 34 }, 4);
+
+    // It converges on the deadzone edge, not on the target: 900/20/2 × 0.25 = 5.625 short of it.
+    expect(cam.x).toBeCloseTo(75 - 5.625, 1);
+  });
+
+  it('a zero deadzone is the old always-centred behaviour', () => {
+    const cam = pitchCamera({ deadzone: 0 });
+    follow(cam, { x: 70, y: 34 }, 4);
+    expect(cam.x).toBeCloseTo(70, 1);
+  });
+
+  it('is a fraction of the screen rather than a distance, so it survives a zoom change', () => {
+    const wide = pitchCamera({ deadzone: 0.25 });
+    const tight = pitchCamera({ deadzone: 0.25 });
+    tight.snapTo(52.5, 34, 34);
+
+    // The same nudge in world units is a bigger fraction of a tight frame, so the tight camera
+    // moves and the wide one does not.
+    for (let i = 0; i < 30; i++) {
+      wide.update(FRAME, { x: 58, y: 34 });
+      tight.update(FRAME, { x: 58, y: 34 });
+    }
+    expect(wide.x).toBeCloseTo(52.5, 6);
+    expect(tight.x).toBeGreaterThan(52.5);
+  });
+
+  it('caps how far a fast ball can drag the aim point ahead of itself', () => {
+    const capped = pitchCamera({ deadzone: 0, lookahead: 0.35, maxLead: 6 });
+    const uncapped = pitchCamera({ deadzone: 0, lookahead: 0.35, maxLead: 1000 });
+
+    // A struck shot: 0.35 s of lead is 8.75 m, more than the cap allows.
+    follow(capped, { x: 52.5, y: 34, vx: 25, vy: 0 }, 4);
+    follow(uncapped, { x: 52.5, y: 34, vx: 25, vy: 0 }, 4);
+
+    expect(capped.x).toBeCloseTo(52.5 + 6, 1);
+    expect(uncapped.x).toBeCloseTo(52.5 + 8.75, 1);
+  });
+
+  it('caps the lead by magnitude, so a diagonal leads no further than a straight line', () => {
+    const straight = pitchCamera({ deadzone: 0, maxLead: 6 });
+    const diagonal = pitchCamera({ deadzone: 0, maxLead: 6 });
+
+    follow(straight, { x: 52.5, y: 34, vx: 30, vy: 0 }, 4);
+    follow(diagonal, { x: 52.5, y: 34, vx: 21.2, vy: 21.2 }, 4);
+
+    const straightLead = Math.hypot(straight.x - 52.5, straight.y - 34);
+    const diagonalLead = Math.hypot(diagonal.x - 52.5, diagonal.y - 34);
+    expect(diagonalLead).toBeCloseTo(straightLead, 1);
+  });
+
+  it('reports the visible world rectangle', () => {
+    const cam = pitchCamera({ deadzone: 0 });
+    const viewport = cam.viewport();
+
+    expect(viewport.width).toBeCloseTo(900 / 20, 6);
+    expect(viewport.height).toBeCloseTo(460 / 20, 6);
+    expect(viewport.x).toBeCloseTo(cam.x - viewport.width / 2, 6);
+  });
+
+  it('takes a raised follow rate for a handoff and gives it back', () => {
+    const cam = pitchCamera({ deadzone: 0, followRate: 6 });
+    cam.setFollowRate(20);
+    cam.update(FRAME, { x: 80, y: 34 });
+    const fast = cam.x;
+
+    const slow = pitchCamera({ deadzone: 0, followRate: 6 });
+    slow.update(FRAME, { x: 80, y: 34 });
+
+    expect(fast).toBeGreaterThan(slow.x);
+
+    cam.resetFollowRate();
+    const beforeReset = cam.x;
+    cam.update(FRAME, { x: 80, y: 34 });
+    const restoredStep = cam.x - beforeReset;
+    // Back to the base rate: one frame now closes ~6·dt of the gap, not ~20·dt.
+    expect(restoredStep).toBeLessThan((80 - beforeReset) * 0.2);
+  });
+});

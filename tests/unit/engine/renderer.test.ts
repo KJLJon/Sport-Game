@@ -395,3 +395,53 @@ describe('drawDebugOverlay', () => {
     expect(ctx.calls.at(-1)).toBe('restore()');
   });
 });
+
+/**
+ * T-12.8, deferred here from T-6.11 with a reason: with a camera that fitted the whole field the
+ * viewport never excluded anything, so culling had nothing to cull. A following camera changes
+ * that — on a pitch framed to a phase of play, most of a 22-athlete squad is off screen.
+ */
+describe('culling and LOD against a moving viewport (T-12.8)', () => {
+  const VIEW: ViewTransform = { x: 20, y: 20, scale: 20, width: 800, height: 400 };
+
+  it('refuses to draw what is outside the viewport', () => {
+    const renderer = new Renderer();
+    const lod = renderer.lodFor(VIEW);
+
+    // The viewport spans 40 × 20 world units around (20, 20), so (90, 20) is well outside it.
+    expect(lod.detail(90, 20, 0.5)).toBeNull();
+    expect(lod.detail(20, 20, 0.5)).not.toBeNull();
+  });
+
+  it('draws something straddling the edge rather than popping it out', () => {
+    const renderer = new Renderer();
+    const lod = renderer.lodFor(VIEW);
+
+    // Just past the right edge (x = 40) by less than its own radius plus the margin.
+    expect(lod.detail(40.5, 20, 1)).not.toBeNull();
+  });
+
+  it('drops detail with distance from the centre of the frame', () => {
+    const renderer = new Renderer();
+    const lod = renderer.lodFor(VIEW);
+
+    const middle = lod.detail(20, 20, 0.5);
+    const edge = lod.detail(38, 20, 0.5);
+
+    expect(middle).toBe(Detail.FULL);
+    expect(edge).toBeLessThan(middle as number);
+  });
+
+  it('counts what it decided, so the debug overlay is a measurement', () => {
+    const renderer = new Renderer();
+    const lod = renderer.lodFor(VIEW);
+
+    lod.detail(20, 20, 0.5);
+    lod.detail(38, 20, 0.5);
+    lod.detail(900, 900, 0.5);
+
+    const stats = renderer.render(recorder(), VIEW);
+    expect(stats.full).toBe(1);
+    expect(stats.reduced + stats.minimal).toBe(1);
+  });
+});

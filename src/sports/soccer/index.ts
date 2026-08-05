@@ -130,6 +130,7 @@ import {
   difficultyProfile,
   type DifficultyProfile,
 } from '../../modes/difficulty.ts';
+import { DEFAULT_RULE_OPTIONS, type RuleOptions } from '../../modes/match-setup.ts';
 import { aimError, commitChance, reacted } from '../../engine/ai/execution.ts';
 import { NO_ASSISTS, defaultAssists, type AssistSettings } from '../../modes/assists.ts';
 import {
@@ -199,6 +200,8 @@ export interface SoccerState extends SportState {
   readonly athleteIds: Map<EntityId, string>;
   readonly keepers: [EntityId, EntityId];
   readonly formations: [string, string];
+  /** Which of soccer's laws are being enforced this match (T-8.2). */
+  readonly ruleOptions: RuleOptions;
   readonly squads: [EntityId[], EntityId[]];
   controlled: EntityId;
   pass: PassInFlight | null;
@@ -290,12 +293,20 @@ const render: SportRenderer = {
    * The keeper is looked up in the sport's own state and drawn in the keeper kit, which is the whole
    * reason this member takes a state at all — see `SportRenderer.drawAthletes`.
    */
-  drawAthletes(ctx, state, world, controlled) {
+  drawAthletes(ctx, state, world, controlled, lod) {
     const soccerState = state as SoccerState;
     const palette = paletteFor('dark');
 
     world.forEach((id) => {
       if (world.kind[id] === 1) return;
+
+      // Off-screen athletes are not drawn, and distant ones are drawn as less (T-12.8). On a pitch
+      // framed to a phase of play this is most of the squad most of the time.
+      const radius = world.radius[id] as number;
+      const detail =
+        lod?.detail(world.x[id] as number, world.y[id] as number, radius) ?? Detail.FULL;
+      if (detail === null) return;
+
       const team = world.team[id] === 1 ? 1 : 0;
       const keeper = id === soccerState.keepers[0] || id === soccerState.keepers[1];
       drawAthlete(
@@ -304,8 +315,10 @@ const render: SportRenderer = {
         world.y[id] as number,
         world.facing[id] as number,
         keeper ? palette.keeper : palette.teams[team],
-        Detail.FULL,
-        { team, controlled: id === controlled, radius: world.radius[id] as number, keeper },
+        // The athlete you are steering is always drawn in full: losing detail on your own body is
+        // losing the thing the frame is about.
+        id === controlled ? Detail.FULL : detail,
+        { team, controlled: id === controlled, radius, keeper },
       );
     });
   },
@@ -487,6 +500,27 @@ export const soccer: SoccerModule = {
   playbook: soccerPlaybook,
   arcade: SOCCER_ARCADE,
 
+  /**
+   * How a pitch wants to be framed (T-12.6).
+   *
+   * The defaults were derived on this sport, so most of them stand. Two do not: a pitch is the one
+   * field where a *counter* is a distinct thing that needs to be seen coming — twelve seconds of
+   * open grass — so `counterSpeed` drops to catch a clearance as well as a shot, and the counter
+   * span widens. `duelRadius` is generous because a soccer duel starts a stride before contact.
+   */
+  // Soccer whistles fouls and flags offside, so it is offered a switch for both (T-8.2).
+  lineup(state) {
+    return state.athleteIds;
+  },
+
+  ruleSwitches: ['fouls', 'offside'],
+
+  camera: {
+    spans: { duel: 26, openPlay: 45, counter: 64, setPiece: 78 },
+    counterSpeed: 9.5,
+    duelRadius: 5,
+  },
+
   createState(setup: MatchSetup, world: World, rng: Rng): SoccerState {
     const squadSize = Math.min(setup.squadSize ?? SQUAD, roles.roles.length);
     const sides = new Map<EntityId, PitchSide>();
@@ -601,6 +635,9 @@ export const soccer: SoccerModule = {
       shot: null,
       elapsed: 0,
       finished: false,
+      // The switches the player chose (T-8.2). Read at exactly two points — the foul roll and the
+      // offside judgement — and stored rather than passed so `step` need not thread a setup around.
+      ruleOptions: setup.ruleOptions ?? DEFAULT_RULE_OPTIONS,
     };
 
     startHalf(rules, 1, 0);
@@ -1051,7 +1088,12 @@ function settleLooseBall(
 
       // Offside is judged the moment the ball is touched, off the frozen snapshot (T-6.3).
       const inFlight = state.pass;
-      if (inFlight !== null && inFlight.offside !== null && judgeOffside(inFlight.offside, id)) {
+      if (
+        state.ruleOptions.offside &&
+        inFlight !== null &&
+        inFlight.offside !== null &&
+        judgeOffside(inFlight.offside, id)
+      ) {
         const offence = offsideOffence(inFlight.offside, id, step);
         state.pass = null;
         if (offence !== null) {
@@ -1154,7 +1196,7 @@ function contestCarrier(
       ];
     }
 
-    if (outcome.foul !== null) {
+    if (outcome.foul !== null && state.ruleOptions.fouls) {
       return commitFoul(
         state.rules,
         {

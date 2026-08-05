@@ -79,6 +79,17 @@ export const Detail = {
 } as const;
 export type DetailLevel = (typeof Detail)[keyof typeof Detail];
 
+/**
+ * The engine's answer, per entity, to "draw this, and how much of it" (T-12.8).
+ *
+ * `null` means the entity is outside the viewport and must not be drawn at all. Deferred here from
+ * T-6.11, which found the sim was never the bottleneck and left culling to the phase where the
+ * viewport would actually start excluding things — with a fit-the-field camera it never did.
+ */
+export interface EntityLod {
+  detail(worldX: number, worldY: number, radius?: number): DetailLevel | null;
+}
+
 export interface RendererOptions {
   /** Fraction of the viewport half-diagonal within which entities draw at full detail. */
   readonly fullDetailRatio?: number;
@@ -227,6 +238,30 @@ export class Renderer {
   /** Records a detail decision for this frame's stats. */
   countDetail(level: DetailLevel): void {
     this.detailCounts[level]++;
+  }
+
+  /**
+   * This frame's culling and detail policy, as one object a sport can ask about each entity
+   * (T-12.8).
+   *
+   * **Why the sport asks rather than the engine deciding.** The engine cannot draw the athletes —
+   * only the sport knows which of them is a goalkeeper and what a goalkeeper looks like (T-6.16).
+   * But the *policy* is not the sport's: what is on screen and how much detail it deserves is a
+   * question about the camera, and two sports answering it separately is two sports answering it
+   * differently. So the sport keeps the drawing and the engine keeps the judgement.
+   *
+   * Calling `detail` also records the decision for `FrameStats`, which is what makes the debug
+   * overlay's LOD line a measurement rather than a guess.
+   */
+  lodFor(view: ViewTransform, margin = 2): EntityLod {
+    return {
+      detail: (worldX, worldY, radius = 0) => {
+        if (!this.isVisible(view, worldX, worldY, radius + margin)) return null;
+        const level = this.detailFor(view, worldX, worldY);
+        this.countDetail(level);
+        return level;
+      },
+    };
   }
 
   /** Whether a circle of `radius` world units at `(x, y)` intersects the viewport at all. */

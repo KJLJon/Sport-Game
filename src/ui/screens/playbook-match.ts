@@ -61,7 +61,16 @@ import type { ArcadeRun } from '../../modes/arcade/session.ts';
 import { PARTY_LIMITS, seatPlayers } from '../../modes/local-players.ts';
 import { reducedMotion as motionReduced } from '../../modes/arcade/accessibility.ts';
 import type { Side } from '../../engine/match/events.ts';
-import { readSetup, splitRoster } from './playbook.ts';
+import { readSetup, setupParams, splitRoster } from './playbook.ts';
+import { scalePeriodSteps } from '../../modes/match-setup.ts';
+import {
+  CHECKPOINT_VERSION,
+  clearCheckpoint,
+  describeMatch,
+  saveCheckpoint,
+} from '../../modes/checkpoint.ts';
+import { buildRecord } from '../../stats/record.ts';
+import { buildHash } from '../../app/router.ts';
 
 /**
  * The match, with the sport's own between-turn state erased.
@@ -126,7 +135,11 @@ export function playbookMatchScreen(): Screen {
         seed: `playbook-${Date.now()}`,
         adapter,
         sport: module.id,
-        rules: module.rules,
+        // The player's chosen length (T-8.2), over the sport's own period.
+        rules: {
+          ...module.rules,
+          periodSteps: scalePeriodSteps(module.rules.periodSteps, setup.length),
+        },
         squads: adapter.squads(roster.home, roster.away),
         playerSide: 0,
         difficulty: setup.difficulty,
@@ -168,6 +181,66 @@ export function playbookMatchScreen(): Screen {
       }
       detachResize = canvasHost.onResize(() => undefined);
       if (view !== null) canvasHost.attach(board, view);
+
+      /**
+       * Files the finished match (T-8.5).
+       *
+       * The *same* builder Live uses, fed the same event history off the same bus. Playbook keeps no
+       * running box score, so this one is derived from the events — which is not a mode branch but a
+       * caller handing over work it happens not to have done. That the two modes' records come out
+       * identically shaped from identical streams is INV-9 paying for itself.
+       */
+      let recorded = false;
+      const recordMatch = (): void => {
+        if (recorded) return;
+        recorded = true;
+
+        const state = match.view();
+        void appDatabase()
+          .then((db) =>
+            db.matches.record(
+              buildRecord({
+                id: `${setup.sport}-playbook:${Date.now().toString(36)}`,
+                playedAt: Date.now(),
+                sportId: module.id,
+                mode: 'playbook',
+                difficulty: setup.difficulty,
+                score: state.score,
+                playerSide: 0,
+                teamNames: ['Home', 'Away'],
+                periodsPlayed: state.period,
+                events: match.events,
+              }),
+            ),
+          )
+          .catch(() => {});
+      };
+
+      /**
+       * Records where this match has got to (T-8.4).
+       *
+       * Playbook resumes better than Live does: a turn-based match has no positions to lose, so the
+       * score and the period *are* most of its state. What still resets is the box score and
+       * whatever the adapter was tracking about tendencies.
+       */
+      const writeCheckpoint = (): void => {
+        const state = match.view();
+        if (match.finished) return;
+
+        void appDatabase()
+          .then((db) =>
+            saveCheckpoint(db.db, {
+              schemaVersion: CHECKPOINT_VERSION,
+              mode: 'playbook',
+              sport: module.id,
+              href: buildHash('/play/playbook/match', setupParams(setup)),
+              label: `${module.meta.displayName} · Playbook`,
+              detail: describeMatch(state.score, module.meta.periodName, state.period),
+              savedAt: Date.now(),
+            }),
+          )
+          .catch(() => {});
+      };
 
       /** Which side the human is calling for right now — themselves, or either seat in hot seat. */
       const callingSide = (): Side => (hotSeat === null ? 0 : (hotSeat.side ?? 0));
@@ -322,10 +395,19 @@ export function playbookMatchScreen(): Screen {
         sheet?.reset();
 
         if (match.finished) {
+          // Finished is not interrupted (T-8.4).
+          void appDatabase()
+            .then((db) => clearCheckpoint(db.db))
+            .catch(() => {});
+          recordMatch();
           stage = 'over';
           renderStage();
           return;
         }
+
+        // A turn is Playbook's natural checkpoint: it is the only moment the match state is settled
+        // and nothing is mid-animation, and it is frequent enough that a kill costs one call.
+        writeCheckpoint();
 
         if (hotSeat !== null) {
           hotSeat.nextTurn(match.view().possession);

@@ -158,12 +158,36 @@ export class MatchStateMachine {
     this.periodExtension += Math.round(steps);
   }
 
-  /** Kicks off. Emits `match.start` and the first `period.start`. */
-  start(): void {
+  /**
+   * Kicks off. Emits `match.start` and the first `period.start`.
+   *
+   * `resume` puts the clock and the scoreboard back where an interrupted match left them (T-8.4).
+   * It is applied *before* the events are emitted, so a listener seeing `period.start` sees the
+   * period it is actually starting — a resumed third quarter announces itself as the third.
+   *
+   * What it deliberately does not restore is anything the machine does not own: positions, the box
+   * score, fouls. Those belong to the sport and to the mode, and `modes/checkpoint.ts` is explicit
+   * that they come back reset.
+   */
+  start(resume?: { score: readonly [number, number]; period: number; periodStep: number }): void {
     this.transition(MatchPhase.LIVE);
+
+    if (resume !== undefined) {
+      this.score[0] = resume.score[0];
+      this.score[1] = resume.score[1];
+      this.period = Math.max(1, Math.round(resume.period));
+      // Clamped, because a period length can change between sessions: T-8.2 lets a player pick a
+      // shorter match, and a step count from a full one would otherwise start the period expired.
+      this.periodStep = Math.max(
+        0,
+        Math.min(Math.round(resume.periodStep), this.periodLength() - 1),
+      );
+    } else {
+      this.period = 1;
+      this.periodStep = 0;
+    }
+
     this.bus.emit(event(EventKind.MATCH_START, this.totalSteps));
-    this.period = 1;
-    this.periodStep = 0;
     this.bus.emit(event(EventKind.PERIOD_START, this.totalSteps, -1, { value: this.period }));
   }
 

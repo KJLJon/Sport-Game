@@ -11,15 +11,14 @@
  * @invariant INV-5 (no sport-specific branching outside the sport), INV-11 (44 px targets, no
  *            information by colour alone)
  *
- * **The camera does not fit the whole field** (T-6.12). It follows the ball at a zoom that keeps
- * `VISIBLE_SPAN` metres of the field's long axis on screen, so an athlete is legible on a phone. A
- * 28 × 15 basketball court is smaller than that span and so still fits entirely — the rule changes
- * nothing for it. A 105 × 68 pitch does not, and that is the point: at fit-to-field an athlete is
- * about three pixels. Requested by the user after seeing exactly that.
+ * **The camera does not fit the whole field** (T-6.12), and since T-12.2 it does not hold one zoom
+ * either. A `CameraDirector` frames by phase of play — tight in a duel, wide on a counter, widest at
+ * a set piece — from a `FramingSignal` this file assembles out of the world. The span numbers come
+ * from the sport's own `camera` profile through the seam (T-12.6), so there is still no sport id
+ * here; a sport that supplies no profile gets the defaults, which are T-6.12's 45 m rule generalised.
  *
- * Deliberately one span for every sport rather than a per-sport number. Per-sport camera profiles
- * are T-12.6 in the bonus camera phase; a sport id in this file would be the thing that phase then
- * has to remove.
+ * `zoomFloor` survives as the floor beneath all of that: whatever the director asks for, the camera
+ * never zooms out past the point where an athlete stops being legible on a phone.
  *
  * Purpose: the screen a match is played on. It owns the canvas, the loop, the camera, and the
  * input, and it is the only place those four meet.
@@ -38,6 +37,16 @@
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { CanvasHost, type CanvasSize } from '../../app/canvas-host.ts';
 import { Camera } from '../../engine/render/camera.ts';
+import { CameraDirector } from '../../engine/render/director.ts';
+import {
+  DEFAULT_CAMERA_PROFILE,
+  cameraProfile,
+  legibleSpan,
+  type CameraProfile,
+} from '../../engine/render/framing.ts';
+import { CAMERA_MOTION_KEY, cameraMotion, type CameraMotion } from '../../app/motion.ts';
+import { prefs } from '../../storage/prefs.ts';
+import { framingSignal } from './framing.ts';
 import { Renderer, type Canvas2D, type OffscreenLayer } from '../../engine/render/renderer.ts';
 import { MatchAudio } from './audio.ts';
 import { createLoop, type Loop } from '../../engine/loop.ts';
@@ -49,43 +58,55 @@ import {
   type ControlLayout,
 } from '../../engine/input/joystick.ts';
 import type { EntityId } from '../../engine/world.ts';
-import type { Side } from '../../engine/match/events.ts';
+import { EventKind, type Side } from '../../engine/match/events.ts';
 import type { SportModule } from '../../sports/types.ts';
 import { LiveMatch, type MatchView } from './match.ts';
 import type { Difficulty } from '../difficulty.ts';
 import { lastDifficulty, loadAssists } from '../last-played.ts';
 import type { AssistSettings } from '../assists.ts';
+import type { Athlete } from '../../athletes/types.ts';
+import type { MatchRules } from '../../engine/match/state-machine.ts';
+import type { RuleOptions } from '../match-setup.ts';
 import {
+  CHECKPOINT_VERSION,
+  clearCheckpoint,
+  describeMatch,
+  saveCheckpoint,
+  type MatchResumeState,
+} from '../checkpoint.ts';
+import { appDatabase } from '../../storage/app-db.ts';
+import { buildRecord } from '../../stats/record.ts';
+import {
+  DEFAULT_HUD_THEME,
   boxRows,
-  drawEdgeIndicators,
   drawHud,
-  drawMinimap,
   hudLayout,
-  offScreenIndicators,
   type HudLayout,
   type SafeArea,
 } from './hud.ts';
+import { drawMinimap, minimapFrame, minimapPoint } from './minimap.ts';
+import { drawEdgeMarkers, edgeMarkers } from './awareness.ts';
 import { teamLine } from './box-score.ts';
 
 /**
- * Metres of the field's long axis to keep on screen.
- *
- * 45 m is a little over a soccer pitch's width, which frames a phase of play — the ball, the players
- * around it, and enough space to see a run being made — rather than a whole match at once. It is
- * also wider than a basketball court is long, so basketball still shows its entire court and its
- * framing is untouched by this rule.
- */
-const VISIBLE_SPAN = 45;
-
-/**
- * The zoom the camera must not go below: enough to keep `VISIBLE_SPAN` metres on screen, or the
+ * The zoom the camera must not go below: whatever keeps an athlete legible on *this* screen, or the
  * whole field if that is smaller.
  *
- * Returning the fit-the-field scale for a small field is what makes this safe to apply to every
- * sport without naming one.
+ * T-6.12 set this with a fixed 45 m span, chosen against one phone. T-12.2 replaced the constant
+ * with `legibleSpan`, which asks the same question — how wide can this go before an athlete stops
+ * being a shape — as an equation in the viewport's own width. Two things follow: a tablet stops
+ * being framed as if it were a phone, and spans wider than 45 m become reachable, without which the
+ * set-piece framing this phase adds could never actually happen.
+ *
+ * Returning the fit-the-field scale for a small field is what makes it safe for every sport without
+ * naming one.
  */
-export function zoomFloor(viewWidth: number, fieldWidth: number): number {
-  const span = Math.min(VISIBLE_SPAN, fieldWidth);
+export function zoomFloor(
+  viewWidth: number,
+  fieldWidth: number,
+  profile: CameraProfile = DEFAULT_CAMERA_PROFILE,
+): number {
+  const span = Math.min(legibleSpan(viewWidth, profile), fieldWidth);
   return viewWidth / span;
 }
 
@@ -97,6 +118,31 @@ export interface LiveScreenOptions {
   readonly difficulty?: Difficulty;
   /** The player's assists (T-7.8). Absent means the ones they have saved, or their level's. */
   readonly assists?: AssistSettings;
+  /**
+   * The athletes playing, per side (T-8.2).
+   *
+   * **Absent used to be the only possibility**, which meant every Live match was played by athletes
+   * rolled from the seed while the player's squad sat in the database — Playbook used the real
+   * roster and Live did not. It stays optional because a deep link to `#/play/live/soccer` from a
+   * save with no athletes must still open a match rather than dead-end.
+   */
+  readonly rosters?: readonly (readonly Athlete[])[];
+  /** Period-length override from the setup screen (T-8.2). */
+  readonly rules?: Partial<MatchRules>;
+  /** Which of the sport's laws are being enforced (T-8.2). Absent means all of them. */
+  readonly ruleOptions?: RuleOptions;
+  /** Team names as they were at kick-off, recorded with the match (T-8.5). */
+  readonly teamNames?: readonly [string, string];
+  /** Where an interrupted match left its clock and scoreboard (T-8.4). */
+  readonly resumeFrom?: MatchResumeState;
+  /**
+   * The hash that re-opens this exact match, written into its checkpoint (T-8.4).
+   *
+   * Supplied by the route rather than built here, because only the route knows what it parsed —
+   * and a checkpoint that pointed at a differently-configured match would resume the wrong game.
+   * Absent means this match is not checkpointed at all.
+   */
+  readonly checkpointHref?: string;
 }
 
 /** Reads the safe-area insets the shell publishes as CSS custom properties (`10` §4). */
@@ -130,6 +176,10 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         playerSide: options.playerSide ?? 0,
         difficulty,
         assists: options.assists ?? loadAssists(difficulty),
+        ...(options.rosters === undefined ? {} : { rosters: options.rosters }),
+        ...(options.rules === undefined ? {} : { rules: options.rules }),
+        ...(options.ruleOptions === undefined ? {} : { ruleOptions: options.ruleOptions }),
+        ...(options.resumeFrom === undefined ? {} : { resumeFrom: options.resumeFrom }),
       });
 
       const root = doc.createElement('div');
@@ -143,14 +193,65 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       const ctx = canvasHost.canvas.getContext('2d') as unknown as Canvas2D | null;
       if (ctx === null) return;
 
+      // The sport's framing, or the defaults if it has no opinion (T-12.6).
+      const profile = cameraProfile(options.sport.camera);
+
       const camera = new Camera({
         width: canvasHost.size.width,
         height: canvasHost.size.height,
         worldWidth: options.sport.field.width,
         worldHeight: options.sport.field.height,
         maxScale: 34,
-        minScale: zoomFloor(canvasHost.size.width, options.sport.field.width),
+        lookahead: profile.lookahead,
+        maxLead: profile.maxLead,
+        deadzone: profile.deadzone,
       });
+
+      const director = new CameraDirector({
+        camera,
+        profile,
+        fieldWidth: options.sport.field.width,
+      });
+
+      /**
+       * Applies the camera-motion setting (T-12.7), including the zoom floor it implies.
+       *
+       * `fixed` is the one that needs more than the director: a camera that does not move must show
+       * the whole field, so its floor is fit-the-field rather than the legibility floor — which
+       * exists precisely to keep the camera zoomed *in*.
+       */
+      const applyCameraMotion = (next: CameraMotion): void => {
+        director.setMotion(next);
+        const size = canvasHost.size;
+        camera.setMinScale(
+          next === 'fixed'
+            ? Math.min(
+                size.width / options.sport.field.width,
+                size.height / options.sport.field.height,
+              )
+            : zoomFloor(size.width, options.sport.field.width, profile),
+        );
+      };
+
+      applyCameraMotion(cameraMotion(window));
+
+      /**
+       * Whether the next frame should *cut* rather than pan (T-12.5).
+       *
+       * True at mount, so a match opens already framed on the kickoff instead of easing in from the
+       * widest zoom the floor allows — and true again at every period start, which is the one moment
+       * a cut is right. Everything else pans, including a restart mid-half.
+       *
+       * It is a flag read on the next frame rather than a `snap()` inside the event handler, because
+       * `period.start` is emitted during a step and the sport repositions everyone for the restart
+       * *after* it. Snapping there would cut to where the players were a moment ago.
+       */
+      const cue = { snap: true };
+      listeners.push(
+        match.bus.on((matchEvent) => {
+          if (matchEvent.kind === EventKind.PERIOD_START) cue.snap = true;
+        }),
+      );
 
       const renderer = new Renderer((w, h) => offscreen(doc, w, h));
 
@@ -170,6 +271,9 @@ export function liveScreen(options: LiveScreenOptions): Screen {
 
       detachResize = canvasHost.onResize((size: CanvasSize) => {
         camera.resize(size.width, size.height);
+        // The floor is a function of the new width (T-12.2): a rotation changes how wide the camera
+        // may go and still leave an athlete legible, so it is re-derived rather than carried over.
+        applyCameraMotion(settings.cameraMotion);
         controlLayout = { ...DEFAULT_LAYOUT, width: size.width, height: size.height };
         touch.setLayout(controlLayout, defaultButtons(controlLayout));
         layout = hudLayout(size.width, size.height, readSafeArea(window, root));
@@ -198,11 +302,17 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         audio.setContext(new Ctor() as never);
       };
 
-      const settings: MatchSettings = { leftHanded: false, sound: true };
+      const settings: MatchSettings = {
+        leftHanded: false,
+        sound: true,
+        cameraMotion: cameraMotion(window),
+      };
       const applySettings = (): void => {
         controlLayout = { ...controlLayout, leftHanded: settings.leftHanded };
         touch.setLayout(controlLayout, defaultButtons(controlLayout));
         audio.setMuted(!settings.sound);
+        applyCameraMotion(settings.cameraMotion);
+        prefs.set(CAMERA_MOTION_KEY, settings.cameraMotion);
       };
 
       let paused = false;
@@ -216,9 +326,50 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         renderOverlay();
       };
 
+      /**
+       * Files the finished match (T-8.5). Once — `renderOverlay` runs on every frame that the
+       * finished flag changes *and* on every settings change, and a match recorded twice is a
+       * career counted twice.
+       */
+      let recorded = false;
+      const recordMatch = (): void => {
+        if (recorded) return;
+        recorded = true;
+
+        const view = match.view();
+        void appDatabase()
+          .then((db) =>
+            db.matches.record(
+              buildRecord({
+                id: `${options.seed}:${Date.now().toString(36)}`,
+                playedAt: Date.now(),
+                sportId: options.sport.id,
+                mode: 'live',
+                difficulty,
+                score: view.score,
+                playerSide: view.playerSide,
+                teamNames: options.teamNames ?? ['Home', 'Away'],
+                periodsPlayed: view.period,
+                events: match.bus.history(),
+                box: match.box,
+                ...(lineup === undefined ? {} : { lineup }),
+              }),
+            ),
+          )
+          .catch(() => {
+            // A match that was played is worth more than a record of it. Losing the record is bad;
+            // throwing on the summary screen the player is looking at is worse.
+          });
+      };
+
+      const lineup = options.sport.lineup?.(match.sportState as never);
+
       const renderOverlay = (): void => {
         overlay.replaceChildren();
         if (match.finished) {
+          // A finished match is not an interrupted one (T-8.4).
+          dropCheckpoint();
+          recordMatch();
           overlay.appendChild(summaryPanel(doc, match, () => context.navigate('/play')));
           return;
         }
@@ -226,7 +377,11 @@ export function liveScreen(options: LiveScreenOptions): Screen {
           overlay.appendChild(
             pausePanel(doc, match, {
               onResume: () => setPaused(false),
-              onQuit: () => context.navigate('/play'),
+              onQuit: () => {
+                // Quitting is a decision, not an interruption: it must not leave a resume behind.
+                dropCheckpoint();
+                context.navigate('/play');
+              },
               settings,
               onSettingsChange: () => {
                 applySettings();
@@ -247,8 +402,33 @@ export function liveScreen(options: LiveScreenOptions): Screen {
           const rect = canvasHost.canvas.getBoundingClientRect();
           const x = e.clientX - rect.left;
           const y = e.clientY - rect.top;
-          if (kind === 'down') touch.pointerDown(e.pointerId, x, y);
-          else if (kind === 'move') touch.pointerMove(e.pointerId, x, y);
+          if (kind === 'down') {
+            // A tap on the minimap is a look, not a thumb on the stick (T-12.4). Checked before the
+            // input router sees it, because a stick that spawned under the minimap would both steer
+            // the athlete and move the camera from one touch.
+            const frame = minimapFrame(
+              layout,
+              options.sport.field.width,
+              options.sport.field.height,
+            );
+            const point = minimapPoint(
+              frame,
+              x,
+              y,
+              options.sport.field.width,
+              options.sport.field.height,
+            );
+            if (point !== null) {
+              director.peek(point.x, point.y);
+              return;
+            }
+          }
+          // Any other touch is play resuming: a peek the player has stopped caring about should
+          // not keep the camera away from the ball.
+          if (kind === 'down') {
+            director.endPeek();
+            touch.pointerDown(e.pointerId, x, y);
+          } else if (kind === 'move') touch.pointerMove(e.pointerId, x, y);
           else touch.pointerUp(e.pointerId);
         };
 
@@ -279,9 +459,57 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       listeners.push(() => doc.removeEventListener('keydown', onKey));
       listeners.push(() => doc.removeEventListener('keyup', onKeyUp));
 
+      /**
+       * Writes where this match has got to (T-8.4).
+       *
+       * On a timer *and* on the way to the background, because those are two different failures:
+       * backgrounding is the one the browser warns you about, and a kill — the case US-10.3 names —
+       * gives no warning at all. The timer is what makes the second survivable.
+       */
+      const checkpoint = (): void => {
+        const href = options.checkpointHref;
+        if (href === undefined || match.finished) return;
+
+        const current = match.view();
+        void appDatabase()
+          .then((db) =>
+            saveCheckpoint(db.db, {
+              schemaVersion: CHECKPOINT_VERSION,
+              mode: 'live',
+              sport: options.sport.id,
+              href,
+              label: `${options.sport.meta.displayName} · Live`,
+              detail: describeMatch(current.score, current.periodName, current.period),
+              savedAt: Date.now(),
+              resume: {
+                score: current.score,
+                period: current.period,
+                periodStep: match.stepInPeriod,
+              },
+            }),
+          )
+          .catch(() => {
+            // A match in progress outranks a record of one.
+          });
+      };
+
+      const dropCheckpoint = (): void => {
+        void appDatabase()
+          .then((db) => clearCheckpoint(db.db))
+          .catch(() => {});
+      };
+
+      // Every ten seconds of play. Frequent enough that a kill loses a few seconds of clock, rare
+      // enough that it is not a write per frame.
+      const checkpointTimer = window.setInterval(checkpoint, 10_000);
+      listeners.push(() => window.clearInterval(checkpointTimer));
+
       // Backgrounding is a pause. A match that kept running in a hidden tab would burn the clock.
       const onHidden = (): void => {
-        if (doc.visibilityState === 'hidden') setPaused(true);
+        if (doc.visibilityState === 'hidden') {
+          setPaused(true);
+          checkpoint();
+        }
       };
       doc.addEventListener('visibilitychange', onHidden);
       listeners.push(() => doc.removeEventListener('visibilitychange', onHidden));
@@ -298,7 +526,19 @@ export function liveScreen(options: LiveScreenOptions): Screen {
             wasFinished = match.finished;
             renderOverlay();
           }
-          draw(ctx, renderer, camera, match, options.sport, layout, controlLayout, touch, input);
+          draw(
+            ctx,
+            renderer,
+            camera,
+            director,
+            cue,
+            match,
+            options.sport,
+            layout,
+            controlLayout,
+            touch,
+            input,
+          );
         },
       });
       loop.start();
@@ -322,6 +562,8 @@ function draw(
   ctx: Canvas2D,
   renderer: Renderer,
   camera: Camera,
+  director: CameraDirector,
+  cue: { snap: boolean },
   match: LiveMatch,
   sport: SportModule,
   layout: HudLayout,
@@ -333,14 +575,16 @@ function draw(
   const world = match.world;
   const ball = (match.sportState as { ball: EntityId }).ball;
 
-  // Follow the ball, not the controlled athlete: the ball is what the player is tracking, and a
-  // camera that follows a body while the ball flies elsewhere is a camera that hides the game.
-  camera.update(1 / 60, {
-    x: world.x[ball] as number,
-    y: world.y[ball] as number,
-    vx: world.vx[ball] as number,
-    vy: world.vy[ball] as number,
-  });
+  // The director frames by phase of play (T-12.2) from a signal that names no sport. Under the
+  // `fixed` motion setting it declines to move the camera at all (T-12.7), which is why this is an
+  // unconditional call rather than a branch here.
+  const signal = framingSignal(world, view, ball);
+  if (cue.snap) {
+    cue.snap = false;
+    director.snap(signal);
+  } else {
+    director.update(1 / 60, signal);
+  }
   const transform = camera.view();
 
   renderer.setStatic(
@@ -353,8 +597,14 @@ function draw(
   );
 
   renderer.submit('field', (c, v) => sport.render.drawField(c, sport.field, v));
-  renderer.submit('entities', (c) =>
-    sport.render.drawAthletes(c, match.sportState as never, world, view.status.controlled),
+  renderer.submit('entities', (c, v) =>
+    sport.render.drawAthletes(
+      c,
+      match.sportState as never,
+      world,
+      view.status.controlled,
+      renderer.lodFor(v),
+    ),
   );
   renderer.submit('ball', (c) => sport.render.drawBall(c, match.sportState as never, world, ball));
   renderer.submit('effects', (c, v) =>
@@ -363,12 +613,23 @@ function draw(
 
   renderer.submit('hud', (c) => {
     drawHud(c, view, layout, sport.hud);
-    drawMinimap(c, view, world, sport.field.width, sport.field.height, layout);
+    drawMinimap(
+      c,
+      minimapFrame(layout, sport.field.width, sport.field.height),
+      view,
+      world,
+      sport.field.width,
+      sport.field.height,
+      { viewport: camera.viewport(), ball },
+    );
 
     const point = { x: 0, y: 0 };
-    drawEdgeIndicators(
+    drawEdgeMarkers(
       c,
-      offScreenIndicators(world, view, (wx, wy) => camera.worldToScreen(wx, wy, point), layout),
+      edgeMarkers(world, view, ball, (wx, wy) => camera.worldToScreen(wx, wy, point), layout),
+      layout,
+      DEFAULT_HUD_THEME,
+      view.playerSide,
     );
 
     if (input.showTouchControls) {
@@ -465,6 +726,15 @@ function drawTouchControls(
 export interface MatchSettings {
   leftHanded: boolean;
   sound: boolean;
+  /**
+   * How much the camera may move (T-12.7).
+   *
+   * It is in the *match* settings rather than only in app Settings deliberately. Whether a camera
+   * makes you unwell is not a thing you find out on a settings screen — it is a thing you find out
+   * ninety seconds into a match, and the fix has to be reachable from there without losing the game
+   * you are in the middle of.
+   */
+  cameraMotion: CameraMotion;
 }
 
 export interface PausePanelOptions {
@@ -531,7 +801,7 @@ export function settingsPanel(
   legend.textContent = 'Match settings';
   group.appendChild(legend);
 
-  const rows: readonly [keyof MatchSettings, string][] = [
+  const rows: readonly ['leftHanded' | 'sound', string][] = [
     ['leftHanded', 'Left-handed controls'],
     ['sound', 'Sound'],
   ];
@@ -558,7 +828,54 @@ export function settingsPanel(
     group.appendChild(row);
   }
 
+  group.appendChild(cameraMotionRow(doc, settings, onChange));
   return group;
+}
+
+/**
+ * The camera-motion control (T-12.7): a real `<select>` with three named options, not a checkbox.
+ *
+ * Three because there are three answers, and the middle one is the useful one — "follows the play,
+ * but calmly" is what most people who dislike a moving camera actually want, and a checkbox forces
+ * them to choose between that and a pitch they cannot read. Each option says what it does rather
+ * than what it is called, because "Reduced" tells a player nothing about what they will see.
+ */
+function cameraMotionRow(
+  doc: Document,
+  settings: MatchSettings,
+  onChange: () => void,
+): HTMLElement {
+  const row = doc.createElement('div');
+  row.className = 'live-panel__setting live-panel__setting--wide';
+
+  const id = 'match-setting-cameraMotion';
+  const label = doc.createElement('label');
+  label.htmlFor = id;
+  label.textContent = 'Camera';
+
+  const select = doc.createElement('select');
+  select.id = id;
+
+  const choices: readonly [CameraMotion, string][] = [
+    ['full', 'Follows the play'],
+    ['reduced', 'Follows calmly — no zooming'],
+    ['fixed', 'Fixed — whole field, small players'],
+  ];
+  for (const [value, text] of choices) {
+    const option = doc.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    option.selected = settings.cameraMotion === value;
+    select.appendChild(option);
+  }
+
+  select.addEventListener('change', () => {
+    settings.cameraMotion = select.value as CameraMotion;
+    onChange();
+  });
+
+  row.append(label, select);
+  return row;
 }
 
 /** The post-match summary (`06` §4). Coins, XP, and achievements arrive with Phase 8. */

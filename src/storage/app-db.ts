@@ -26,6 +26,7 @@
 import { AthleteRepository } from '../athletes/repository.ts';
 import { generateStarterRoster } from '../athletes/starter-roster.ts';
 import { TeamRepository } from '../teams/repository.ts';
+import { MatchRepository } from '../stats/repository.ts';
 import { Database } from './idb.ts';
 import { describeOutcome, runMigrations, type MigrationOutcome } from './migrations.ts';
 
@@ -33,6 +34,8 @@ export interface AppDatabase {
   readonly db: Database;
   readonly athletes: AthleteRepository;
   readonly teams: TeamRepository;
+  /** Match history and the box scores behind it (T-8.5). */
+  readonly matches: MatchRepository;
   /** What the migration chain did on open. Shown by the data screens (`10` §10). */
   readonly migration: MigrationOutcome;
 }
@@ -59,7 +62,13 @@ async function open(onBlocked?: () => void): Promise<AppDatabase> {
     throw new DatabaseUnavailableError(migration);
   }
 
-  return { db, athletes: new AthleteRepository(db), teams: new TeamRepository(db), migration };
+  return {
+    db,
+    athletes: new AthleteRepository(db),
+    teams: new TeamRepository(db),
+    matches: new MatchRepository(db),
+    migration,
+  };
 }
 
 /** Written to `meta` once the starter roster has been placed, so it is never placed twice. */

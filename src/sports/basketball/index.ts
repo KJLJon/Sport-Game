@@ -147,6 +147,7 @@ import {
   type Difficulty,
   type DifficultyProfile,
 } from '../../modes/difficulty.ts';
+import { DEFAULT_RULE_OPTIONS, type RuleOptions } from '../../modes/match-setup.ts';
 import { aimError, commitChance, reactionChance } from '../../engine/ai/execution.ts';
 import { NO_ASSISTS, defaultAssists, type AssistSettings } from '../../modes/assists.ts';
 import { BASKETBALL_ARCADE } from './arcade/index.ts';
@@ -234,6 +235,8 @@ const roles: RoleTable = {
 };
 
 export interface BasketballState extends SportState {
+  /** Which of basketball's laws are being enforced this match (T-8.2). */
+  readonly ruleOptions: RuleOptions;
   readonly ball: EntityId;
   readonly ballState: BallState;
   /** Per-entity movement profiles, indexed by entity id. */
@@ -400,10 +403,19 @@ const render: SportRenderer = {
    * Bodies and kit. **Moved here from `modes/live/screen.ts` by T-6.16**, which found the shared
    * screen importing this module by name and therefore drawing soccer with basketball's art.
    */
-  drawAthletes(ctx, _state, world, controlled) {
+  drawAthletes(ctx, _state, world, controlled, lod) {
     const palette = paletteFor('dark');
     world.forEach((id) => {
       if (world.kind[id] === 1) return;
+
+      // Culling and LOD against the moving viewport (T-12.8). A court usually fits on screen whole,
+      // so this rarely excludes anybody here — and it costs one comparison to be correct when the
+      // camera does tighten onto a duel.
+      const radius = world.radius[id] as number;
+      const detail =
+        lod?.detail(world.x[id] as number, world.y[id] as number, radius) ?? Detail.FULL;
+      if (detail === null) return;
+
       const team = world.team[id] === 1 ? 1 : 0;
       drawAthlete(
         ctx,
@@ -411,8 +423,8 @@ const render: SportRenderer = {
         world.y[id] as number,
         world.facing[id] as number,
         palette.teams[team],
-        Detail.FULL,
-        { team, controlled: id === controlled, radius: world.radius[id] as number },
+        id === controlled ? Detail.FULL : detail,
+        { team, controlled: id === controlled, radius },
       );
     });
   },
@@ -579,6 +591,30 @@ export const basketball: SportModule<BasketballState> = {
   arcade: BASKETBALL_ARCADE,
   playbook: basketballPlaybook,
 
+  /**
+   * How a court wants to be framed (T-12.6).
+   *
+   * A 28 × 15 court fits on a phone whole, so every span here except the duel's clamps to the court
+   * and basketball keeps the framing it has always had. The exception is deliberate: an isolation at
+   * the top of the key is the one moment in this sport where the other eight players are not the
+   * information, and 18 m still shows over half the court.
+   *
+   * `duelRadius` is tighter than soccer's because basketball defenders live inside arm's length,
+   * and at soccer's 5 m every possession would read as a duel.
+   */
+  // Basketball whistles fouls and has no offside law, so only one switch is offered (T-8.2).
+  lineup(state) {
+    return state.athleteIds;
+  },
+
+  ruleSwitches: ['fouls'],
+
+  camera: {
+    spans: { duel: 18, openPlay: 28, counter: 28, setPiece: 28 },
+    duelRadius: 2.4,
+    counterSpeed: 9,
+  },
+
   createState(setup: MatchSetup, world: World, rng: Rng): BasketballState {
     const squadSize = Math.min(setup.squadSize ?? this.meta.squadSize, roles.roles.length);
     const profiles = new Map<EntityId, MovementProfile>();
@@ -652,6 +688,9 @@ export const basketball: SportModule<BasketballState> = {
 
     const state: BasketballState = {
       sport: 'basketball',
+      // The switches the player chose (T-8.2). Stored rather than passed, so the three foul sites
+      // can read them without `step` threading a setup down to each one.
+      ruleOptions: setup.ruleOptions ?? DEFAULT_RULE_OPTIONS,
       ball: ballState.entity,
       ballState,
       profiles,
@@ -956,6 +995,8 @@ function trySteal(
   }
 
   if (result === StealResult.FOULED) {
+    // With fouls off (T-8.2) a reach-in is simply a failed steal: no whistle, play continues.
+    if (!state.ruleOptions.fouls) return [];
     return recordFoul(state.rules, defender, defenderSide, carrier, state.step, {
       ballX: world.x[state.ballState.entity] as number,
     });
@@ -1044,13 +1085,18 @@ function tryBlock(
       caromOffRim(world, state.ballState, shot.side, rng);
     }
     state.reboundLive = false;
-    events.push(
-      ...recordFoul(state.rules, defender, defenderSide, shot.shooter, state.step, {
-        shooting: true,
-        shotValue: shot.value,
-        made,
-      }),
-    );
+    // With fouls off (T-8.2) the contact happened and no whistle followed, so the shot stands as it
+    // fell — made or missed — and there are no free throws. Everything above this line still runs,
+    // which is why it is only the `recordFoul` that is skipped rather than the whole branch.
+    if (state.ruleOptions.fouls) {
+      events.push(
+        ...recordFoul(state.rules, defender, defenderSide, shot.shooter, state.step, {
+          shooting: true,
+          shotValue: shot.value,
+          made,
+        }),
+      );
+    }
     return events;
   }
 
@@ -1277,7 +1323,10 @@ function resolveDefenderContact(
       { x: world.vx[defender] as number, y: world.vy[defender] as number },
       { x: world.vx[carrier] as number, y: world.vy[carrier] as number },
     );
-    if (rng.bool(foulChance(defenderRatings, approach, closing) * result.severity)) {
+    if (
+      state.ruleOptions.fouls &&
+      rng.bool(foulChance(defenderRatings, approach, closing) * result.severity)
+    ) {
       state.contactWith = NO_ENTITY;
       return recordFoul(state.rules, defender, defenderSide, carrier, state.step, {
         ballX: world.x[state.ballState.entity] as number,

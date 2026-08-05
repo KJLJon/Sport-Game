@@ -171,3 +171,22 @@
   display: flex;
   gap: var(--space-12);
 }
+
+/* The secondary route into a match (T-8.2). Quieter and smaller than the card it sits under — the
+   card is the two-tap path `10` §2 promises, and this is the one extra tap for a player who wants
+   to choose. `--text-lo` rather than a hand-mixed dim, so it clears AA in both themes; the padding
+   is what makes it a 44 px target (INV-11). */
+
+.play-mode__setup {
+  display: block;
+  min-height: var(--target-min);
+  padding: var(--space-12);
+  text-align: center;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.play-mode__setup:hover,
+.play-mode__setup:focus-visible {
+  color: var(--text-hi);
+}

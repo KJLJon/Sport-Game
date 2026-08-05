@@ -78,6 +78,7 @@ describe('the setup choice round-trips', () => {
       keyMoments: 'clutch' as const,
       speed: 'fast' as const,
       hotSeat: true,
+      length: 'short' as const,
     };
     // Through the router's own encoder and parser, because the bug this replaced was in exactly
     // that step: a hand-assembled hash came back as one percent-encoded segment.
@@ -159,8 +160,16 @@ describe('the setup screen', () => {
     const ctx = context();
     await playbookScreen().mount(ctx);
 
+    // Match length joined the list in T-8.2, shared with Live so "Short" means the same in both.
+    // The rules toggles Live gained deliberately did not: soccer's Playbook adapter has no fouls.
     const legends = [...ctx.host.querySelectorAll('legend')].map((node) => node.textContent);
-    expect(legends).toEqual(['Difficulty', 'Key moments', 'Turn speed', 'Opponent']);
+    expect(legends).toEqual([
+      'Difficulty',
+      'Key moments',
+      'Turn speed',
+      'Match length',
+      'Opponent',
+    ]);
     expect(ctx.host.textContent).toContain('Clutch only');
     expect(ctx.host.textContent).toContain('Every chance');
   });
@@ -316,8 +325,16 @@ describe('the same two screens, with soccer on the URL (T-6.21)', () => {
 
     expect(ctx.host.querySelector('.playbook-setup__title')?.textContent).toBe('Soccer Playbook');
     // The same four choices `09` names — the sport is not a fifth one on this screen.
+    // Match length joined the list in T-8.2, shared with Live so "Short" means the same in both.
+    // The rules toggles Live gained deliberately did not: soccer's Playbook adapter has no fouls.
     const legends = [...ctx.host.querySelectorAll('legend')].map((node) => node.textContent);
-    expect(legends).toEqual(['Difficulty', 'Key moments', 'Turn speed', 'Opponent']);
+    expect(legends).toEqual([
+      'Difficulty',
+      'Key moments',
+      'Turn speed',
+      'Match length',
+      'Opponent',
+    ]);
   });
 
   it('asks for eleven rather than five before it will start', async () => {

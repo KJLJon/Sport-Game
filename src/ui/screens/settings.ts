@@ -29,6 +29,12 @@ const SECTIONS: readonly SettingsSection[] = [
   { id: 'display', title: 'Display & accessibility', summary: 'Theme, UI scale, reduced motion.' },
   { id: 'audio', title: 'Audio & haptics', summary: 'Music, effects, vibration.' },
   {
+    id: 'players',
+    title: 'People on this device',
+    summary: 'Names for hot-seat and party games. Local only, and removable.',
+    path: '/settings/players',
+  },
+  {
     id: 'data',
     title: 'Data & backup',
     summary: 'Export, import, storage usage.',

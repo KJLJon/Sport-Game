@@ -24,7 +24,8 @@ import type { Rng } from '../engine/rng.ts';
 import type { InputFrame } from '../engine/input/types.ts';
 import type { SportEvent } from '../engine/match/events.ts';
 import type { MatchRules } from '../engine/match/state-machine.ts';
-import type { Canvas2D, ViewTransform } from '../engine/render/renderer.ts';
+import type { Canvas2D, EntityLod, ViewTransform } from '../engine/render/renderer.ts';
+import type { PartialCameraProfile } from '../engine/render/framing.ts';
 import type { SportAudio } from '../modes/live/audio.ts';
 import type { EntityId, World } from '../engine/world.ts';
 import type { Athlete } from '../athletes/types.ts';
@@ -32,6 +33,7 @@ import type { ArcadeGameDef } from '../modes/arcade/types.ts';
 import type { PlaybookAdapter } from '../modes/playbook/types.ts';
 import type { Difficulty } from '../modes/difficulty.ts';
 import type { AssistSettings } from '../modes/assists.ts';
+import type { RuleOptions } from '../modes/match-setup.ts';
 
 export type SportId = string;
 
@@ -172,6 +174,18 @@ export interface MatchSetup {
    * match wants: nobody is holding the stick.
    */
   readonly assists?: AssistSettings;
+  /**
+   * Per-match rule switches the player chose (T-8.2) — whether fouls are whistled, whether offside
+   * is flagged.
+   *
+   * **A sport reads the ones it implements and ignores the rest.** That is what lets one bag serve
+   * every sport without naming any of them: a sport with no offside law simply never looks at
+   * `offside`, and nothing needs to know which sports those are (INV-5).
+   *
+   * Absent means every rule is on, which is what a headless rules test, the balance harness, and a
+   * player who changed nothing all want.
+   */
+  readonly ruleOptions?: RuleOptions;
 }
 
 /** Whatever the sport needs to track. The engine treats it as opaque. */
@@ -215,7 +229,22 @@ export interface SportRenderer {
    * Takes the sport's own state for exactly that reason: `controlled` is the athlete the player is,
    * and everything else the sport needs to tell its athletes apart is already in `state`.
    */
-  drawAthletes(ctx: Canvas2D, state: SportState, world: World, controlled: EntityId): void;
+  drawAthletes(
+    ctx: Canvas2D,
+    state: SportState,
+    world: World,
+    controlled: EntityId,
+    /**
+     * The engine's culling and detail policy for this frame (T-12.8). Ask it about every athlete
+     * before drawing one: `null` means off-screen, and the level it returns is how much of the kit
+     * is worth drawing at this distance.
+     *
+     * Optional so a sport can ignore it — the Phase-1 test fixture does — but a sport that ignores
+     * it draws 22 athletes on a viewport showing six, which was free while the camera fitted the
+     * field and stopped being free the moment it did not.
+     */
+    lod?: EntityLod,
+  ): void;
   /** The ball, with whatever height cue this sport uses. Its own layer, so it draws over bodies. */
   drawBall(ctx: Canvas2D, state: SportState, world: World, ball: EntityId): void;
   /** Per-frame sport-specific overlays: possession arrows, zone highlights. */
@@ -370,6 +399,39 @@ export interface SportModule<S extends SportState = SportState> {
    * Live rules do. A sport without one simply does not appear in the Playbook mode picker.
    */
   readonly playbook?: PlaybookAdapter;
+
+  /**
+   * How this sport wants to be framed (T-12.6): how much of the field to show in each phase of
+   * play, how far to look ahead, how large a deadzone.
+   *
+   * Optional, and partial — a sport overrides the numbers it has an opinion about and inherits the
+   * rest from `DEFAULT_CAMERA_PROFILE`. This is what makes per-sport framing possible without the
+   * word "soccer" appearing in the camera: a rink and a pitch frame differently because the rink
+   * and the pitch each said so, not because the director knows which is which (INV-5).
+   */
+  readonly camera?: PartialCameraProfile;
+
+  /**
+   * Which of `RuleOptions`' switches this sport actually implements (T-8.2).
+   *
+   * A setup screen offers a switch only for a law the sport has. Without this the screen would need
+   * to know that soccer flags offside and basketball does not — a sport id in mode code, which is
+   * exactly what INV-5 forbids. Absent means the sport honours no switches and is offered none.
+   */
+  readonly ruleSwitches?: readonly (keyof RuleOptions)[];
+
+  /**
+   * Which athlete is playing each entity (T-8.5).
+   *
+   * Both shipped sports already keep this map — they need it to give an entity real ratings — and
+   * nothing outside the sport could read it, so a box score could be built and never attached to
+   * anybody. Career stats are the first thing that needs the join, and progression's `applyMatch`
+   * has been asking its caller for the same mapping since Phase 3.
+   *
+   * Optional: a sport whose entities are anonymous (the Phase-1 fixture, a rosterless harness
+   * match) returns nothing and its stats are recorded against the match rather than any athlete.
+   */
+  lineup?(state: S): ReadonlyMap<EntityId, string>;
 
   /**
    * What to show about this sport right now. Optional so a Phase-1 test fixture stays valid; a

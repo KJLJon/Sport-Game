@@ -43,6 +43,20 @@ export interface PlayMode {
    * cannot tap, so an absence is never silent (`10` §10).
    */
   pending?(sport: SportId): string;
+
+  /**
+   * Where "Set up" goes, for a mode that has choices worth making before kick-off (T-8.2).
+   *
+   * **Secondary on purpose.** The first instinct was to make this the card's only destination, and
+   * it broke the promise the hub exists to keep: `10` §2 is "two taps to play" and T-8.1's gate
+   * criterion is *two taps from a cold launch reach a live match*. A mandatory form makes that
+   * three. So the card still plays, and configuring is one extra tap for the player who wants it —
+   * which is also the order `10` §8.1 describes.
+   *
+   * Absent means the mode has nothing to configure, or configures itself on the way in: Playbook's
+   * `route` has been its own setup screen since T-5.10.
+   */
+  setupRoute?(sport: SportId): string;
 }
 
 export const PLAY_MODE_CATALOGUE: readonly PlayMode[] = [
@@ -53,6 +67,8 @@ export const PLAY_MODE_CATALOGUE: readonly PlayMode[] = [
     hint: 'Two thumbs, landscape. The hardest of the three to pick up.',
     sports: ['basketball', 'soccer'],
     route: (sport) => `#/play/live/${sport}`,
+    // Who is playing, against whom, how long, and which laws are in force (T-8.2, US-10.2).
+    setupRoute: (sport) => `#/play/setup/${sport}`,
   },
   {
     id: 'playbook',

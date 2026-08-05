@@ -12,150 +12,29 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-7.9 — CPU team generation. **`done`** and pushed. **Phase 7 is 11 of 11 — every task
-  is done, and Gate 7 is the next thing.** PR **#16** is open as a draft.
-- 🚦 **Gate 7 evaluated 2026-08-03: NOT PASSED**, and the reasons are the familiar two plus one that
-  is specific to this phase. Every automatable check is green — 3 066 unit tests, 45 E2E, coverage
-  95.1%, bench and budgets inside, **all three balance harnesses in band at once for the first time
-  in the project**, `pnpm ai:ladder` zero findings. What is missing: the device matrix (`12` §7) and
-  a tagged deploy, both six gates deep, and two of `03`'s own criteria that are statements about a
-  *person* — "comfortably winnable by a newcomer", "beats an experienced player more often than
-  not". No batch closes those, and the harness deliberately does not claim to. Full record in
-  [phase 7 notes](./notes/phase-7.md#gate-record).
-- 👉 **The two things only the user can do:** mark PR #16 ready so it can merge and be tagged (a tag
-  is what deploys, and nothing can be tagged off an unmerged branch), then play it. **Nothing in
-  Phase 7 has been played by a human** — four difficulty levels across two sports and three modes,
-  tuned entirely against batch output.
-- **Branch:** `claude/continue-building-di8hng`, off `main` at `0036a29` (PR #15 merged; `v0.6.0`
-  is what the user has played).
-- **Next step:** **T-7.11 (balance pass #3)** is unblocked and is now the phase's most important
-  task by some distance — `pnpm ai:ladder` says the Live difficulty ladder is *inverted* in both
-  sports (see the finding below). T-7.6 and T-7.9 are ready and independent.
-- ✅ **T-7.10 found soccer's ladder collapsing at the top; T-7.11 fixed it.** The commit roll for a
-  tackle never looked at `tackleTiming`, so `relentless` lunged from the edge of its reach as often
-  as it lunged on the ball — difficulty was *punishing* the levels that competed hardest.
-  `commitChance()` adds the missing judgement channel, mean-preserving so it redistributes
-  challenges rather than reducing them. 30 paired matches per level, margin against Pro:
-
-  | | rookie | pro | allStar | legend |
-  |---|---|---|---|---|
-  | basketball · live | −12.73 | +0.00 | −0.53 | **+5.00** |
-  | basketball · playbook | −2.13 | +0.00 | +4.20 | **+6.00** |
-  | soccer · live | −0.77 | +0.00 | +1.10 | **+1.20** |
-  | soccer · playbook | −0.43 | +0.00 | +0.43 | **−0.07** |
-
-  `pnpm ai:ladder` reports **zero findings**. Re-run with `AI_MATCHES=15` for 30 a level.
-- ✅ ~~**Playbook soccer's Legend is not better than its All-Star.**~~ **Closed by T-7.6.** The cause
-  was the one guessed: with sampling temperature as Playbook's only difficulty channel, Legend took
-  the argmax nearly every turn, which against an opponent that reads tendencies is maximally
-  exploitable. `exploits` — carried in every difficulty profile since Phase 4 and never read — now
-  drives both counter-calling and the CPU's own variety. At **160** Playbook matches a level:
-
-  | | rookie | pro | allStar | legend |
-  |---|---|---|---|---|
-  | basketball · playbook | −3.73 | +0.00 | +3.70 | **+8.35** |
-  | soccer · playbook | −0.20 | +0.00 | +0.14 | **+0.30** |
-
-- ⚠️ **Use `AI_MODE=playbook AI_MATCHES=80` before believing a Playbook finding.** Two intermediate
-  30-match runs produced findings that both vanished at 160. Playbook batches are seconds; Live is
-  minutes. Do not tune against a 30-match Playbook number.
-- 🟡 **Soccer's Playbook ladder is thin** — the whole four-level spread is half a goal, against
-  basketball's twelve points. It passes, and it is a real observation about the mode: soccer's
-  intents score close together, so a level has little room to show an edge. If it ever needs to feel
-  more different, the lever is the spread of the scores, not the sampling.
-- ⚠️ **An earlier version of this block claimed the ladder was inverted in both sports. That was the
-  harness, not the game** — it rolled a different roster per side and paired legs on different
-  seeds, so it was measuring the draw. Fixed in `c1f01ae`; the table above is from the fixed tool,
-  and Pro reading exactly `50.0% / +0.00` in all four groups is the tool certifying itself.
-- **What T-7.3 landed:** `src/engine/ai/team.ts` — `createTeam(...).plan(situation)` returns one
-  `Assignment` per athlete (job, intent, target, mark, urgency) from the duty table, the phase
-  clock, the block, the press, the marks, and the help line. `src/engine/ai/marking.ts` holds the
-  one-to-one matching and its stickiness. Tested against both real duty tables, so the seam is
-  known to fit; **T-7.5 is where it acquires its first reader.**
-- **What T-7.9 landed:** `src/teams/cpu-team.ts` — an opponent with a name, kit, crest, style, and a
-  squad shaped to it. `shapeToward()` moves points around without changing how many there are, which
-  is the INV-1 guarantee in the form a roster generator could break it. Not wired to a screen: the
-  mode that picks an opponent is Phase 8's (T-8.1).
-- **What T-7.6 landed:** `src/modes/playbook/read.ts` — `scaleRead()` makes counter-calling a level,
-  `repeatPenalty()` stops the CPU having tells. Both sports wire them into their call scoring, with
-  the repeat weight expressed as `READ_WEIGHT / 3` so the trade is stated rather than hidden. Soccer
-  Playbook's `NOISE_TO_TEMPERATURE` 0.3 → 0.55 to give Rookie somewhere to be bad.
-- **What T-7.11 landed:** `commitChance()` in `engine/ai/execution.ts`, wired into soccer's tackle
-  and basketball's steal and block; soccer's `SHOOTING_RANGE` 22 m → 27 m. **Soccer balance is green
-  on all ten bands for the first time** (goals 3.75, shots 14.7, conversion 25.5% against a 30%
-  ceiling), basketball green on all fifteen and improved (fouls 11.4 → 10.2).
-- **What T-7.10 landed:** `tools/ai-regression.ts` (`pnpm ai:ladder`) plus the change that made it
-  possible — a **level per side** through both modes. `difficulties` is optional everywhere and
-  absent means "both sides play at `difficulty`", so no match a player plays changed; the soccer
-  balance run is byte-identical.
-- **What T-7.5 landed:** `src/sports/soccer/tactics.ts` plus the wiring in `index.ts` —
-  `planTeams()` runs the team layer for both sides once a step, outfield athletes take their target
-  from the assignment, and a presser seeks the ball. Soccer's own two situations, the offside trap
-  and the counter, are laid over the plan afterwards. The keeper stays `keeper.ts`'s.
-- **What T-7.4 landed:** `src/sports/basketball/offball.ts` — the pick-and-roll (set, then roll or
-  pop by the screener's own ratings), cuts and screens scored through T-7.1 instead of fired on a
-  flat rate, a scheme re-read every possession, and a shot bar that knows how good the offence is.
-  Balance re-run: all fifteen measures in band, and the shooting ones improved.
-- ~~**Open finding carried since T-6.18:** Live soccer scores 7.5 goals a match.~~ **Closed by
-  T-7.5.** Goals per match 7.5 → **3.25** (band 1.2–5.5) on 10.6 shots (band 8–45), because a named
-  athlete is now sent at the carrier instead of eleven shading towards the ball.
-- ~~**What is left of it:** Live conversion is 30.7% against a 30% ceiling.~~ **Closed by T-7.11** at
-  **25.5%**, and from the attacking side rather than the defensive one: `SHOOTING_RANGE` 22 m → 27 m.
-  Both earlier attempts to fix it defensively made it worse, because suppressing shot volume removes
-  the *bad* shots first.
-- **Also worth somebody's attention:** seed `plans` produces a red card inside ten seconds of a
-  soccer match. Found while writing T-7.5's integration test. Not investigated — the foul rates are
-  T-6.13's and the balance run's overall numbers are fine, but that looks fast.
-- **Also fixed this session:** soccer's `Shoot` and `Pass` buttons had never been wired to anything
-  — the CPU decision ran for the player's carrier too. That is a direct answer to half of the
-  user's "not easy to control", and it is worth asking them to try soccer again once tagged.
-- **New this session:** `pnpm -s next` prints the ready tasks with their dependencies resolved, so
-  a session start no longer costs a read of both `03` and this file.
-- Read the user feedback below before assuming Phase 7 covers what they asked for — two of the
-  three things are elsewhere.
-
-### What the user said after playing v0.6.0
-
-Their words: *"not easy to control and some screens don't seem to work and I want it to work both
-vertically and horizontally but maybe that will come with bonus round of camera angle."*
-
-1. **"Not easy to control"** — T-6.29 addressed the half of this that was missing information: the
-   buttons now say `Shoot`/`Pass`/`Sprint`. Whether the *feel* is right — stick deadzone, auto-switch,
-   sprint on a held button rather than a toggle — is untested by anyone and is **T-7.8**'s (assists)
-   and Phase 9's. Ask before assuming the labels fixed it.
-2. ~~**"Some screens don't seem to work"**~~ — **addressed by T-6.30.** `#/store` and `#/progress`
-   are the only stubs left, both Phase 8, and both are **tabs in the bottom bar**. They said "Arrives
-   in Phase 8"; they now say they are still being built and offer a way back to a match. The screens
-   are still empty — that is Phase 8 — but they no longer read as broken.
-3. **"Both vertically and horizontally"** — Live routes declare `orientation: 'landscape'`, so a
-   portrait phone gets "Turn your phone sideways to play" and nothing else. The user guessed this is
-   **Phase 12** (camera and framing) and they are right: a portrait match needs the camera to frame a
-   tall viewport, not just the CSS to allow one. Worth raising whether Phase 12 should move up.
-
-### 🔴 Read this before repeating five gates' worth of a wrong assumption
-
-**The deploy was never the blocker. Not tagging was.** Gates 2–6 each recorded "the deploy" as an
-outstanding user action, and every one of them was wrong: `deploy.yml` has **four successful runs**,
-and `v0.2.0`–`v0.5.0` all deployed fine. What had not happened was **tagging anything since
-`v0.5.0`** — which was three PRs and twenty commits back.
-
-So the live site served `v0.5.0`, where `routes.ts` still read:
-
-```ts
-pattern: '/play',
-value: stub('play', 'Play', 'Pick a sport and a way to play.', 'Phase 2'),
-```
-
-The user tapped **Play**, got a Phase-2 placeholder, and reported that they could not work out how to
-play the game. Everything they were looking for — the modes hub (T-8.1, PR #10), soccer's Playbook,
-all five mini-games, Gate 6 — was on `main`, undeployed, and had been for days. **The gate protocol's
-step 7 says "tag and deploy"; sessions were reading that as one action and doing neither.**
-
-**A tag is the only way to ship.** `deploy.yml` fires on `push: tags: ['v*']` and `workflow_dispatch`.
-Neither is reachable from a sandboxed session: the git proxy **refuses tag pushes** (`send-pack:
-unexpected disconnect`, on every retry), and the GitHub App has **no `actions: write`**, so
-`workflow_dispatch` returns 403. Both were tried on 2026-07-31. **Tagging is a user action, and it
-must be asked for explicitly at every gate** — not recorded as a blocker and left.
+- **Task:** none. **All five ready Phase 8 tasks are done** — T-8.2, T-8.4, T-8.5, T-8.11, T-8.15 —
+  on top of Phase 12, which is complete with Gate 12 recorded. PR **#17** is open as a draft.
+- **Branch:** `claude/phase-12-next-steps-xeminm`, off `main` at `0e03a2f`.
+- **Suite:** 184 files, **3 230 unit tests**, 57 E2E, typecheck and lint clean.
+- **What this session unblocked in Phase 8:** T-8.3 (needed T-8.2), T-8.6 and T-8.10 (needed T-8.5).
+  `pnpm -s next` now lists **T-8.3, T-8.6, T-8.10, T-8.15's siblings** as ready.
+- 🧵 **The recurring find, four times over.** This session kept turning up things that were built,
+  tested, and never connected to anything a player could reach:
+  1. `CameraDirector.snap()` — written with "the one place a cut is correct is a period boundary" in
+     its own docstring, and no caller. Half-time panned the camera the length of the pitch.
+  2. `generateCpuTeam` (T-7.9) — a named opponent with a crest and a style, never invoked.
+  3. **Live matches never used your athletes.** `MatchOptions.rosters` existed and `liveScreen` had
+     no way to be given it, so Live played rolled athletes while Playbook played your squad. INV-11's
+     parity harness passes rosters explicitly, so it could not see the difference either.
+  4. `Detail.FULL/REDUCED/MINIMAL` — honoured by both sports' art since Phase 2, never passed
+     anything but `FULL`. And `forgetPlayers()` (T-4.11) — no caller, so a local name could be typed
+     and never removed, which `US-17.3` explicitly requires.
+  **Worth a habit:** a task is not done when its module is written and tested. It is done when
+  something a player can reach calls it.
+- **Next step:** Phase 8 continues — T-8.3 (tournaments), T-8.6 (achievement engine), T-8.10 (wallet
+  and coin ledger) are all ready. Gate 8 needs the economy loop, so T-8.10 → T-8.13 is the spine.
+- **Blockers:** none for the code. **Gates 2 through 12 are all still held by the same two user
+  actions:** the device matrix and a tagged deploy. A tag is the only thing that ships.
 
 ---
 
@@ -359,20 +238,20 @@ there; this file is read at every session start and the notes file only when you
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
 | T-8.1 | Home screen, mode selector, Quick Play (two taps from cold launch) | M | `done` | | `tests/unit/ui/play.test.ts`, `tests/unit/modes/last-played.test.ts`, `tests/e2e/play-hub.spec.ts` | auto+device | Pulled forward: the Play tab was still a Phase-0 placeholder, so no shipped mode was reachable by tapping — [notes](./notes/phase-8.md#t-81) |
-| T-8.2 | Match setup screens for Live and Playbook: sport, teams, difficulty, length, rules toggles | M | `todo` | | | | |
+| T-8.2 | Match setup screens for Live and Playbook: sport, teams, difficulty, length, rules toggles | M | `done` | | `tests/unit/modes/match-setup.test.ts`, `tests/unit/modes/rule-options.test.ts`, `tests/e2e/play-hub.spec.ts` | auto | Also the first thing to hand Live your actual athletes, and `generateCpuTeam`’s first caller. Setup is a second target beside the card, not in front of it — `10` §2’s two taps still hold. [notes](./notes/phase-8.md#t-82) |
 | T-8.3 | Tournament mode: 4/8/16 bracket, persistence, results, rewards; playable in Live or Playbook | L | `todo` | | | | |
-| T-8.4 | Match checkpointing and resume-after-kill, all three modes | M | `todo` | | | | |
-| T-8.5 | Stats store: match history, box scores, career stats per sport per mode | M | `todo` | | | | |
+| T-8.4 | Match checkpointing and resume-after-kill, all three modes | M | `done` | | `tests/unit/modes/checkpoint.test.ts`, `tests/e2e/live-match.spec.ts` | auto | Stores the match’s *public* state, not the sim: score and clock come back, positions and the box score do not, and the card says so. Arcade is deliberately not resumable. [notes](./notes/phase-8.md#t-84) |
+| T-8.5 | Stats store: match history, box scores, career stats per sport per mode | M | `done` | | `tests/unit/stats/record.test.ts`, `tests/e2e/play-hub.spec.ts` | auto | One builder for both modes off one event stream — the mode labels a record, it never changes how one is computed. Adds `SportModule.lineup()` and the first real Progress screen. [notes](./notes/phase-8.md#t-85) |
 | T-8.6 | Achievement engine: declarative defs, event-stream evaluation, progress, once-only grants (INV-7) | L | `todo` | | | | |
 | T-8.7 | Achievement content: ~75 defs incl. arcade unlocks, cross-sport, cross-mode, hidden | L | `todo` | | | | |
 | T-8.8 | Arcade unlock wiring: achievements gate arcade games, with a clear unlock moment | M | `todo` | | | | |
 | T-8.9 | Achievement UI: gallery, filters, progress bars, in-match toast, post-match summary | M | `todo` | | | | |
 | T-8.10 | Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match payout | M | `todo` | | | | |
-| T-8.11 | Procedural athlete generator: rarity-coherent attribute spreads, fictional names | L | `todo` | | | | |
+| T-8.11 | Procedural athlete generator: rarity-coherent attribute spreads, fictional names | L | `done` | | `tests/unit/athletes/generator.test.ts` | auto | Seven archetypes give a rolled athlete a shape and a body; coherence rises with rarity and the total never moves (INV-1). CPU squads stopped being numbered. [notes](./notes/phase-8.md#t-811) |
 | T-8.12 | Packs: tiers, prices, published odds, pity timers, reveal animation with skip | L | `todo` | | | | |
 | T-8.13 | Sell-back: valuation, squad-lock guard, confirmation, anti-farm invariants (INV-5, INV-6) | M | `todo` | | | | |
 | T-8.14 | Transfer market: rotating listings, tamper-resistant refresh, paid refreshes, buy-offers, seeded price walk | XL | `todo` | | | | |
-| T-8.15 | Local player names and party flows for hot-seat across Playbook and Arcade | M | `todo` | | | | |
+| T-8.15 | Local player names and party flows for hot-seat across Playbook and Arcade | M | `done` | | `tests/unit/ui/players.test.ts` | auto | The model existed since T-4.11; the *flows* did not. Playbook could never name its hot-seat opponent, and `forgetPlayers()` had no caller — so a name could be typed and never removed. [notes](./notes/phase-8.md#t-815) |
 | T-8.16 | Economy balance pass: pack EV vs sell value vs earn rate, simulated over 200 matches | M | `todo` | | | | |
 
 ### Phase 9 — UI/UX, accessibility, performance, data safety
@@ -441,15 +320,15 @@ pitch. T-6.12 does the minimum to make soccer legible; this is the version worth
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-12.1 | Follow camera: track the active athlete with lookahead, deadzone, and speed-scaled framing | L | `todo` | | | | |
-| T-12.2 | Dynamic zoom by phase of play — tight in a duel, wide on a counter, widest at a set piece | L | `todo` | | | | |
-| T-12.3 | Off-screen awareness: edge indicators for teammates, opponents, and the ball, with distance | L | `todo` | | | | |
-| T-12.4 | Minimap rework: always-on, tap-to-look, readable at 44 px | M | `todo` | | | | |
-| T-12.5 | Camera handoff on possession change, restarts, and goals — never a cut mid-action | M | `todo` | | | | |
-| T-12.6 | Per-sport camera profiles through the seam, so a rink and a pitch frame differently | M | `todo` | | | | |
-| T-12.7 | Reduced-motion and accessibility pass: no camera motion a player cannot turn off | M | `todo` | | | | |
-| T-12.8 | Culling and LOD against a moving viewport — draw what is on screen, not what exists | M | `todo` | | | | |
-| T-12.9 | Device pass: framing on a 360 px phone in both orientations, one-handed | M | `todo` | | | | |
+| T-12.1 | Follow camera: track the active athlete with lookahead, deadzone, and speed-scaled framing | L | `done` | | `tests/unit/engine/camera.test.ts`, `tests/unit/engine/framing.test.ts` | auto | Deadzone, a magnitude-capped lead, and a ball/athlete focus blend that commits to the ball once no frame holds both. [notes](./notes/phase-12.md#t-121) |
+| T-12.2 | Dynamic zoom by phase of play — tight in a duel, wide on a counter, widest at a set piece | L | `done` | | `tests/unit/engine/director.test.ts` | auto | Phase read from generic signals with hysteresis; the fixed 45 m span became `legibleSpan()`, without which the wide phases were unreachable. [notes](./notes/phase-12.md#t-122) |
+| T-12.3 | Off-screen awareness: edge indicators for teammates, opponents, and the ball, with distance | L | `done` | | `tests/unit/modes/live/awareness.test.ts` | auto | Replaces the teammate-only arrows: ball, your athlete, nearest opponents, nearest teammates, each a different silhouette, distance labelled on the two singular ones. [notes](./notes/phase-12.md#t-123) |
+| T-12.4 | Minimap rework: always-on, tap-to-look, readable at 44 px | M | `done` | | `tests/unit/modes/live/minimap.test.ts` | auto | The field’s own aspect rather than a hardcoded court’s, a viewport box, tap-to-look via `director.peek()`, and a 44 px floor. [notes](./notes/phase-12.md#t-124) |
+| T-12.5 | Camera handoff on possession change, restarts, and goals — never a cut mid-action | M | `done` | | `tests/unit/engine/director.test.ts` | auto | A restart or a turnover pans; only `snap()` cuts, and dead-ball pans are allowed to be brisker than live ones. [notes](./notes/phase-12.md#t-125) |
+| T-12.6 | Per-sport camera profiles through the seam, so a rink and a pitch frame differently | M | `done` | | `tests/unit/engine/director.test.ts`, `tests/unit/engine/framing.test.ts` | auto | `SportModule.camera` takes a partial profile; every phase span clamps to the field, so a court frames itself whole and no sport is named. [notes](./notes/phase-12.md#t-126) |
+| T-12.7 | Reduced-motion and accessibility pass: no camera motion a player cannot turn off | M | `done` | | `tests/unit/app/motion.test.ts`, `tests/unit/modes/live/screen.test.ts` | auto | Three levels, not a checkbox — `full` / `reduced` / `fixed` — in the pause menu because you find out mid-match, not on a settings screen. [notes](./notes/phase-12.md#t-127) |
+| T-12.8 | Culling and LOD against a moving viewport — draw what is on screen, not what exists | M | `done` | | `tests/unit/engine/renderer.test.ts` | auto | `Renderer.lodFor()` owns the policy, the sport owns the drawing; the LOD tiers the art has honoured since Phase 2 were never once passed anything but FULL. [notes](./notes/phase-12.md#t-128) |
+| T-12.9 | Device pass: framing on a 360 px phone in both orientations, one-handed | M | `done` | | `tests/e2e/camera-framing.spec.ts` | auto — **not device** | Both orientations at 360 px automated; comfort, frame rate on real hardware, and one-handed reach are not claimed. [notes](./notes/phase-12.md#t-129) |
 
 ### Phase 13 — Visual overhaul: sprites and pseudo-3D (bonus)
 
@@ -489,6 +368,7 @@ One row per gate: the result and what it turned on. The full evaluation — ever
 | 4 — Arcade (v0.3) | 2026-07-28 | **NOT PASSED** | Same two blockers, now three gates deep. Two of `03`'s four criteria ("fun standalone", "a child can start one unaided") are claims about a person, not a program, and no test will close them. 1 941 tests, coverage 94.9%. | [phase 4 notes](./notes/phase-4.md#gate-record) |
 | 7 — CPU AI depth & difficulty ladder | 2026-08-03 | **NOT PASSED** | Every automatable check green and, for the first time in the project, **all three balance harnesses in band at once** — soccer's ten included. `pnpm ai:ladder` reports zero findings. 3 066 unit, 45 E2E, coverage 95.1%. Two of `03`'s four criteria ("comfortably winnable by a newcomer", "beats an experienced player more often than not") are claims about a person and no batch closes them; the device matrix and the deploy are the same blockers, now **six gates deep**. | [phase 7 notes](./notes/phase-7.md#gate-record) |
 | 6 — Soccer · all three modes (v0.5) | 2026-07-31 | **NOT PASSED** | Every automatable check green: 2 788 unit, 45 E2E, coverage 94.9%, bench 0.058 ms/step at 11v11, budgets inside. All three of `03`'s criteria met, the third (`engine/` touched only for core improvements) demonstrably so — three changes, none naming a sport. Blocked on the device matrix and the deploy, now **five gates deep**, with five mini-games never played by a human. One open finding handed to Phase 7: Live soccer scores 12.8 goals a match on shot *volume*, not conversion. | [phase 6 notes](./notes/phase-6.md#gate-record) |
+| 12 — Camera, framing, and readability | 2026-08-03 | **NOT PASSED** | All nine tasks done, every automatable check green: 3 160 unit, **51 E2E** including six new framing cases at 360 px in both orientations, coverage **94.91%**, bench and bundle budgets inside. Two of `03`'s four criteria are met and machine-checkable; the other two — an athlete *legible* on a phone, and ≥55 fps **with the camera moving** — are a render measurement and a claim about eyes, and neither can be closed without the device. Same two standing blockers, now **seven gates deep**, and for this phase the device matrix is the subject rather than a formality. | [phase 12 notes](./notes/phase-12.md#gate-record) |
 
 ---
 

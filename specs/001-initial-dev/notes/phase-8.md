@@ -82,3 +82,235 @@ the first time the thing has behaved like a product rather than a set of routes,
 not being there — you can see the shape of what is coming. The mode blurbs are doing real work: "One
 thumb, no reflexes needed. The easiest way in." is the sentence that would actually get a
 seven-year-old to pick Playbook over Live.
+
+### T-8.2
+
+*Match setup screens for Live and Playbook*
+
+**Two things were already built and simply not connected, and finding them was most of the task.**
+
+1. **Live matches never used your athletes.** `MatchOptions.rosters` had existed since T-3.17 and
+   `liveScreen` had no parameter to pass it, so every Live match was played by athletes rolled from
+   the seed while the player's squad sat in IndexedDB. Playbook used the real roster. Nothing looked
+   broken from the outside because both modes produced a plausible match — they were just playing
+   different games. INV-11's cross-mode parity harness could not see it either: it passes rosters to
+   both modes explicitly, which is exactly the path Live's screen did not have.
+2. **`generateCpuTeam` had no caller.** T-7.9 built a named opponent with a crest, a kit, and a
+   playing style, tested it, and nothing a player could reach ever invoked it. `resolveRosters` is
+   its first caller, and `CpuStyle.blurb`'s own comment — "for the pre-match screen when there is
+   one" — turned out to be describing this screen.
+
+**The spec conflict, and why the resolution is the better design anyway.** T-8.2 asks for a setup
+screen. `10` §2 promises "two taps to play" and T-8.1's gate criterion is *two taps from a cold
+launch reach a live match*. The first implementation put the screen in front of the Live card and
+three E2E tests immediately said so. The card still plays, and **"Set up a match" is a second,
+smaller target beneath it** — the fast path is untouched and configuring costs one extra tap. That
+is also the order `10` §8.1 describes, so the conflict was in the implementation rather than in the
+spec.
+
+**Rule switches are a bag the sport reads, not a branch the engine takes.** `RuleOptions` is
+`{ fouls, offside }`; a sport reads the ones it implements and ignores the rest, and declares which
+it honours through `SportModule.ruleSwitches` so the setup screen can offer a switch for offside to
+soccer and not to basketball without knowing which is which. The first draft *did* have a
+`{ soccer: true }` map in the screen — a sport id in mode code, which is precisely what INV-5
+forbids — and the seam capability replaced it.
+
+There are three foul sites in basketball and two rule sites in soccer, and each degrades to the
+sensible non-call: a reach-in becomes a failed steal, a tackle becomes a failed tackle, and a
+shooting foul leaves the shot standing as it fell with no free throws. `tests/unit/modes/
+rule-options.test.ts` asserts the simulation actually changes, with the fouls-on case as a control
+so "no fouls when off" cannot pass for the wrong reason.
+
+**Deliberately not shipped: an injuries toggle**, which `US-10.2` names. Nothing in either sport
+injures anybody during a match — `athletes/condition.ts` models injury as an *availability* state a
+match reads and never writes — so the switch would control nothing. It arrives when in-match
+injuries do.
+
+**Deliberately not shipped: rules toggles in Playbook.** Playbook gained the shared match-length
+control, so "Short" means the same thing in both modes. It did not gain the rule switches because
+soccer's Playbook adapter has no foul model at all — its own header says so — and a switch that does
+something in one sport and nothing in another, in one mode and not the other, is the half-working
+control this codebase keeps deciding is worse than none.
+
+**A CSS lesson worth writing down.** The first version of `match-setup.css` used invented token
+names (`--color-text-dim`, `--space-3`, `--radius-md`) each with a hardcoded fallback. Every one was
+unresolved, and because the fallbacks were dark-theme values nothing looked wrong — until the axe
+sweep hit the light theme and found the "dim" fallback rendering near-white on near-white at 1.04:1.
+**A fallback on a design token is a spelling mistake that renders.** The real names are `--text-lo`,
+`--space-12`, `--radius-12`, and they are now used without fallbacks so the next typo fails loudly.
+
+### T-8.4
+
+*Match checkpointing and resume-after-kill*
+
+**The decision this task turns on: a checkpoint is not a snapshot.**
+
+It cannot be, without a seam change that does not belong here. `SportState` is opaque to the engine
+by design — that opacity *is* the sport seam (INV-5) — so serialising a live match would mean every
+sport growing a `serialize`/`restore` pair and every future sport owing one before it could be
+played. That is a decision about the seam, made once, against the sport that actually needs it.
+
+So what is stored is the match's **public state**: the setup that started it, the score, the period,
+and how far the clock had run. Resuming replays the setup and puts the scoreboard back.
+
+- **Survives:** sport, mode, team, opponent, difficulty, length, rules, score, period, clock.
+- **Does not:** positions, possession, the box score, team fouls, stamina.
+
+The home card says that in words — "Picks up at that score and clock. Positions and the box score
+start fresh." — rather than implying a perfect restore. For the case `US-10.3` names, it is most of
+what was wanted: a phone that died with two minutes left in a close game gives back a close game
+with two minutes left. `LiveMatch` starts with an empty box score in that case and does not
+fabricate a plausible one, because a plausible box score is a lie told in numbers.
+
+**Resuming is navigation, and that is what makes it work in every mode.** A checkpoint stores an
+href; the home screen appends `?resume=42-38:3:1200` and follows it. Nothing about checkpointing
+knows how a mode starts a match. This only became possible because T-8.2 made a setup a link — the
+two tasks landed in the right order by luck rather than by planning.
+
+**Two writes, because there are two different failures.** A ten-second timer and a
+`visibilitychange`. Backgrounding is the one the browser warns you about; a kill — the case the
+story actually names — gives no warning at all, and the timer is the only thing that survives it.
+Both writes swallow their errors: a full or denied database must never interrupt a match in
+progress. A resume that is not offered is a smaller failure than a match that stops.
+
+**Arcade is deliberately not resumable, and this is the one place "all three modes" is answered
+with a no.** Two reasons, the second decisive:
+
+1. A run is about a minute long, so "resume" means dropping the player back mid-swing at a timing
+   game — the worst possible moment to hand control over.
+2. A *scored* run resumed from persisted numbers is **a score you can edit**. Arcade personal bests
+   (T-4.4) are a record; restoring `score` from IndexedDB would make every one of them writable from
+   a devtools console.
+
+So an arcade run is checkpointed — the game you were playing is remembered and offered — and the
+button says "Play again", because that is what it does.
+
+**A checkpoint from an older build is discarded, not migrated.** It is the only persisted record
+where that is the right answer: it describes a match at most one session old, and a wrong resume is
+worse than no resume. `isCurrentCheckpoint` is deliberately strict about every field it will later
+read, because this is the one record written by a previous *version* of the app and read by this one
+with no migration in between.
+
+**One clamp worth knowing about.** T-8.2 lets a player change match length between sessions, so a
+`periodStep` recorded in a full match can exceed a short period. Unclamped, the resumed period would
+start already expired and end on its first step.
+
+### T-8.5
+
+*Stats store: match history, box scores, career stats*
+
+**This is the task where INV-9 stopped being a rule and became a saving.** Live steps a simulation
+sixty times a second; Playbook resolves a turn at a time. Both push the same `SportEvent`s onto the
+same bus, so both arrive at `buildRecord` as an array of events and a final score, and it never asks
+which mode produced them. `mode` is stored so a row can *say* how a match was played and so a career
+can be filtered — never so that stats are computed differently. There is a test asserting the two
+modes produce byte-identical lines from an identical stream, because the failure it guards against
+is one nobody would notice: a Playbook assist counted by a slightly different rule, discovered
+months later in numbers nobody can attribute.
+
+**`SportModule.lineup()` is a new seam member and a small one.** Both shipped sports already kept an
+entity → athlete-id map — they need it to give an entity real ratings — and nothing outside the sport
+could read it. So a box score could be built and never attached to anybody, which makes career stats
+impossible. Progression's `applyMatch` has been asking *its* caller for exactly this mapping since
+Phase 3, so the join was already assumed to exist; this is the first thing to expose it.
+
+It is optional, and a sport that returns nothing records its box score with `athleteId: null`. Those
+lines are then **skipped** by `buildCareers` rather than pooled under a placeholder id — an "unknown
+athlete" whose career grew with every rosterless harness run would make the whole screen
+untrustworthy.
+
+**Careers are per sport, deliberately.** `05` §3 makes ratings per sport, so a career total that
+mixed basketball and soccer would be answering a question nobody asks. `byMode` sits alongside the
+total rather than replacing it: "how do I do in Playbook" is a real question and it is a *filter* on
+one set of numbers, not a second set.
+
+**A win is counted only for the side the player was on.** The opponent's athletes have real lines in
+every record, and crediting them with a result would record the player's own outcome twice — once as
+a win for them and once as a loss for the CPU, in a table that is supposed to be about the player's
+squad.
+
+**History is capped at 500 matches.** A record is small, but a store nothing prunes grows for as long
+as the app is installed, on a device whose quota is not ours. The honest cost is that a pruned match
+leaves a career line slightly short; 500 is about a year of daily play.
+
+**The Progress tab was a placeholder and is now a screen.** Two tables, each scrolling inside its own
+box because a career table has eight columns and a 360 px phone has room for four. Results are the
+*words* "Won"/"Lost"/"Drew" rather than a coloured row (INV-11), and both tables carry real row and
+column headers so a screen reader can navigate them as the tabular data they are.
+
+### T-8.11
+
+*Procedural athlete generator*
+
+**The gap was shape, not spread.** `rollAthlete` has existed since T-3.2 and it draws every attribute
+from *one* gaussian around the rarity band's mean. That is a perfectly correct spread and it produces
+athletes with no identity: eleven of them are eleven slightly different blobs, all mediocre at
+everything, none of them anybody. A pack you open to find another blob is a pack not worth opening.
+
+**Seven archetypes**, each wanting a distinct pair of attributes and carrying a body bias to match —
+a Sprinter is light and a little short, an Anchor is tall and heavy and slow. No two want the same
+pair and every attribute is wanted by somebody, the same rule `CPU_STYLES` follows and for the same
+reason: an archetype nobody can distinguish is not one.
+
+**Coherence rises with rarity, and that is the whole design.** Rarity decides *how many* points an
+athlete has; the archetype decides *where they sit*; coherence decides how hard the archetype pulls.
+So a Legendary is not merely higher-total — it is more **pointed**, clearly the best sprinter you own
+rather than uniformly slightly better at everything. That is what makes a good pull feel different
+rather than only score higher.
+
+**INV-1 is the thing to be careful about here**, and it has the strictest test in the file: for every
+rarity, across 25 seeds each, a generated athlete's attribute total is *exactly* the total the rarity
+roll produced. `shapeToward` moves points and never mints them. It would be very easy — and
+completely invisible from the outside — for shaping to leak a few points, at which point rarity would
+stop being the only thing that decides how good somebody is.
+
+**`shapeToward` moved from `teams/cpu-team.ts` to `athletes/shape.ts`.** It was written for T-7.9 to
+shape an opponent to a team style; a pack rolling an archetype wants exactly the same operation, and
+a copy in `athletes/` would have been two implementations of the one function INV-1 rests on.
+`cpu-team.ts` re-exports it so nothing that imported it from there had to change.
+
+**Names had been written twice and were about to be written a third time.** `starter-roster.ts` kept
+a private pair of pools and `cpu-team.ts` kept place-and-nickname lists for teams. `athletes/names.ts`
+is the athlete half, extracted and widened — three name generators would have drifted into three
+different-sounding worlds. Every name is invented: `US-9.2` asks for fictional ones, and the reason
+is not squeamishness but that a roster reading like a licensed one invites exactly the comparison it
+should not.
+
+**It has a caller, deliberately.** This phase has already turned up three things built and never
+connected — `generateCpuTeam`, `CameraDirector.snap`, the LOD tiers — so the generator was not left
+waiting for T-8.12's packs. CPU squads were named "Kestrel 1" through "Kestrel 11", which is a list
+rather than a team sheet; they now draw from the shared pools. Names come from their own RNG fork, so
+the name draws cannot shift the attribute draws and **every existing seed still produces exactly the
+athletes it did** — the balance harnesses' numbers are untouched.
+
+### T-8.15
+
+*Local player names and party flows*
+
+**The model was finished; the flows were not.** `modes/local-players.ts` has stored, seated, renamed
+and forgotten local players since T-4.11. Two things were missing, and both were about reach rather
+than about code:
+
+1. **Playbook could never name its hot-seat opponent.** The only name fields in the app were on the
+   arcade hub, so a Playbook hot-seat player was "Player 2" for as long as they never opened Arcade
+   — which is precisely the "rather than Player 2" `US-17.3` is named for.
+2. **`forgetPlayers()` had no caller.** A name typed once could not be taken back out of the app.
+   That is the "editable or removable **at any time**" half of the story, and it is not a nicety: a
+   name somebody entered about a person who no longer plays, with nowhere to remove it, is a small
+   thing on entirely the wrong side of the line this project keeps.
+
+So: `ui/components/party.ts` holds the seat rows, used by Arcade (whose inline copy it replaced),
+Playbook's setup, and a new **Settings → People** screen that can remove the lot. Three copies of one
+control would have been three chances for them to save differently.
+
+**A name saves as it is typed.** There is no Save button because there is no moment a player would
+press one — they type a name and start a match, and a name lost between those two actions is the
+whole feature failing quietly.
+
+**Opening the People screen does not create people.** The seats are defaulted for display, and
+nothing is written unless a name is edited or something was already stored. A screen that recorded
+four players because somebody looked at it would be inventing a party.
+
+**Where the names are, said out loud.** `US-17.3` promises local-only, and they live in preferences
+rather than IndexedDB — not in a backup, not in a roster export, not in a P2P handshake. The screen
+says that in a sentence, because a promise nobody can see is indistinguishable from one nobody kept.

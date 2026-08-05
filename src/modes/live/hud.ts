@@ -31,8 +31,7 @@
  * brighter shade. Each of those has a test.
  */
 import type { Canvas2D } from '../../engine/render/renderer.ts';
-import type { World } from '../../engine/world.ts';
-import { NO_ENTITY, type EntityId } from '../../engine/world.ts';
+import { NO_ENTITY } from '../../engine/world.ts';
 import type { Side } from '../../engine/match/events.ts';
 import { linesFor, teamLine } from './box-score.ts';
 import type { MatchView } from './match.ts';
@@ -87,7 +86,10 @@ export function hudLayout(
   };
 
   const minimapWidth = Math.round(132 * scale);
-  const minimapHeight = Math.round((minimapWidth * 15) / 28);
+  // A reserved *area*, not the map: `minimapFrame()` re-shapes it to whatever the field's aspect is
+  // (T-12.4). Until then this read `(minimapWidth * 15) / 28` — a basketball court's proportions,
+  // hardcoded in a file whose header claims never to have heard of basketball.
+  const minimapHeight = Math.round(minimapWidth * 0.55);
   const minimap = {
     x: Math.round(insets.left + (width - insets.left - insets.right - minimapWidth) / 2),
     y: Math.round(height - insets.bottom - minimapHeight - 8),
@@ -338,136 +340,19 @@ function drawMeter(ctx: Canvas2D, charge: number, layout: HudLayout, theme: HudT
 }
 
 /**
- * The minimap: the whole court, both squads, and the ball, at a glance.
- *
- * `10` §4 puts it bottom-centre for a reason — it is the one part of the HUD that has to survive
- * both thumbs being on the screen, and the middle is the only place neither of them reaches.
+ * The minimap moved to `minimap.ts` in T-12.4, when it stopped being a smaller copy of what was
+ * already on screen and became the only place the far end of the field exists. `layout.minimap`
+ * still reserves its area here; `minimapFrame()` re-shapes that area to the field's own aspect.
  */
-export function drawMinimap(
-  ctx: Canvas2D,
-  view: MatchView,
-  world: World,
-  fieldWidth: number,
-  fieldHeight: number,
-  layout: HudLayout,
-  theme: HudTheme = DEFAULT_HUD_THEME,
-  sides?: ReadonlyMap<EntityId, Side>,
-): void {
-  const { minimap } = layout;
-  const sx = minimap.width / fieldWidth;
-  const sy = minimap.height / fieldHeight;
-
-  ctx.fillStyle = theme.panel;
-  ctx.fillRect(minimap.x, minimap.y, minimap.width, minimap.height);
-  ctx.strokeStyle = theme.dim;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(minimap.x, minimap.y, minimap.width, minimap.height);
-
-  // Halfway line, so which end you are attacking is readable without colour.
-  ctx.beginPath();
-  ctx.moveTo(minimap.x + minimap.width / 2, minimap.y);
-  ctx.lineTo(minimap.x + minimap.width / 2, minimap.y + minimap.height);
-  ctx.stroke();
-
-  const controlled = view.status.controlled;
-  world.forEach((id) => {
-    if (world.kind[id] === 1) return;
-    const side = sides?.get(id) ?? (world.team[id] as Side);
-    const x = minimap.x + (world.x[id] as number) * sx;
-    const y = minimap.y + (world.y[id] as number) * sy;
-
-    ctx.fillStyle = side === 1 ? theme.teams[1] : theme.teams[0];
-    ctx.beginPath();
-    ctx.arc(x, y, id === controlled ? 3.5 : 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // The controlled athlete gets a ring — a shape, not a shade (INV-11).
-    if (id === controlled) {
-      ctx.strokeStyle = theme.text;
-      ctx.beginPath();
-      ctx.arc(x, y, 5.5, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  });
-}
-
-/** An off-screen teammate, as an arrow on the viewport edge. */
-export interface EdgeIndicator {
-  readonly athlete: EntityId;
-  readonly x: number;
-  readonly y: number;
-  /** Radians, pointing from the edge towards the athlete. */
-  readonly angle: number;
-  /** How far off-screen they are, in world units — a caller may fade distant ones. */
-  readonly distance: number;
-}
 
 /**
- * Where to put arrows for athletes the camera cannot see (`06` §4, US-2.3).
+ * The off-screen indicators moved to `awareness.ts` in T-12.3.
  *
- * Clamped to a margin inside the viewport rather than exactly on the edge, because an arrow drawn
- * at `x = 0` is half off the screen and reads as a rendering glitch rather than as information.
+ * What was here pointed at teammates only, which was defensible while the camera fitted the whole
+ * field and became wrong the moment it stopped: with a following camera the *ball* is the thing
+ * that leaves the frame, and it had no arrow at all. The replacement covers the ball, your own
+ * athlete, and the nearest opponents too, and gives each of them its own silhouette.
  */
-export function offScreenIndicators(
-  world: World,
-  view: MatchView,
-  toScreen: (worldX: number, worldY: number) => { x: number; y: number },
-  layout: HudLayout,
-  margin = 26,
-  athletes?: readonly EntityId[],
-): EdgeIndicator[] {
-  const out: EdgeIndicator[] = [];
-  const centreX = layout.width / 2;
-  const centreY = layout.height / 2;
-
-  const consider = (id: EntityId): void => {
-    if (world.kind[id] === 1) return;
-    if ((world.team[id] as Side) !== view.playerSide) return;
-    if (id === view.status.controlled) return;
-
-    const screen = toScreen(world.x[id] as number, world.y[id] as number);
-    const onScreen =
-      screen.x >= margin &&
-      screen.x <= layout.width - margin &&
-      screen.y >= margin &&
-      screen.y <= layout.height - margin;
-    if (onScreen) return;
-
-    out.push({
-      athlete: id,
-      x: clamp(screen.x, margin, layout.width - margin),
-      y: clamp(screen.y, margin, layout.height - margin),
-      angle: Math.atan2(screen.y - centreY, screen.x - centreX),
-      distance: Math.hypot(screen.x - centreX, screen.y - centreY),
-    });
-  };
-
-  if (athletes !== undefined) for (const id of athletes) consider(id);
-  else world.forEach(consider);
-
-  return out;
-}
-
-/** Draws the arrows `offScreenIndicators` located. */
-export function drawEdgeIndicators(
-  ctx: Canvas2D,
-  indicators: readonly EdgeIndicator[],
-  theme: HudTheme = DEFAULT_HUD_THEME,
-): void {
-  for (const indicator of indicators) {
-    ctx.save();
-    ctx.translate(indicator.x, indicator.y);
-    ctx.rotate(indicator.angle);
-    ctx.fillStyle = theme.teams[0];
-    ctx.beginPath();
-    ctx.moveTo(7, 0);
-    ctx.lineTo(-5, 5);
-    ctx.lineTo(-5, -5);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-}
 
 /** The live box score, as rows of plain strings for whoever is drawing it. */
 export interface BoxRow {

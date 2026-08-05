@@ -1,0 +1,90 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   8 — Modes hub, progression, achievements, economy
+ * @task    T-8.2 — Match setup screens for Live and Playbook
+ * @story   US-10.2 — Set up an exhibition
+ * @design  10-ui-ux.md §3 (tokens), §3.2 (targets), §8.1 (setup), §11 (contrast)
+ *
+ * Purpose: the setup screen's layout, and the shared `.setup-section` block both modes use.
+ *
+ * **Every value is a real token, with no fallback.** The first draft of this file used invented
+ * names — `--color-text-dim`, `--space-3` — each with a hardcoded fallback that looked right in the
+ * dark theme, so nothing appeared broken and every one of them was silently unresolved. In the light
+ * theme the "dim" fallback was near-white on near-white and the axe sweep caught it at 1.04:1. A
+ * fallback on a token is a spelling mistake that renders.
+ */
+
+.match-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  padding: var(--space-16);
+  max-width: 42rem;
+  margin: 0 auto;
+}
+
+.match-setup__title {
+  font-size: var(--text-24);
+  margin: 0;
+}
+
+.match-setup__lede,
+.setup-section__hint {
+  color: var(--text-lo);
+  margin: 0;
+  font-size: var(--text-14);
+}
+
+.setup-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.setup-section__title {
+  font-size: var(--text-16);
+  margin: 0;
+}
+
+/* The opponent's identity: crest beside two lines of text, wrapping on a narrow phone rather than
+   squeezing the name down to one character. */
+
+.setup-opponent {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.setup-opponent__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.setup-opponent__name {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-hi);
+}
+
+.setup-opponent__style {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.match-setup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  /* Sticky, so "Kick off" stays reachable with one thumb however long the form gets (`10` §3.2). */
+  position: sticky;
+  bottom: 0;
+  padding: var(--space-12) 0;
+  background: var(--surface-0);
+}

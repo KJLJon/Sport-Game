@@ -33,6 +33,9 @@ import { lastDifficulty, rememberDifficulty } from '../../modes/last-played.ts';
 import { KEY_MOMENT_FREQUENCIES, type KeyMomentFrequency } from '../../modes/playbook/types.ts';
 import { TURN_SPEEDS, type TurnSpeed } from '../../modes/playbook/pace.ts';
 import { PARTY_LIMITS, seatPlayers } from '../../modes/local-players.ts';
+import { MATCH_LENGTHS, type MatchLength } from '../../modes/match-setup.ts';
+import { seatList } from '../components/party.ts';
+import { lengthSection } from '../components/setup.ts';
 import { DEFAULT_SPORT, isPlayable, loadSport } from '../../sports/playable.ts';
 import type { SportId } from '../../sports/types.ts';
 
@@ -43,6 +46,15 @@ export interface PlaybookSetupChoice {
   readonly keyMoments: KeyMomentFrequency;
   readonly speed: TurnSpeed;
   readonly hotSeat: boolean;
+  /**
+   * How long a period runs (T-8.2), shared with Live so "Short" means the same thing in both modes.
+   *
+   * **The rules toggles Live gained are deliberately not here.** Soccer's Playbook adapter has no
+   * foul model at all — it says so in its own header — so a fouls switch would do nothing in one
+   * sport and something in the other, in one mode and not the other. A control that half-works is
+   * the thing this codebase keeps deciding is worse than no control.
+   */
+  readonly length: MatchLength;
 }
 
 export const DEFAULT_SETUP: PlaybookSetupChoice = {
@@ -51,6 +63,7 @@ export const DEFAULT_SETUP: PlaybookSetupChoice = {
   keyMoments: 'standard',
   speed: 'normal',
   hotSeat: false,
+  length: 'full',
 };
 
 /** Plain-language labels. Colour and position never carry meaning on their own (`10` §11). */
@@ -89,6 +102,7 @@ export function setupParams(choice: PlaybookSetupChoice): Record<string, string>
     moments: choice.keyMoments,
     speed: choice.speed,
     ...(choice.hotSeat ? { hotseat: '1' } : {}),
+    ...(choice.length === DEFAULT_SETUP.length ? {} : { length: choice.length }),
   };
 }
 
@@ -110,6 +124,9 @@ export function readSetup(query: Readonly<Record<string, string>>): PlaybookSetu
       ? (speed as TurnSpeed)
       : DEFAULT_SETUP.speed,
     hotSeat: query['hotseat'] === '1',
+    length: (MATCH_LENGTHS as readonly string[]).includes(query['length'] ?? '')
+      ? (query['length'] as MatchLength)
+      : DEFAULT_SETUP.length,
   };
 }
 
@@ -139,6 +156,7 @@ export function playbookScreen(): Screen {
       // The remembered level is the default, but a level in the link still wins — the same rule
       // Live follows, so the two modes cannot disagree about what "your difficulty" means (US-7.2).
       let choice = { ...readSetup(context.query), difficulty: lastDifficulty() };
+      let seats = seatPlayers(PARTY_LIMITS.min);
       if (context.query['difficulty'] !== undefined) choice = readSetup(context.query);
       const module = await loadSport(choice.sport);
       const squadSize = module.meta.squadSize;
@@ -247,7 +265,14 @@ export function playbookScreen(): Screen {
           }),
         );
 
-        const seats = seatPlayers(PARTY_LIMITS.min);
+        // Shared with Live (T-8.2), so "Short" means the same thing whichever mode you picked.
+        root.appendChild(
+          lengthSection(doc, choice.length, (length) => {
+            choice = { ...choice, length };
+            render();
+          }),
+        );
+
         root.appendChild(
           segmented(doc, {
             legend: 'Opponent',
@@ -259,9 +284,31 @@ export function playbookScreen(): Screen {
             ],
             onChange: (value) => {
               choice = { ...choice, hotSeat: value === 'hotseat' };
+              render();
             },
           }),
         );
+
+        // Who is in the other seat, editable here (T-8.15). Until now the only place a local name
+        // could be typed was the arcade hub, so a Playbook hot-seat opponent stayed "Player 2" for
+        // as long as they never opened Arcade — which is precisely what `US-17.3` is about.
+        if (choice.hotSeat) {
+          root.appendChild(
+            el(doc, 'p', {
+              class: 'playbook-setup__hint',
+              text: 'Two people, one device. Names are kept on this device and never sent anywhere.',
+            }),
+          );
+          root.appendChild(
+            seatList(doc, {
+              players: seats,
+              onChange: (next) => {
+                seats = next;
+                render();
+              },
+            }),
+          );
+        }
 
         root.appendChild(
           button(doc, {

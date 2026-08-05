@@ -1,0 +1,70 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   8 — Modes hub, progression, achievements, economy
+ * @task    T-8.5 — Stats store: match history, box scores, career stats per sport per mode
+ * @story   US-10.4 — See my history and stats
+ * @design  10-ui-ux.md §3 (tokens), §11 (tables)
+ *
+ * Purpose: two tables on a phone. The hard part is horizontal overflow: a career table has eight
+ * columns and a 360 px screen has room for four, so each table scrolls inside its own box rather
+ * than pushing the page sideways.
+ */
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  padding: var(--space-16);
+}
+
+.history__title {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.history__note {
+  margin: 0;
+  color: var(--text-lo);
+  font-size: var(--text-14);
+}
+
+.history-table {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+}
+
+.history-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-14);
+}
+
+.history-table caption {
+  padding: var(--space-12);
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-hi);
+}
+
+.history-table th,
+.history-table td {
+  padding: var(--space-8) var(--space-12);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.history-table thead th {
+  color: var(--text-lo);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-table tbody tr + tr th,
+.history-table tbody tr + tr td {
+  border-top: 1px solid var(--border);
+}
+
+.history-table td {
+  font-variant-numeric: var(--font-numeric);
+}

@@ -83,6 +83,17 @@ function modeCard(
         on: { click: () => onStart(mode) },
         children: [heading, blurb, hint, el(doc, 'span', { class: 'play-mode__go', text: 'Play' })],
       }),
+      // A second, smaller target for the choices (T-8.2). Outside the card's anchor rather than
+      // inside it, because a link inside a link is not a thing HTML allows and browsers resolve it
+      // by dropping one of them.
+      mode.setupRoute === undefined
+        ? null
+        : el(doc, 'a', {
+            class: 'play-mode__setup',
+            attrs: { href: mode.setupRoute(sport) },
+            text: 'Set up a match',
+            on: { click: () => onStart(mode) },
+          }),
     ],
   });
 }
