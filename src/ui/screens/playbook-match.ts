@@ -70,6 +70,9 @@ import {
   saveCheckpoint,
 } from '../../modes/checkpoint.ts';
 import { buildRecord } from '../../stats/record.ts';
+import { payoutDetail } from '../../economy/earning.ts';
+import type { Payout } from '../../economy/types.ts';
+import { payoutPanel } from '../components/payout.ts';
 import { buildHash } from '../../app/router.ts';
 
 /**
@@ -191,28 +194,44 @@ export function playbookMatchScreen(): Screen {
        * identically shaped from identical streams is INV-9 paying for itself.
        */
       let recorded = false;
+      /** What the match paid, once the wallet has said. `null` until then, and if the write failed. */
+      let payout: Payout | null = null;
       const recordMatch = (): void => {
         if (recorded) return;
         recorded = true;
 
         const state = match.view();
+        const playedAt = Date.now();
+        const record = buildRecord({
+          id: `${setup.sport}-playbook:${playedAt.toString(36)}`,
+          playedAt,
+          sportId: module.id,
+          mode: 'playbook',
+          difficulty: setup.difficulty,
+          score: state.score,
+          playerSide: 0,
+          teamNames: ['Home', 'Away'],
+          periodsPlayed: state.period,
+          events: match.events,
+        });
+
         void appDatabase()
-          .then((db) =>
-            db.matches.record(
-              buildRecord({
-                id: `${setup.sport}-playbook:${Date.now().toString(36)}`,
-                playedAt: Date.now(),
-                sportId: module.id,
-                mode: 'playbook',
-                difficulty: setup.difficulty,
-                score: state.score,
-                playerSide: 0,
-                teamNames: ['Home', 'Away'],
-                periodsPlayed: state.period,
-                events: match.events,
-              }),
-            ),
-          )
+          .then(async (db) => {
+            await db.matches.record(record);
+            /**
+             * Paid from the record, which is the same input Live settles from (T-8.10). Playbook
+             * has no assist settings to hand over — a turn-based call sheet has nothing to aim —
+             * so the no-assist bonus is simply not in play here, rather than being claimed for
+             * help that was never offered.
+             */
+            payout = await db.economy.settleMatch(record, {
+              detail: payoutDetail(record, module.meta.displayName),
+              at: playedAt,
+            });
+            // The results panel is already up: it is drawn the moment the match ends, and the
+            // wallet is a round trip behind. Re-render in place rather than delay it.
+            if (stage === 'over') renderStage();
+          })
           .catch(() => {});
       };
 
@@ -461,6 +480,7 @@ export function playbookMatchScreen(): Screen {
             el(doc, 'p', { text: describeKeyMoments(mine.keyMoments) }),
             el(doc, 'p', { text: describeCalls(mine) }),
             el(doc, 'p', { text: describeLuck(mine) }),
+            ...(payout === null ? [] : [payoutPanel(doc, payout)]),
             button(doc, {
               label: 'Back to Playbook',
               variant: 'primary',

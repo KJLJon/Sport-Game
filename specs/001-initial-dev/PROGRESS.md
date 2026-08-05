@@ -27,14 +27,16 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] `economy/earning.ts` — `05` §5.3's table, sport-neutral milestones, itemised payout
   - [x] `economy/wallet.ts` — pure balance rules, first-win-of-the-day settled atomically
   - [x] `economy/repository.ts` — the store, with writes serialised behind one promise chain
-  - [ ] Credit Live, Playbook, and arcade — the coins currently go nowhere
-  - [ ] Itemised payout on both post-match screens (`06` §4)
+  - [x] Credit Live, Playbook, and arcade — all three now settle into the wallet
+  - [x] `ui/components/payout.ts` — the itemisation, on both post-match screens (`06` §4)
   - [ ] Wallet screen: balance and ledger (US-9.5)
-- **Next step:** wire `db.economy.settleMatch()` into `modes/live/screen.ts` and
-  `ui/screens/playbook-match.ts`, then credit `awardRun`'s coins from `ui/screens/arcade-game.ts` —
-  T-4.13 computed them and left the crediting to this task.
+  - [ ] Component tests for the payout panel and the two screens that show it
+- **Next step:** the wallet screen (US-9.5) at `#/store/wallet`, reachable from the Store tab, with
+  the balance and the ledger.
 - **Files touched:** src/modes/day.ts, src/modes/arcade/daily.ts, src/economy/*, src/storage/app-db.ts,
-  tests/unit/economy/*, tests/integration/storage/economy.test.ts
+  src/ui/components/payout.ts, src/ui/components.css, src/modes/live/screen.ts,
+  src/ui/screens/playbook-match.ts, src/ui/screens/arcade-game.ts, tests/unit/economy/*,
+  tests/integration/storage/economy.test.ts
 - **Blockers:** none for the code. **Gates 2 through 12 are all still held by the same two user
   actions:** the device matrix and a tagged deploy. A tag is the only thing that ships.
 - 🧵 **The recurring find, again, before a line was written.** `modes/arcade/rewards.ts` (T-4.13)

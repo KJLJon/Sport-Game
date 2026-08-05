@@ -76,6 +76,9 @@ import {
 } from '../checkpoint.ts';
 import { appDatabase } from '../../storage/app-db.ts';
 import { buildRecord } from '../../stats/record.ts';
+import { payoutDetail } from '../../economy/earning.ts';
+import type { Payout } from '../../economy/types.ts';
+import { payoutPanel } from '../../ui/components/payout.ts';
 import {
   DEFAULT_HUD_THEME,
   boxRows,
@@ -170,12 +173,15 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       if (window === null) return;
 
       const difficulty = options.difficulty ?? lastDifficulty();
+      // Resolved once, because the payout is paid against the help the player actually had
+      // (US-7.3) and reading it twice could disagree with what the match was played with.
+      const assists = options.assists ?? loadAssists(difficulty);
       const match = new LiveMatch({
         sport: options.sport,
         seed: options.seed,
         playerSide: options.playerSide ?? 0,
         difficulty,
-        assists: options.assists ?? loadAssists(difficulty),
+        assists,
         ...(options.rosters === undefined ? {} : { rosters: options.rosters }),
         ...(options.rules === undefined ? {} : { rules: options.rules }),
         ...(options.ruleOptions === undefined ? {} : { ruleOptions: options.ruleOptions }),
@@ -337,30 +343,44 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         recorded = true;
 
         const view = match.view();
+        const playedAt = Date.now();
+        const record = buildRecord({
+          id: `${options.seed}:${playedAt.toString(36)}`,
+          playedAt,
+          sportId: options.sport.id,
+          mode: 'live',
+          difficulty,
+          score: view.score,
+          playerSide: view.playerSide,
+          teamNames: options.teamNames ?? ['Home', 'Away'],
+          periodsPlayed: view.period,
+          events: match.bus.history(),
+          box: match.box,
+          ...(lineup === undefined ? {} : { lineup }),
+        });
+
         void appDatabase()
-          .then((db) =>
-            db.matches.record(
-              buildRecord({
-                id: `${options.seed}:${Date.now().toString(36)}`,
-                playedAt: Date.now(),
-                sportId: options.sport.id,
-                mode: 'live',
-                difficulty,
-                score: view.score,
-                playerSide: view.playerSide,
-                teamNames: options.teamNames ?? ['Home', 'Away'],
-                periodsPlayed: view.period,
-                events: match.bus.history(),
-                box: match.box,
-                ...(lineup === undefined ? {} : { lineup }),
-              }),
-            ),
-          )
+          .then(async (db) => {
+            await db.matches.record(record);
+            // Paid from the record, not from the view: the same input Playbook settles from, so the
+            // same match pays the same coins in either mode (INV-6).
+            payout = await db.economy.settleMatch(record, {
+              assists,
+              detail: payoutDetail(record, options.sport.meta.displayName),
+              at: playedAt,
+            });
+            // The summary is already on screen by now — it is drawn the frame the match ends, and
+            // the wallet is a database round trip behind. Re-render rather than delay the panel.
+            if (match.finished) renderOverlay();
+          })
           .catch(() => {
             // A match that was played is worth more than a record of it. Losing the record is bad;
             // throwing on the summary screen the player is looking at is worse.
           });
       };
+
+      /** What the match paid, once the wallet has said. `null` until then, and on any failure. */
+      let payout: Payout | null = null;
 
       const lineup = options.sport.lineup?.(match.sportState as never);
 
@@ -370,7 +390,7 @@ export function liveScreen(options: LiveScreenOptions): Screen {
           // A finished match is not an interrupted one (T-8.4).
           dropCheckpoint();
           recordMatch();
-          overlay.appendChild(summaryPanel(doc, match, () => context.navigate('/play')));
+          overlay.appendChild(summaryPanel(doc, match, () => context.navigate('/play'), payout));
           return;
         }
         if (paused) {
@@ -878,8 +898,21 @@ function cameraMotionRow(
   return row;
 }
 
-/** The post-match summary (`06` §4). Coins, XP, and achievements arrive with Phase 8. */
-export function summaryPanel(doc: Document, match: LiveMatch, onDone: () => void): HTMLElement {
+/**
+ * The post-match summary (`06` §4): result, box score, and the coin itemisation.
+ *
+ * `payout` is `null` while the wallet is still settling — the panel is drawn the frame the match
+ * ends and the credit is a database round trip behind it — and stays `null` if the write failed.
+ * Either way the summary shows without it rather than waiting: the score is what the player is
+ * looking for, and coins that arrive a moment later re-render in place. XP and achievements join it
+ * with T-8.6.
+ */
+export function summaryPanel(
+  doc: Document,
+  match: LiveMatch,
+  onDone: () => void,
+  payout: Payout | null = null,
+): HTMLElement {
   const panel = doc.createElement('section');
   panel.className = 'live-panel';
   panel.setAttribute('role', 'dialog');
@@ -902,7 +935,9 @@ export function summaryPanel(doc: Document, match: LiveMatch, onDone: () => void
   actions.className = 'live-panel__actions';
   actions.append(action(doc, 'Done', 'primary', onDone));
 
-  panel.append(heading, score, result, boxTable(doc, match), actions);
+  panel.append(heading, score, result);
+  if (payout !== null) panel.appendChild(payoutPanel(doc, payout));
+  panel.append(boxTable(doc, match), actions);
   return panel;
 }
 

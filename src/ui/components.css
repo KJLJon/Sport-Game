@@ -1150,3 +1150,64 @@
   font-size: var(--text-12);
   color: var(--text-lo);
 }
+
+/* ── Coin payout (T-8.10) ─────────────────────────────────────────────────── */
+
+/*
+ * The post-match itemisation (`06` §4). Two columns on anything wider than a phone in portrait,
+ * one label-and-amount pair per row, and the total separated by a rule so it reads as the sum of
+ * what is above it rather than as one more line.
+ */
+.payout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.payout__heading {
+  margin: 0;
+  font-size: var(--text-14);
+  font-weight: 600;
+  color: var(--text-lo);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.payout__lines {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-4) var(--space-12);
+  margin: 0;
+}
+
+.payout__lines dt,
+.payout__lines dd {
+  margin: 0;
+}
+
+.payout__label {
+  font-size: var(--text-14);
+  color: var(--text-hi);
+}
+
+.payout__amount {
+  justify-self: end;
+}
+
+.payout__total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  margin: 0;
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--border);
+  font-weight: 700;
+}
+
+.payout__empty {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}

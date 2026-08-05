@@ -371,7 +371,7 @@ export function arcadeGameScreen(): Screen {
         renderOverlay();
 
         void appDatabase()
-          .then(async ({ db, athletes }) => {
+          .then(async ({ db, athletes, economy }) => {
             const arcade = new ArcadeRepository(db);
             await arcade.recordRun(result, game.stars);
 
@@ -380,6 +380,17 @@ export function arcadeGameScreen(): Screen {
             const today = dateKey();
             const reward = awardRun(result, await arcade.day(today));
             await arcade.putDay(reward.day);
+            /**
+             * And now they are actually paid (T-8.10). T-4.13 computed an award for every scored
+             * run and left the crediting to whatever owned the balance; until this line, nobody had
+             * ever received one.
+             *
+             * The day is written *before* the credit deliberately: if the second write fails the
+             * player is short a run's coins, which is a bad afternoon. If the order were reversed a
+             * failure would credit coins the day never counted, and the daily cap — the thing that
+             * makes arcade unfarmable — would be the part that broke.
+             */
+            await economy.earn(reward.coins, 'arcade', `${game.name} · ${result.stars}★`);
             paid = rewardSummary(reward);
             renderOverlay();
 
