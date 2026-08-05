@@ -1,0 +1,126 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   8 — Modes hub, progression, achievements, economy
+ * @task    T-8.10 — Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match
+ *          payout
+ * @story   US-9.5 — Understand my economy at a glance
+ * @design  10-ui-ux.md §3 (tokens), §4 (layout on a phone), §11 (accessibility)
+ *
+ * Purpose: a balance you can read across the room, and a ledger that stays legible at 360 px.
+ *
+ * The ledger rows are a two-column flex rather than a table: each row is one movement, not a set of
+ * fields to compare down columns, and a table would push the page sideways on a narrow phone for no
+ * reading gained.
+ */
+
+.wallet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  padding: var(--space-16);
+}
+
+.wallet__title {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.wallet__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.wallet__balance-label {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wallet__balance {
+  margin: 0;
+}
+
+/* The headline number: the pill's own type scale, stepped up so the balance reads first. */
+.wallet__balance .coin-pill {
+  font-size: var(--text-24);
+  padding: var(--space-8) var(--space-16);
+}
+
+.wallet__balance .coin-pill svg {
+  width: 24px;
+  height: 24px;
+}
+
+.wallet__lifetime {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+  font-variant-numeric: var(--font-numeric);
+}
+
+.wallet__ledger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.wallet__ledger-title {
+  margin: 0;
+  font-size: var(--text-16);
+}
+
+.wallet__entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  overflow: hidden;
+}
+
+.wallet__entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  background: var(--surface-1);
+}
+
+.wallet__entry + .wallet__entry {
+  border-top: 1px solid var(--border);
+}
+
+.wallet__entry-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wallet__entry-detail {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-hi);
+}
+
+.wallet__entry-meta {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+.wallet__note {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}

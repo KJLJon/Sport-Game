@@ -29,10 +29,11 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   - [x] `economy/repository.ts` — the store, with writes serialised behind one promise chain
   - [x] Credit Live, Playbook, and arcade — all three now settle into the wallet
   - [x] `ui/components/payout.ts` — the itemisation, on both post-match screens (`06` §4)
-  - [ ] Wallet screen: balance and ledger (US-9.5)
-  - [ ] Component tests for the payout panel and the two screens that show it
-- **Next step:** the wallet screen (US-9.5) at `#/store/wallet`, reachable from the Store tab, with
-  the balance and the ledger.
+  - [x] Wallet screen: the Store tab is a real screen now, balance and ledger (US-9.5)
+  - [x] Component tests for the payout panel, the wallet screen, and the Live summary
+  - [ ] Feel note, notes/phase-8.md entry, `pnpm api` + `pnpm trace`, task row to `done`
+- **Next step:** finish the bookkeeping and mark T-8.10 done; then T-8.6 (achievement engine) or
+  T-8.3 (tournaments), both of which can now pay real coins.
 - **Files touched:** src/modes/day.ts, src/modes/arcade/daily.ts, src/economy/*, src/storage/app-db.ts,
   src/ui/components/payout.ts, src/ui/components.css, src/modes/live/screen.ts,
   src/ui/screens/playbook-match.ts, src/ui/screens/arcade-game.ts, tests/unit/economy/*,

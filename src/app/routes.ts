@@ -11,23 +11,7 @@
 import type { RouteDefinition } from './router.ts';
 import type { Screen, ScreenDefinition } from './screen.ts';
 import type { TabDefinition } from './shell.ts';
-import { placeholderScreen } from '../ui/screens/placeholder.ts';
 import type { Athlete } from '../athletes/types.ts';
-
-function stub(
-  id: string,
-  title: string,
-  body: string,
-  arrivesIn: string,
-  extra: Partial<ScreenDefinition> = {},
-): ScreenDefinition {
-  return {
-    id,
-    title,
-    load: () => placeholderScreen({ heading: title, body, arrivesIn }),
-    ...extra,
-  };
-}
 
 /**
  * The Live route, for `#/play/live` and `#/play/live/:sport` alike.
@@ -302,7 +286,13 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
   },
   {
     pattern: '/store',
-    value: stub('store', 'Store', 'Packs, the market, and selling athletes.', 'Phase 8'),
+    value: {
+      // The wallet is the first thing behind this tab (T-8.10). Packs, the market, and selling are
+      // T-8.12 to T-8.14 and land alongside it — all three spend from the balance this screen shows.
+      id: 'store',
+      title: 'Store',
+      load: async () => (await import('../ui/screens/wallet.ts')).walletScreen(),
+    },
   },
   {
     pattern: '/progress',
