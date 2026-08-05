@@ -26,6 +26,7 @@ import type { Athlete } from '../../athletes/types.ts';
 import type { Difficulty } from '../difficulty.ts';
 import type { AssistSettings } from '../assists.ts';
 import type { RuleOptions } from '../match-setup.ts';
+import type { MatchResumeState } from '../checkpoint.ts';
 import { createRng, type Rng } from '../../engine/rng.ts';
 import { EventBus, EventKind, type Side, type SportEvent } from '../../engine/match/events.ts';
 import {
@@ -81,6 +82,13 @@ export interface MatchOptions {
   readonly rules?: Partial<MatchRules>;
   /** Per-match rule switches (T-8.2). Absent means every rule the sport has is on. */
   readonly ruleOptions?: RuleOptions;
+  /**
+   * Where an interrupted match left its clock and its scoreboard (T-8.4).
+   *
+   * See `modes/checkpoint.ts` for what a resume does and does not restore. In short: the score and
+   * the clock, not the positions or the box score.
+   */
+  readonly resumeFrom?: MatchResumeState;
 }
 
 /**
@@ -136,7 +144,14 @@ export class LiveMatch {
     // only one a player can change: everything else about a period is the sport's.
     this.machine = new MatchStateMachine({ ...this.sport.rules, ...options.rules }, this.bus);
     this.bus.on((event) => applyEvent(this.box, event));
-    this.machine.start();
+    // A resumed match starts on its own scoreboard (T-8.4). The box score stays empty: the events
+    // that built the old one are gone, and inventing a plausible one would be a lie told in numbers.
+    this.machine.start(options.resumeFrom);
+  }
+
+  /** Steps run in the current period — what a checkpoint stores to put the clock back (T-8.4). */
+  get stepInPeriod(): number {
+    return this.machine.stepInPeriod;
   }
 
   /** The athlete the local player's input is delivered to. */

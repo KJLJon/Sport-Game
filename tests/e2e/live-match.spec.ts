@@ -77,3 +77,49 @@ test('quitting a match leaves the loop stopped and returns to Play', async ({ pa
   await expect(page).toHaveURL(/#\/play$/);
   await expect(page.locator('canvas.live__canvas')).toHaveCount(0);
 });
+
+/**
+ * T-8.4. The checkpoint is written from a real match by a real timer, so the only place its wiring
+ * can be verified is a browser — a unit test can prove the record round-trips and nothing more.
+ */
+test('an interrupted match is offered again on the home screen', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 460 });
+  await page.goto(`${BASE}#/play/live/basketball`);
+  await expect(page.locator('canvas.live__canvas')).toBeVisible();
+
+  // Backgrounding writes one immediately, which is the case that does not need the ten-second timer.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(300);
+
+  await page.goto(`${BASE}#/`);
+  const resume = page.locator('.home__resume');
+  await expect(resume).toBeVisible();
+  // It says what it will restore rather than implying a perfect one.
+  await expect(resume).toContainText('Basketball · Live');
+  await expect(resume).toContainText('start fresh');
+
+  await resume.getByRole('link', { name: 'Resume' }).click();
+  await expect(page.locator('canvas.live__canvas')).toBeVisible();
+});
+
+test('quitting a match does not leave a resume behind', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 460 });
+  await page.goto(`${BASE}#/play/live/basketball`);
+  await expect(page.locator('canvas.live__canvas')).toBeVisible();
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(300);
+
+  // Backgrounding already paused the match, so the menu is open — pressing Escape here would
+  // *close* it. Quitting is a decision, not an interruption, and it must clear the checkpoint.
+  await page.getByRole('button', { name: 'Quit match' }).click();
+
+  await page.goto(`${BASE}#/`);
+  await expect(page.locator('.home__resume')).toHaveCount(0);
+});

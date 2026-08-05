@@ -61,8 +61,15 @@ import type { ArcadeRun } from '../../modes/arcade/session.ts';
 import { PARTY_LIMITS, seatPlayers } from '../../modes/local-players.ts';
 import { reducedMotion as motionReduced } from '../../modes/arcade/accessibility.ts';
 import type { Side } from '../../engine/match/events.ts';
-import { readSetup, splitRoster } from './playbook.ts';
+import { readSetup, setupParams, splitRoster } from './playbook.ts';
 import { scalePeriodSteps } from '../../modes/match-setup.ts';
+import {
+  CHECKPOINT_VERSION,
+  clearCheckpoint,
+  describeMatch,
+  saveCheckpoint,
+} from '../../modes/checkpoint.ts';
+import { buildHash } from '../../app/router.ts';
 
 /**
  * The match, with the sport's own between-turn state erased.
@@ -173,6 +180,32 @@ export function playbookMatchScreen(): Screen {
       }
       detachResize = canvasHost.onResize(() => undefined);
       if (view !== null) canvasHost.attach(board, view);
+
+      /**
+       * Records where this match has got to (T-8.4).
+       *
+       * Playbook resumes better than Live does: a turn-based match has no positions to lose, so the
+       * score and the period *are* most of its state. What still resets is the box score and
+       * whatever the adapter was tracking about tendencies.
+       */
+      const writeCheckpoint = (): void => {
+        const state = match.view();
+        if (match.finished) return;
+
+        void appDatabase()
+          .then((db) =>
+            saveCheckpoint(db.db, {
+              schemaVersion: CHECKPOINT_VERSION,
+              mode: 'playbook',
+              sport: module.id,
+              href: buildHash('/play/playbook/match', setupParams(setup)),
+              label: `${module.meta.displayName} · Playbook`,
+              detail: describeMatch(state.score, module.meta.periodName, state.period),
+              savedAt: Date.now(),
+            }),
+          )
+          .catch(() => {});
+      };
 
       /** Which side the human is calling for right now — themselves, or either seat in hot seat. */
       const callingSide = (): Side => (hotSeat === null ? 0 : (hotSeat.side ?? 0));
@@ -327,10 +360,18 @@ export function playbookMatchScreen(): Screen {
         sheet?.reset();
 
         if (match.finished) {
+          // Finished is not interrupted (T-8.4).
+          void appDatabase()
+            .then((db) => clearCheckpoint(db.db))
+            .catch(() => {});
           stage = 'over';
           renderStage();
           return;
         }
+
+        // A turn is Playbook's natural checkpoint: it is the only moment the match state is settled
+        // and nothing is mid-animation, and it is frequent enough that a kill costs one call.
+        writeCheckpoint();
 
         if (hotSeat !== null) {
           hotSeat.nextTurn(match.view().possession);

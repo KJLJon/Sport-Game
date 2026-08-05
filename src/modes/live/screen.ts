@@ -68,6 +68,14 @@ import type { Athlete } from '../../athletes/types.ts';
 import type { MatchRules } from '../../engine/match/state-machine.ts';
 import type { RuleOptions } from '../match-setup.ts';
 import {
+  CHECKPOINT_VERSION,
+  clearCheckpoint,
+  describeMatch,
+  saveCheckpoint,
+  type MatchResumeState,
+} from '../checkpoint.ts';
+import { appDatabase } from '../../storage/app-db.ts';
+import {
   DEFAULT_HUD_THEME,
   boxRows,
   drawHud,
@@ -122,6 +130,16 @@ export interface LiveScreenOptions {
   readonly rules?: Partial<MatchRules>;
   /** Which of the sport's laws are being enforced (T-8.2). Absent means all of them. */
   readonly ruleOptions?: RuleOptions;
+  /** Where an interrupted match left its clock and scoreboard (T-8.4). */
+  readonly resumeFrom?: MatchResumeState;
+  /**
+   * The hash that re-opens this exact match, written into its checkpoint (T-8.4).
+   *
+   * Supplied by the route rather than built here, because only the route knows what it parsed —
+   * and a checkpoint that pointed at a differently-configured match would resume the wrong game.
+   * Absent means this match is not checkpointed at all.
+   */
+  readonly checkpointHref?: string;
 }
 
 /** Reads the safe-area insets the shell publishes as CSS custom properties (`10` §4). */
@@ -158,6 +176,7 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         ...(options.rosters === undefined ? {} : { rosters: options.rosters }),
         ...(options.rules === undefined ? {} : { rules: options.rules }),
         ...(options.ruleOptions === undefined ? {} : { ruleOptions: options.ruleOptions }),
+        ...(options.resumeFrom === undefined ? {} : { resumeFrom: options.resumeFrom }),
       });
 
       const root = doc.createElement('div');
@@ -307,6 +326,8 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       const renderOverlay = (): void => {
         overlay.replaceChildren();
         if (match.finished) {
+          // A finished match is not an interrupted one (T-8.4).
+          dropCheckpoint();
           overlay.appendChild(summaryPanel(doc, match, () => context.navigate('/play')));
           return;
         }
@@ -314,7 +335,11 @@ export function liveScreen(options: LiveScreenOptions): Screen {
           overlay.appendChild(
             pausePanel(doc, match, {
               onResume: () => setPaused(false),
-              onQuit: () => context.navigate('/play'),
+              onQuit: () => {
+                // Quitting is a decision, not an interruption: it must not leave a resume behind.
+                dropCheckpoint();
+                context.navigate('/play');
+              },
               settings,
               onSettingsChange: () => {
                 applySettings();
@@ -392,9 +417,57 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       listeners.push(() => doc.removeEventListener('keydown', onKey));
       listeners.push(() => doc.removeEventListener('keyup', onKeyUp));
 
+      /**
+       * Writes where this match has got to (T-8.4).
+       *
+       * On a timer *and* on the way to the background, because those are two different failures:
+       * backgrounding is the one the browser warns you about, and a kill — the case US-10.3 names —
+       * gives no warning at all. The timer is what makes the second survivable.
+       */
+      const checkpoint = (): void => {
+        const href = options.checkpointHref;
+        if (href === undefined || match.finished) return;
+
+        const current = match.view();
+        void appDatabase()
+          .then((db) =>
+            saveCheckpoint(db.db, {
+              schemaVersion: CHECKPOINT_VERSION,
+              mode: 'live',
+              sport: options.sport.id,
+              href,
+              label: `${options.sport.meta.displayName} · Live`,
+              detail: describeMatch(current.score, current.periodName, current.period),
+              savedAt: Date.now(),
+              resume: {
+                score: current.score,
+                period: current.period,
+                periodStep: match.stepInPeriod,
+              },
+            }),
+          )
+          .catch(() => {
+            // A match in progress outranks a record of one.
+          });
+      };
+
+      const dropCheckpoint = (): void => {
+        void appDatabase()
+          .then((db) => clearCheckpoint(db.db))
+          .catch(() => {});
+      };
+
+      // Every ten seconds of play. Frequent enough that a kill loses a few seconds of clock, rare
+      // enough that it is not a write per frame.
+      const checkpointTimer = window.setInterval(checkpoint, 10_000);
+      listeners.push(() => window.clearInterval(checkpointTimer));
+
       // Backgrounding is a pause. A match that kept running in a hidden tab would burn the clock.
       const onHidden = (): void => {
-        if (doc.visibilityState === 'hidden') setPaused(true);
+        if (doc.visibilityState === 'hidden') {
+          setPaused(true);
+          checkpoint();
+        }
       };
       doc.addEventListener('visibilitychange', onHidden);
       listeners.push(() => doc.removeEventListener('visibilitychange', onHidden));

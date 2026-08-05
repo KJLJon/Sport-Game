@@ -12,7 +12,7 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-8.4 — Match checkpointing and resume-after-kill
+- **Task:** T-8.5 — Stats store
 - **Status:** in_progress
 - **Started:** 2026-08-03
 - **Branch:** `claude/phase-12-next-steps-xeminm` (Phase 12 landed on it; PR **#17**).
@@ -20,7 +20,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   T-8.15. Phase 12 is done and Gate 12 recorded.
 - **Done so far:**
   - [x] T-8.2 — Live setup screen, shared setup model, rule switches, and the roster wiring
-  - [ ] T-8.4 · T-8.5 · T-8.11 · T-8.15
+  - [x] T-8.4 — checkpoint on a timer and on backgrounding; resume offered on the home screen
+  - [ ] T-8.5 · T-8.11 · T-8.15
 - **T-8.2 found two things that were built and never connected.**
   1. **Live matches never used your athletes.** `MatchOptions.rosters` existed and `liveScreen` had
      no way to be given it, so every Live match was played by athletes rolled from the seed while
@@ -41,7 +42,17 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 - **No injuries toggle**, though `US-10.2` names one: nothing in either sport injures anybody in a
   match. `athletes/condition.ts` models injury as an *availability* state a match reads and never
   writes. It arrives when in-match injuries do.
-- **Next step:** T-8.4 — checkpointing and resume-after-kill, all three modes.
+- **T-8.4's honest limit, stated because the UI states it too.** A checkpoint is **not** a snapshot
+  of the simulation and cannot be without a seam change this task was not the place to make:
+  `SportState` is opaque to the engine by design, so serialising a live match would mean every sport
+  owing a `serialize`/`restore` pair. What is stored is the match's *public* state — setup, score,
+  period, clock — and a resume replays the setup and puts the scoreboard back. Positions, the box
+  score, fouls and stamina come back reset, and the card on the home screen says so in words.
+- **Arcade is deliberately not resumable**, which is the one place "all three modes" is answered with
+  a no. A run is about a minute, so a resume would drop the player mid-swing at a timing game — and
+  a *scored* run restored from persisted numbers is a personal best anyone could edit in devtools.
+  The card says "Play again" there, because that is what the button does.
+- **Next step:** T-8.5 — stats store: match history, box scores, career stats per sport per mode.
 - **Blockers:** none. Gates 2–12 all still held by the same two user actions (device matrix, tag).
 
 ---
@@ -248,7 +259,7 @@ there; this file is read at every session start and the notes file only when you
 | T-8.1 | Home screen, mode selector, Quick Play (two taps from cold launch) | M | `done` | | `tests/unit/ui/play.test.ts`, `tests/unit/modes/last-played.test.ts`, `tests/e2e/play-hub.spec.ts` | auto+device | Pulled forward: the Play tab was still a Phase-0 placeholder, so no shipped mode was reachable by tapping — [notes](./notes/phase-8.md#t-81) |
 | T-8.2 | Match setup screens for Live and Playbook: sport, teams, difficulty, length, rules toggles | M | `done` | | `tests/unit/modes/match-setup.test.ts`, `tests/unit/modes/rule-options.test.ts`, `tests/e2e/play-hub.spec.ts` | auto | Also the first thing to hand Live your actual athletes, and `generateCpuTeam`’s first caller. Setup is a second target beside the card, not in front of it — `10` §2’s two taps still hold. [notes](./notes/phase-8.md#t-82) |
 | T-8.3 | Tournament mode: 4/8/16 bracket, persistence, results, rewards; playable in Live or Playbook | L | `todo` | | | | |
-| T-8.4 | Match checkpointing and resume-after-kill, all three modes | M | `todo` | | | | |
+| T-8.4 | Match checkpointing and resume-after-kill, all three modes | M | `done` | | `tests/unit/modes/checkpoint.test.ts`, `tests/e2e/live-match.spec.ts` | auto | Stores the match’s *public* state, not the sim: score and clock come back, positions and the box score do not, and the card says so. Arcade is deliberately not resumable. [notes](./notes/phase-8.md#t-84) |
 | T-8.5 | Stats store: match history, box scores, career stats per sport per mode | M | `todo` | | | | |
 | T-8.6 | Achievement engine: declarative defs, event-stream evaluation, progress, once-only grants (INV-7) | L | `todo` | | | | |
 | T-8.7 | Achievement content: ~75 defs incl. arcade unlocks, cross-sport, cross-mode, hidden | L | `todo` | | | | |

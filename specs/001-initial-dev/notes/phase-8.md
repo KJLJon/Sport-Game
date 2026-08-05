@@ -138,3 +138,59 @@ unresolved, and because the fallbacks were dark-theme values nothing looked wron
 sweep hit the light theme and found the "dim" fallback rendering near-white on near-white at 1.04:1.
 **A fallback on a design token is a spelling mistake that renders.** The real names are `--text-lo`,
 `--space-12`, `--radius-12`, and they are now used without fallbacks so the next typo fails loudly.
+
+### T-8.4
+
+*Match checkpointing and resume-after-kill*
+
+**The decision this task turns on: a checkpoint is not a snapshot.**
+
+It cannot be, without a seam change that does not belong here. `SportState` is opaque to the engine
+by design — that opacity *is* the sport seam (INV-5) — so serialising a live match would mean every
+sport growing a `serialize`/`restore` pair and every future sport owing one before it could be
+played. That is a decision about the seam, made once, against the sport that actually needs it.
+
+So what is stored is the match's **public state**: the setup that started it, the score, the period,
+and how far the clock had run. Resuming replays the setup and puts the scoreboard back.
+
+- **Survives:** sport, mode, team, opponent, difficulty, length, rules, score, period, clock.
+- **Does not:** positions, possession, the box score, team fouls, stamina.
+
+The home card says that in words — "Picks up at that score and clock. Positions and the box score
+start fresh." — rather than implying a perfect restore. For the case `US-10.3` names, it is most of
+what was wanted: a phone that died with two minutes left in a close game gives back a close game
+with two minutes left. `LiveMatch` starts with an empty box score in that case and does not
+fabricate a plausible one, because a plausible box score is a lie told in numbers.
+
+**Resuming is navigation, and that is what makes it work in every mode.** A checkpoint stores an
+href; the home screen appends `?resume=42-38:3:1200` and follows it. Nothing about checkpointing
+knows how a mode starts a match. This only became possible because T-8.2 made a setup a link — the
+two tasks landed in the right order by luck rather than by planning.
+
+**Two writes, because there are two different failures.** A ten-second timer and a
+`visibilitychange`. Backgrounding is the one the browser warns you about; a kill — the case the
+story actually names — gives no warning at all, and the timer is the only thing that survives it.
+Both writes swallow their errors: a full or denied database must never interrupt a match in
+progress. A resume that is not offered is a smaller failure than a match that stops.
+
+**Arcade is deliberately not resumable, and this is the one place "all three modes" is answered
+with a no.** Two reasons, the second decisive:
+
+1. A run is about a minute long, so "resume" means dropping the player back mid-swing at a timing
+   game — the worst possible moment to hand control over.
+2. A *scored* run resumed from persisted numbers is **a score you can edit**. Arcade personal bests
+   (T-4.4) are a record; restoring `score` from IndexedDB would make every one of them writable from
+   a devtools console.
+
+So an arcade run is checkpointed — the game you were playing is remembered and offered — and the
+button says "Play again", because that is what it does.
+
+**A checkpoint from an older build is discarded, not migrated.** It is the only persisted record
+where that is the right answer: it describes a match at most one session old, and a wrong resume is
+worse than no resume. `isCurrentCheckpoint` is deliberately strict about every field it will later
+read, because this is the one record written by a previous *version* of the app and read by this one
+with no migration in between.
+
+**One clamp worth knowing about.** T-8.2 lets a player change match length between sessions, so a
+`periodStep` recorded in a full match can exceed a short period. Unclamped, the resumed period would
+start already expired and end on its first step.

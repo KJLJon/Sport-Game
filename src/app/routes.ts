@@ -52,9 +52,10 @@ function liveRoute(): ScreenDefinition {
         { loadSport },
         { isDifficulty },
         { lastDifficulty },
-        { decodeSetup, scalePeriodSteps },
+        { decodeSetup, scalePeriodSteps, liveMatchHref },
         { resolveRosters, isRosterProblem },
         { appDatabase },
+        { parseResume },
       ] = await Promise.all([
         import('../modes/live/screen.ts'),
         import('../sports/playable.ts'),
@@ -63,6 +64,7 @@ function liveRoute(): ScreenDefinition {
         import('../modes/match-setup.ts'),
         import('../modes/rosters.ts'),
         import('../storage/app-db.ts'),
+        import('../modes/checkpoint.ts'),
       ]);
       let inner: Screen | null = null;
       return {
@@ -96,6 +98,15 @@ function liveRoute(): ScreenDefinition {
             // No database, no athletes, still a match.
           }
 
+          /**
+           * A resume comes in on the link, as `?resume=score-score:period:step` (T-8.4).
+           *
+           * On the URL rather than read from the checkpoint here, so that a resume is a *link* like
+           * every other match: the same property that makes setup shareable makes a resumed match
+           * reproducible, and it keeps this route from having to know a checkpoint exists.
+           */
+          const resumeFrom = parseResume(context.query['resume']);
+
           inner = liveScreen({
             sport,
             seed: newMatchSeed(),
@@ -103,7 +114,11 @@ function liveRoute(): ScreenDefinition {
             difficulty,
             ruleOptions: setup.rules,
             rules: { periodSteps: scalePeriodSteps(sport.rules.periodSteps, setup.length) },
+            // The canonical link for this setup — rebuilt rather than echoed, so a checkpoint never
+            // carries a stale `resume=` from the link that opened it.
+            checkpointHref: liveMatchHref(setup),
             ...(rosters === undefined ? {} : { rosters }),
+            ...(resumeFrom === undefined ? {} : { resumeFrom }),
           });
           await inner.mount(context);
         },

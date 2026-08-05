@@ -1116,3 +1116,37 @@
   color: var(--text-lo);
   font-size: var(--text-14);
 }
+
+/* ── The interrupted-match card (T-8.4) ──────────────────────────────────────
+   Above the primary action on the home screen, because `US-10.3` asks to be
+   *offered* a resume and an offer below the fold is not one. Bordered and
+   labelled in words — the state is never carried by colour alone (`10` §11). */
+
+.home__resume {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.home__resume-label {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.home__resume-detail {
+  margin: 0;
+  font-size: var(--text-20);
+  color: var(--text-hi);
+  font-weight: 600;
+}
+
+.home__resume-note {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}

@@ -60,6 +60,8 @@ import {
   type FeedbackState,
 } from '../../modes/arcade/accessibility.ts';
 import { appDatabase } from '../../storage/app-db.ts';
+import { buildHash } from '../../app/router.ts';
+import { CHECKPOINT_VERSION, clearCheckpoint, saveCheckpoint } from '../../modes/checkpoint.ts';
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { button } from '../components/button.ts';
 import { starRating } from '../components/meters.ts';
@@ -342,6 +344,8 @@ export function arcadeGameScreen(): Screen {
        * is what makes "unlimited and unrewarded" safe rather than a rule the caller has to keep.
        */
       const record = (): void => {
+        // A finished run is not an interrupted one (T-8.4).
+        dropCheckpoint();
         const result = run.result();
         if (result === null || recorded) return;
         recorded = true;
@@ -395,6 +399,49 @@ export function arcadeGameScreen(): Screen {
       /** The outcome banner's state. Reset every time a new outcome lands (T-4.12). */
       let feedback: FeedbackState | null = null;
       let lastOutcomeLabel: string | null = null;
+
+      /**
+       * An arcade run is checkpointed, and **deliberately not resumable** (T-8.4).
+       *
+       * Two reasons, and the second is the one that decides it. A run is about a minute long, so
+       * "resume" would mean dropping the player back mid-swing at a timing game — the worst possible
+       * moment to hand control over. And a *scored* run resumed from persisted numbers is a score
+       * you can edit: arcade personal bests (T-4.4) are a record, and restoring `score` from
+       * IndexedDB would make every one of them writable with a devtools console.
+       *
+       * So the checkpoint records what you were playing and offers to start it again, and the home
+       * card says "Play again" rather than "Resume" because that is what the button does.
+       */
+      const writeCheckpoint = (): void => {
+        if (run.finished) return;
+        void appDatabase()
+          .then((db) =>
+            saveCheckpoint(db.db, {
+              schemaVersion: CHECKPOINT_VERSION,
+              mode: 'arcade',
+              sport: game.sport,
+              href: buildHash(`/play/arcade/${game.id}`, { mode: requested }),
+              label: `${game.name} · Arcade`,
+              detail: 'Left part-way through. Starts again from the beginning.',
+              savedAt: Date.now(),
+            }),
+          )
+          .catch(() => {});
+      };
+
+      const dropCheckpoint = (): void => {
+        void appDatabase()
+          .then((db) => clearCheckpoint(db.db))
+          .catch(() => {});
+      };
+
+      writeCheckpoint();
+
+      const onArcadeHidden = (): void => {
+        if (doc.visibilityState === 'hidden') writeCheckpoint();
+      };
+      doc.addEventListener('visibilitychange', onArcadeHidden);
+      listeners.push(() => doc.removeEventListener('visibilitychange', onArcadeHidden));
 
       let lastPhase = run.view().phase;
       loop = createLoop({
