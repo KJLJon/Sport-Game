@@ -22,6 +22,7 @@
  */
 import type { Database } from '../storage/idb.ts';
 import type { MatchRecord } from '../stats/types.ts';
+import type { PackRoll } from './packs.ts';
 import { earn, settleMatch, spend, type LedgerInput, type SettleMatchOptions } from './wallet.ts';
 import {
   emptyEconomy,
@@ -32,6 +33,14 @@ import {
   type PackTier,
   type Payout,
 } from './types.ts';
+
+/** What one purchase produced: the cards, and whether it cost anything. */
+export interface PackPurchase {
+  readonly roll: PackRoll;
+  /** True when an owed pack (an achievement reward, a tournament prize) paid for it. */
+  readonly free: boolean;
+  readonly spent: number;
+}
 
 /** The key the single record lives under, matching the store name (`05` §1). */
 export const ECONOMY_KEY = 'economy';
@@ -146,6 +155,47 @@ export class EconomyRepository {
       owedPacks.splice(index, 1);
       const next = { ...state, owedPacks };
       return { state: next, result: next };
+    });
+  }
+
+  /**
+   * Buys and opens a pack in one queued step (T-8.12).
+   *
+   * Paying, taking an owed pack, and advancing the pity counter are three writes to the same record
+   * and have to be one operation: a player who taps twice quickly must not open two packs for one
+   * price, and a pity counter that advanced without a pack being opened would be a guarantee the
+   * player paid for and did not get.
+   *
+   * The roll is passed in as a function of the current counters, so this method stays ignorant of
+   * odds tables and athlete generation while still holding the lock over them.
+   */
+  purchasePack(
+    tier: PackTier,
+    price: number,
+    roll: (pity: EconomyState['pity']) => PackRoll,
+    detail: string,
+    at?: number,
+  ): Promise<PackPurchase | null> {
+    return this.#mutate((state) => {
+      const owedIndex = state.owedPacks.indexOf(tier);
+      const free = owedIndex !== -1;
+
+      let paid = state;
+      if (free) {
+        const owedPacks = [...state.owedPacks];
+        owedPacks.splice(owedIndex, 1);
+        paid = { ...state, owedPacks };
+      } else {
+        const spent = spend(state, price, 'pack', detail, at);
+        if (spent === null) return { state, result: null };
+        paid = spent;
+      }
+
+      const rolled = roll(paid.pity);
+      return {
+        state: { ...paid, pity: rolled.pity },
+        result: { roll: rolled, free, spent: free ? 0 : price },
+      };
     });
   }
 

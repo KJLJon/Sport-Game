@@ -145,7 +145,7 @@ export function walletScreen(): Screen {
         el(doc, 'p', {
           class: 'wallet__note',
           // Says what is not here yet, rather than leaving a tab that looks finished and is not.
-          text: 'Packs and the transfer market arrive later in this phase.',
+          text: 'The transfer market arrives later in this phase.',
         }),
       );
 

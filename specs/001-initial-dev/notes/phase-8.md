@@ -594,3 +594,45 @@ confirmation makes that a good idea. One boolean separates the two, which is why
 **Feel note.** Naming the athlete in the confirmation is what makes this screen feel like a
 transfer rather than a delete key. "Sell Ada Quill for 1 240 coins? This cannot be undone" is a
 sentence you hesitate over, which is exactly the right amount of friction.
+
+---
+
+### T-8.12
+
+*Packs: tiers, prices, published odds, pity timers, reveal animation with skip*
+
+**The screen renders `PACKS`, not a copy of it.** US-9.2 requires the odds before the button, and
+the only way the displayed number and the rolled number cannot drift apart is for there to be one
+number. The odds table on the purchase screen is generated from the same object `rollRarity` reads.
+
+**Pity triggers *before* the roll, not after it.** "Guaranteed Rare+ within 6 Bronze" is implemented
+as: the sixth dry Bronze rolls its first card from the Rare-and-above part of the table,
+renormalised. Rolling normally and then upgrading the result would make the published 4.5% a lie —
+the displayed odds would quietly become something else, which is the exact dishonesty publishing
+them is supposed to prevent. The counter also resets on a *lucky* pull at the floor, not only on the
+guaranteed one, because otherwise a player who pulls an Epic on their third Bronze still gets a
+guarantee three packs later and the timer stops meaning what it says.
+
+**The whole pack exists before the first card turns.** `openPack` returns every athlete; the screen
+animates them. That is what makes Skip honest — it shows you what you already had rather than
+hurrying a roll — and it is why `prefers-reduced-motion` can drop the animation entirely without
+changing an outcome.
+
+**Buying is one queued write.** Paying, consuming an owed pack, and advancing the pity counter are
+three changes to the same record, and two taps in the same tick must buy one pack. `purchasePack`
+takes the roll as a *function of the current counters*, so the wallet holds the lock over the roll
+without learning anything about odds tables or athlete generation. There is a test that fires two
+purchases at once and expects one pack and one charge.
+
+**The anti-farm test guessed, and guessed wrong first.** `05` §5.5 asks for
+`expectedSellValue(pack) < price(pack)` over the odds tables and the valuation formula. The first
+version assumed a Legendary is about 94 overall and "failed" against a perfectly sound economy —
+rarity sets the *attribute band* (`05` §4), not the overall, and a Legendary actually averages about
+60. The test now measures: two hundred generated athletes per rarity, taking the best of each, so
+the bound is generous and stays honest if the bands or the derivation ever move. Every tier comes in
+under 90% of its price.
+
+**Feel note.** Three cards turning over one at a time, with the rarity in words under the name, is
+more exciting than it has any right to be — and showing the pity counter ("Rare or better guaranteed
+within 4 more") makes a dry streak feel like progress rather than like being cheated. That line is
+free to add and is the difference between a mechanic and a trick.

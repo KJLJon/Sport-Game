@@ -101,6 +101,11 @@ export interface EconomyState {
    * store when they earned it, and INV-7 needs the grant recorded exactly once regardless.
    */
   readonly owedPacks: readonly PackTier[];
+  /**
+   * How many of each tier have been opened since that tier last paid out at its pity floor
+   * (`05` §5.2). Reset on trigger, and on any lucky pull that satisfies the floor on its own.
+   */
+  readonly pity: Readonly<Partial<Record<PackTier, number>>>;
 }
 
 /**
@@ -123,6 +128,7 @@ export function emptyEconomy(): EconomyState {
     lastWinDay: null,
     ledger: [],
     owedPacks: [],
+    pity: {},
   };
 }
 
@@ -186,5 +192,17 @@ export function normaliseEconomy(value: unknown): EconomyState {
     lastWinDay: typeof raw.lastWinDay === 'string' ? raw.lastWinDay : null,
     ledger: ledger.slice(0, LEDGER_LIMIT),
     owedPacks: Array.isArray(raw.owedPacks) ? raw.owedPacks.filter(isPackTier) : [],
+    pity: normalisePity(raw.pity),
   };
+}
+
+function normalisePity(value: unknown): Readonly<Partial<Record<PackTier, number>>> {
+  if (value === null || typeof value !== 'object') return {};
+  const out: Partial<Record<PackTier, number>> = {};
+  for (const [tier, count] of Object.entries(value as Record<string, unknown>)) {
+    if (!isPackTier(tier)) continue;
+    const counted = finiteInt(count, 0);
+    if (counted > 0) out[tier] = counted;
+  }
+  return out;
 }
