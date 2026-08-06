@@ -23,6 +23,14 @@
 import type { Database } from '../storage/idb.ts';
 import type { MatchRecord } from '../stats/types.ts';
 import type { PackRoll } from './packs.ts';
+import {
+  afterPaidRefresh,
+  paidRefreshPrice,
+  refreshDue,
+  withoutListing,
+  withoutOffer,
+  type MarketState,
+} from './market.ts';
 import { earn, settleMatch, spend, type LedgerInput, type SettleMatchOptions } from './wallet.ts';
 import {
   emptyEconomy,
@@ -195,6 +203,76 @@ export class EconomyRepository {
       return {
         state: { ...paid, pity: rolled.pity },
         result: { roll: rolled, free, spent: free ? 0 : price },
+      };
+    });
+  }
+
+  /**
+   * Rotates the market if four hours have passed, and never more than one epoch however far the
+   * clock jumped (`05` §5.4, T-8.14).
+   *
+   * Queued, because "is it due" and "here is the new one" have to be one decision: two screens
+   * mounting together would otherwise both see a due market and roll two epochs, and the second
+   * would throw away listings the first had already shown.
+   */
+  ensureMarket(now: number, refresh: (market: MarketState) => MarketState): Promise<MarketState> {
+    return this.#mutate((state) => {
+      if (!refreshDue(state.market, now)) return { state, result: state.market };
+      const market = refresh(state.market);
+      return { state: { ...state, market }, result: market };
+    });
+  }
+
+  /** A paid manual refresh: spends, rotates, and uses one of the day's three. */
+  paidRefresh(
+    day: string,
+    refresh: (market: MarketState) => MarketState,
+    at?: number,
+  ): Promise<MarketState | null> {
+    return this.#mutate((state) => {
+      const price = paidRefreshPrice(state.market, day);
+      if (price === null) return { state, result: null };
+
+      const paid = spend(state, price, 'market', 'Market refresh', at);
+      if (paid === null) return { state, result: null };
+
+      const market = afterPaidRefresh(refresh(paid.market), day);
+      return { state: { ...paid, market }, result: market };
+    });
+  }
+
+  /**
+   * Buys a listing: pays the ask and takes it off the board, in one step.
+   *
+   * Returns `null` when the wallet cannot afford it *or* the listing is already gone — the two
+   * failures look the same to the caller on purpose, because both mean "this did not happen" and
+   * the screen re-reads either way.
+   */
+  buyListing(listingId: string, ask: number, detail: string, at?: number): Promise<boolean> {
+    return this.#mutate((state) => {
+      const listing = state.market.listings.find((entry) => entry.id === listingId);
+      if (listing === undefined) return { state, result: false };
+
+      const paid = spend(state, ask, 'market', detail, at);
+      if (paid === null) return { state, result: false };
+
+      return {
+        state: { ...paid, market: withoutListing(paid.market, listingId) },
+        result: true,
+      };
+    });
+  }
+
+  /** Accepts a buy-offer: credits the coins and retires the offer. The athlete is the caller's. */
+  acceptOffer(athleteId: string, coins: number, detail: string, at?: number): Promise<boolean> {
+    return this.#mutate((state) => {
+      const offer = state.market.offers.find((entry) => entry.athleteId === athleteId);
+      if (offer === undefined) return { state, result: false };
+
+      const credited = earn(state, coins, 'market', detail, at);
+      return {
+        state: { ...credited, market: withoutOffer(credited.market, athleteId) },
+        result: true,
       };
     });
   }

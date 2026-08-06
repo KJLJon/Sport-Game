@@ -26,6 +26,8 @@
  * one without a schema migration for every field the economy grows.
  */
 
+import { emptyMarket, normaliseMarket, type MarketState } from './market.ts';
+
 /** Bumped when the record's shape changes in a way a reader must know about. */
 export const ECONOMY_VERSION = 1;
 
@@ -106,6 +108,8 @@ export interface EconomyState {
    * (`05` §5.2). Reset on trigger, and on any lucky pull that satisfies the floor on its own.
    */
   readonly pity: Readonly<Partial<Record<PackTier, number>>>;
+  /** The transfer market: what is listed, what is offered, and when it last rotated (`05` §5.4). */
+  readonly market: MarketState;
 }
 
 /**
@@ -129,6 +133,7 @@ export function emptyEconomy(): EconomyState {
     ledger: [],
     owedPacks: [],
     pity: {},
+    market: emptyMarket(),
   };
 }
 
@@ -193,6 +198,7 @@ export function normaliseEconomy(value: unknown): EconomyState {
     ledger: ledger.slice(0, LEDGER_LIMIT),
     owedPacks: Array.isArray(raw.owedPacks) ? raw.owedPacks.filter(isPackTier) : [],
     pity: normalisePity(raw.pity),
+    market: normaliseMarket(raw.market),
   };
 }
 

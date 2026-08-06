@@ -636,3 +636,40 @@ under 90% of its price.
 more exciting than it has any right to be — and showing the pity counter ("Rare or better guaranteed
 within 4 more") makes a dry streak feel like progress rather than like being cheated. That line is
 free to add and is the difference between a mechanic and a trick.
+
+---
+
+### T-8.14
+
+*Transfer market: rotating listings, tamper-resistant refresh, paid refreshes, buy-offers, seeded
+price walk*
+
+**A listing is a seed, not an athlete.** Six generated athletes written into the wallet record every
+four hours would be kilobytes of duplicated roster; the seed they were rolled from is thirty bytes
+and regenerates the same athlete every time (INV-2). The screen regenerates them to display and the
+buy regenerates the one being bought, and they are identical because the roll is deterministic.
+
+**The clock is not trusted, and the rule has its own function.** `05` §5.4 spells it out — "the
+stored `lastRefresh` only advances, and a jump larger than the refresh interval grants exactly one
+refresh, not many" — and the natural implementation is a `while` loop, which would turn the device
+clock into a vending machine. `refreshesOwed` returns `0` or `1`, never more, and `lastRefresh` is
+`Math.max`'d so winding the clock *backwards* earns nothing either: the next genuine four hours
+still have to pass. Both directions have tests.
+
+**Scarcity is read at sport level, not position level.** `05` §5.4 asks for scarcity "at positions
+your roster is thin at". Positions are each sport's own vocabulary, and a market that reasoned about
+them would need every sport's role table plus a definition of "thin" per formation. Sport-level
+thinness is the same idea at the granularity this build can express honestly — and it is the one a
+player actually feels, because the complaint is "I cannot field a soccer team", not "I am light at
+left-back". Recorded here as a deliberate narrowing rather than a miss.
+
+**A paid refresh does not reset the free timer.** Buying a reroll should not push the free rotation
+four hours away, or the paid refreshes become a tax on waiting rather than a shortcut.
+
+**Buying and selling are each one queued write.** "Is this listing still there" and "take it off the
+board" have to be one decision, or two taps buy one athlete twice. Same for an offer.
+
+**Feel note.** Six athletes and a countdown is a surprisingly strong pull — the market is the first
+screen in the build that is worth *opening* when you are not going to play. The buy-offers are what
+make it feel like a market rather than a shop: somebody wants your player, and the number is
+sometimes better than the sell screen's, which is exactly the small decision `05` §5.4 was after.

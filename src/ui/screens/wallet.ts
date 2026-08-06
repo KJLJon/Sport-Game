@@ -139,13 +139,9 @@ export function walletScreen(): Screen {
           class: 'wallet__links',
           attrs: { 'aria-label': 'Store' },
           children: [
+            button(doc, { label: 'Market', variant: 'secondary', href: '#/store/market' }),
             button(doc, { label: 'Sell athletes', variant: 'secondary', href: '#/store/sell' }),
           ],
-        }),
-        el(doc, 'p', {
-          class: 'wallet__note',
-          // Says what is not here yet, rather than leaving a tab that looks finished and is not.
-          text: 'The transfer market arrives later in this phase.',
         }),
       );
 

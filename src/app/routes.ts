@@ -294,7 +294,16 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
-    // Store → Sell (`10` §7). The market joins them at T-8.14.
+    // Store → Market (`10` §7).
+    pattern: '/store/market',
+    value: {
+      id: 'store-market',
+      title: 'Transfer market',
+      load: async () => (await import('../ui/screens/market.ts')).marketScreen(),
+    },
+  },
+  {
+    // Store → Sell (`10` §7).
     pattern: '/store/sell',
     value: {
       id: 'store-sell',
