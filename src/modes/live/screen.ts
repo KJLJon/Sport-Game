@@ -77,8 +77,15 @@ import {
 import { appDatabase } from '../../storage/app-db.ts';
 import { buildRecord } from '../../stats/record.ts';
 import { payoutDetail } from '../../economy/earning.ts';
-import { HISTORY_FOR_ACHIEVEMENTS } from '../../achievements/session.ts';
-import { entityAthletes, matchMetaEvents, settleAchievements } from '../../achievements/session.ts';
+import {
+  HISTORY_FOR_ACHIEVEMENTS,
+  entityAthletes,
+  matchMetaEvents,
+  settleAchievements,
+} from '../../achievements/session.ts';
+import { AchievementTracker } from '../../achievements/tracker.ts';
+import { ACHIEVEMENTS } from '../../achievements/registry.ts';
+import { toast } from '../../ui/components/feedback.ts';
 import type { AchievementUnlock } from '../../achievements/types.ts';
 import type { Payout } from '../../economy/types.ts';
 import { payoutPanel } from '../../ui/components/payout.ts';
@@ -108,6 +115,9 @@ import { teamLine } from './box-score.ts';
  * Returning the fit-the-field scale for a small field is what makes it safe for every sport without
  * naming one.
  */
+/** How long an unlock toast stays up. Long enough to read mid-match, short enough not to nag. */
+export const UNLOCK_TOAST_MS = 4000;
+
 export function zoomFloor(
   viewWidth: number,
   fieldWidth: number,
@@ -293,6 +303,39 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       overlay.className = 'live__overlay';
       root.appendChild(overlay);
 
+      /**
+       * The in-match achievement toast (T-8.9).
+       *
+       * A *preview* tracker, seeded from the stored records and fed the same events as they happen.
+       * It writes nothing and pays nothing — the authoritative settlement replays the whole history
+       * after the final whistle — so the toast can be best-effort without risking a double grant.
+       * Its only job is that unlocking something mid-match feels like it happened during the match,
+       * which is what `US-8.1`'s "unobtrusive in-match toast" is asking for.
+       *
+       * It is also allowed to miss the first few events: it is built from an async database read,
+       * and the post-match pass catches anything that landed before it existed. A toast that
+       * delayed kick-off to read IndexedDB would be the wrong trade.
+       */
+      const toasts = doc.createElement('div');
+      toasts.className = 'live__toasts';
+      root.appendChild(toasts);
+
+      let preview: AchievementTracker | null = null;
+      const toastTimers: ReturnType<typeof setTimeout>[] = [];
+
+      const showUnlock = (unlock: AchievementUnlock): void => {
+        const node = toast(doc, {
+          message: `${unlock.def.title} unlocked`,
+          tone: 'success',
+        });
+        toasts.appendChild(node);
+        toastTimers.push(
+          setTimeout(() => {
+            node.remove();
+          }, UNLOCK_TOAST_MS),
+        );
+      };
+
       // The sport supplies the event→cue mapping; a sport without one is silent (T-6.16).
       const audio = new MatchAudio(null, {}, options.sport.audio ?? null);
       const stopAudio = audio.attach(match.bus);
@@ -414,6 +457,41 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       let unlocked: readonly AchievementUnlock[] = [];
 
       const lineup = options.sport.lineup?.(match.sportState as never);
+
+      const evalContext = (): Parameters<AchievementTracker['consume']>[1] => ({
+        at: Date.now(),
+        sport: options.sport.id,
+        difficulty,
+        playerSide: match.view().playerSide,
+        assists,
+        athleteOf: entityAthletes(lineup, options.rosters),
+      });
+
+      void appDatabase()
+        .then(async (db) => {
+          const tracker = new AchievementTracker(
+            ACHIEVEMENTS,
+            (await db.achievements.byId()).values(),
+          );
+          tracker.beginMatch();
+          preview = tracker;
+        })
+        .catch(() => {
+          // No preview, no toast. The post-match settlement is unaffected.
+        });
+
+      listeners.push(
+        match.bus.on((event) => {
+          if (preview === null || match.finished) return;
+          for (const unlock of preview.consume(event, evalContext())) showUnlock(unlock);
+        }),
+      );
+      // A toast whose timer outlives the screen would try to remove a node from a document nobody
+      // is looking at, and would keep the closure alive with it.
+      listeners.push(() => {
+        for (const timer of toastTimers) clearTimeout(timer);
+        toastTimers.length = 0;
+      });
 
       const renderOverlay = (): void => {
         overlay.replaceChildren();

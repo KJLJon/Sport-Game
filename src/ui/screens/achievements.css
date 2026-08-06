@@ -1,0 +1,75 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   8 — Modes hub, progression, achievements, economy
+ * @task    T-8.9 — Achievement UI: gallery, filters, progress bars, in-match toast, post-match
+ *          summary
+ * @story   US-8.2 — Browse my achievements
+ * @design  10-ui-ux.md §3 (tokens), §4 (layout on a phone), §11 (44 px targets)
+ *
+ * Purpose: three filters and a long list, on a phone.
+ *
+ * The filters wrap rather than scroll: three selects fit two-up at 360 px and one-up below that,
+ * and a horizontally scrolling filter bar is a filter bar whose third option nobody finds. The row
+ * shape itself lives in `components.css` — it is shared with the post-match panel.
+ */
+
+.achievements {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.achievements__title {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.achievements__summary {
+  margin: 0;
+  font-size: var(--text-16);
+  color: var(--text-hi);
+  font-variant-numeric: var(--font-numeric);
+}
+
+.achievements__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+.achievements__filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex: 1 1 10rem;
+}
+
+.achievements__filter label {
+  font-size: var(--text-12);
+  color: var(--text-lo);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.achievements__select {
+  /* 44 px, because a filter is a control like any other (INV-11). */
+  min-height: 44px;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface-1);
+  color: var(--text-hi);
+  font-size: var(--text-14);
+}
+
+.achievements__none {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-16);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-12);
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  text-align: center;
+}

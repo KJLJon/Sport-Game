@@ -531,3 +531,33 @@ the real game def.
 playable tiles and quietly depended on everything being open. They now write the achievements first,
 the way a player would earn them, and there is a new case for the fresh save: ten locked tiles, each
 naming what earns it, and the word "buy" nowhere on the screen.
+
+---
+
+### T-8.9
+
+*Achievement UI: gallery, filters, progress bars, in-match toast, post-match summary*
+
+**The gallery shows locked achievements, and that is the design.** A list of only what you have done
+is a trophy cabinet; this is also the list of things worth trying, which is where the cross-sport
+ones do their work. Hidden ones appear as "???" — present, so the count is honest, and undescribed,
+so the surprise survives. There is a test, because a refactor that rendered `def.title`
+unconditionally would spoil seven of them silently.
+
+**Three `<select>`s, not a row of chips.** Chips would look better and be worse: a select is one
+tap, is announced properly, and does not wrap into four lines at 360 px. Each has a real `<label>`
+(INV-11).
+
+**The counter sits above the filters.** "23 of 79 unlocked · 4 500 coins earned" is what a player
+opens this screen for, and narrowing the list must never appear to change it. Asserted.
+
+**A progress bar prints its own numbers.** A bar alone is information conveyed by width, which is no
+better than information conveyed by colour for anyone who cannot see it — so every bar carries
+"3 / 5" beside it and `role="progressbar"` with the real values.
+
+**The in-match toast runs a *preview* tracker.** Seeded from the stored records, fed the same events
+as they happen, writing nothing and paying nothing; the authoritative settlement replays the whole
+history after the final whistle. So the toast is free to be best-effort — it is built from an async
+database read and is allowed to miss the first few events, because the post-match pass catches them.
+A toast that delayed kick-off to read IndexedDB would be the wrong trade, and a toast that granted
+anything would put INV-7 back in play for no benefit.
