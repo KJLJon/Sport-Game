@@ -27,6 +27,7 @@ import { resultOf, type MatchRecord } from '../stats/types.ts';
 import { DEFAULT_DIFFICULTY } from '../modes/difficulty.ts';
 import { defaultAssists } from '../modes/assists.ts';
 import type { SportId } from '../sports/types.ts';
+import { PLAYABLE_SPORTS } from '../sports/playable.ts';
 import { AchievementTracker } from './tracker.ts';
 import { grantPending, type AchievementGrant } from './repository.ts';
 import { ACHIEVEMENTS } from './registry.ts';
@@ -34,7 +35,7 @@ import {
   MetaKind,
   type AchievementDef,
   type AchievementUnlock,
-  type EvalContext,
+  type MatchContext,
   type MetaEvent,
 } from './types.ts';
 
@@ -44,7 +45,7 @@ export interface SettleAchievementsOptions {
   readonly events: readonly SportEvent[];
   /** What happened around it — the match record, a roster count, a pack that was opened. */
   readonly meta?: readonly MetaEvent[];
-  readonly context: Omit<EvalContext, 'box'>;
+  readonly context: MatchContext;
   /** Overridden by tests and the balance harness; nothing in the app passes it. */
   readonly defs?: readonly AchievementDef[];
 }
@@ -125,11 +126,41 @@ export async function grantOutstanding(
  * every available sport" counts. It carries the athlete and the sport and nothing else — the def
  * decides what to do with the pair.
  */
-export function matchMetaEvents(record: MatchRecord): MetaEvent[] {
+/**
+ * How much history the career-shaped achievements are computed against.
+ *
+ * The whole store would be correct and would also mean reading five hundred records at the end of
+ * every match. Two hundred is far more than any of these thresholds needs — "win on each of four
+ * difficulties" is answered by the four most recent wins of each kind — and it is bounded work.
+ */
+export const HISTORY_FOR_ACHIEVEMENTS = 200;
+
+export interface MatchMetaOptions {
+  /** Every match already filed, so career facts are computed where the career is known. */
+  readonly history?: readonly MatchRecord[];
+  /** Whether the wallet paid the first-win-of-the-day bonus for this match (T-8.10). */
+  readonly firstWinToday?: boolean;
+}
+
+export function matchMetaEvents(record: MatchRecord, options: MatchMetaOptions = {}): MetaEvent[] {
+  const history = options.history ?? [];
   const result = resultOf(record);
   const side = record.playerSide === 1 ? 1 : 0;
   const mine = record.score[side];
   const theirs = record.score[side === 0 ? 1 : 0];
+
+  const past = history.filter((entry) => entry.id !== record.id);
+  const sportsWon = new Set<SportId>();
+  const levelsWon = new Set<string>();
+  for (const entry of past) {
+    if (resultOf(entry) !== 'win') continue;
+    sportsWon.add(entry.sportId);
+    levelsWon.add(entry.difficulty);
+  }
+  if (result === 'win') {
+    sportsWon.add(record.sportId);
+    levelsWon.add(record.difficulty);
+  }
 
   const events: MetaEvent[] = [
     {
@@ -144,6 +175,18 @@ export function matchMetaEvents(record: MatchRecord): MetaEvent[] {
         theirScore: theirs,
         margin: mine - theirs,
         periods: record.periodsPlayed,
+        /**
+         * How many *different* sports the player has now won in.
+         *
+         * Computed here, from the history, rather than counted by a def. A def sees one event and
+         * has nowhere to keep a set of sports, and a set kept in a closure would forget itself on
+         * the next reload — a player who wins at basketball today and soccer tomorrow would never
+         * be credited. Career facts belong to whoever holds the career.
+         */
+        sportsWon: sportsWon.size,
+        /** How many different difficulties the player has now won on — `05` §6's "Step Up". */
+        levelsWon: levelsWon.size,
+        firstWinToday: options.firstWinToday === true,
       },
     },
   ];
@@ -153,11 +196,28 @@ export function matchMetaEvents(record: MatchRecord): MetaEvent[] {
     if (line.athleteId === null || line.side !== record.playerSide) continue;
     if (seen.has(line.athleteId)) continue;
     seen.add(line.athleteId);
+
+    const played = new Set<SportId>([record.sportId]);
+    const scoredIn = new Set<SportId>(line.points > 0 ? [record.sportId] : []);
+    for (const entry of past) {
+      for (const past_line of entry.lines) {
+        if (past_line.athleteId !== line.athleteId) continue;
+        played.add(entry.sportId);
+        if (past_line.points > 0) scoredIn.add(entry.sportId);
+      }
+    }
+
     events.push({
       kind: MetaKind.SPORT_PLAYED,
       at: record.playedAt,
       athleteId: line.athleteId,
-      detail: { sport: record.sportId, points: line.points },
+      detail: {
+        sport: record.sportId,
+        points: line.points,
+        sportsPlayed: played.size,
+        scoringSports: scoredIn.size,
+        everySport: played.size >= PLAYABLE_SPORTS.length,
+      },
     });
   }
 
@@ -192,10 +252,7 @@ export function entityAthletes(
  * already treats as "not the player's", so a match-shaped def cannot fire on a meta event by
  * accident.
  */
-export function outsideMatch(
-  at: number = Date.now(),
-  sport: SportId = 'basketball',
-): Omit<EvalContext, 'box'> {
+export function outsideMatch(at: number = Date.now(), sport: SportId = 'basketball'): MatchContext {
   return {
     at,
     sport,

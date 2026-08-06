@@ -74,7 +74,11 @@ import { payoutDetail } from '../../economy/earning.ts';
 import type { Payout } from '../../economy/types.ts';
 import { payoutPanel } from '../components/payout.ts';
 import { unlockedPanel } from '../components/achievement.ts';
-import { matchMetaEvents, settleAchievements } from '../../achievements/session.ts';
+import {
+  HISTORY_FOR_ACHIEVEMENTS,
+  matchMetaEvents,
+  settleAchievements,
+} from '../../achievements/session.ts';
 import type { AchievementUnlock } from '../../achievements/types.ts';
 import { defaultAssists } from '../../modes/assists.ts';
 import { buildHash } from '../../app/router.ts';
@@ -240,7 +244,10 @@ export function playbookMatchScreen(): Screen {
               await settleAchievements({
                 db,
                 events: match.events,
-                meta: matchMetaEvents(record),
+                meta: matchMetaEvents(record, {
+                  history: await db.matches.recent(HISTORY_FOR_ACHIEVEMENTS),
+                  firstWinToday: payout.items.some((item) => item.id === 'first-win'),
+                }),
                 context: {
                   at: playedAt,
                   sport: module.id,

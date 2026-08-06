@@ -18,9 +18,34 @@
  * usually accompanies one: two defs sharing an id.
  */
 import { onboardingAchievements } from './definitions/onboarding.ts';
+import { basketballAchievements } from './definitions/basketball.ts';
+import { soccerAchievements } from './definitions/soccer.ts';
+import { crossSportAchievements } from './definitions/cross-sport.ts';
+import {
+  collectionAchievements,
+  difficultyAchievements,
+  economyAchievements,
+  p2pAchievements,
+} from './definitions/progression.ts';
+import { hiddenAchievements } from './definitions/hidden.ts';
 import type { AchievementDef } from './types.ts';
 
-export const ACHIEVEMENTS: readonly AchievementDef[] = [...onboardingAchievements];
+/**
+ * Every achievement in the build (T-8.7). `US-8.1` asks for at least sixty at launch; the count is
+ * asserted by a test so that a file dropped from this list fails loudly rather than quietly halving
+ * the gallery.
+ */
+export const ACHIEVEMENTS: readonly AchievementDef[] = [
+  ...onboardingAchievements,
+  ...basketballAchievements,
+  ...soccerAchievements,
+  ...crossSportAchievements,
+  ...difficultyAchievements,
+  ...collectionAchievements,
+  ...economyAchievements,
+  ...hiddenAchievements,
+  ...p2pAchievements,
+];
 
 const BY_ID: ReadonlyMap<string, AchievementDef> = new Map(
   ACHIEVEMENTS.map((def) => [def.id, def]),

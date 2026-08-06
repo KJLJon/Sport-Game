@@ -36,7 +36,16 @@ import {
   type AchievementRecord,
   type AchievementUnlock,
   type EvalContext,
+  type MatchContext,
 } from './types.ts';
+
+/**
+ * How many of a match's most recent events the tracker keeps for `EvalContext.recent`.
+ *
+ * Sixty-four is a few seconds of a busy possession at 60 Hz, which is the whole span any
+ * sequence-shaped achievement asks about, and it bounds the memory a long match can use.
+ */
+export const RECENT_LIMIT = 64;
 
 export class AchievementTracker {
   readonly #defs: readonly AchievementDef[];
@@ -46,6 +55,8 @@ export class AchievementTracker {
   /** Per-match progress for `scope: 'match'` defs, cleared by `beginMatch`. */
   readonly #matchProgress = new Map<string, number>();
   #box: BoxScore = createBoxScore();
+  /** This match's last events, oldest first. See `EvalContext.recent` for why. */
+  #recent: SportEvent[] = [];
 
   constructor(defs: readonly AchievementDef[], records: Iterable<AchievementRecord> = []) {
     this.#defs = defs;
@@ -76,6 +87,7 @@ export class AchievementTracker {
   beginMatch(): void {
     this.#matchProgress.clear();
     this.#box = createBoxScore();
+    this.#recent = [];
   }
 
   /**
@@ -85,10 +97,15 @@ export class AchievementTracker {
    * see that basket in the totals — "20 rebounds in a game" should fire on the twentieth rebound,
    * not on the next event after it.
    */
-  consume(event: AchievementEvent, ctx: Omit<EvalContext, 'box'>): AchievementUnlock[] {
-    if (!isMetaEvent(event)) applyEvent(this.#box, event as SportEvent);
+  consume(event: AchievementEvent, ctx: MatchContext): AchievementUnlock[] {
+    if (!isMetaEvent(event)) {
+      const sportEvent = event;
+      applyEvent(this.#box, sportEvent);
+      this.#recent.push(sportEvent);
+      if (this.#recent.length > RECENT_LIMIT) this.#recent.shift();
+    }
 
-    const context: EvalContext = { ...ctx, box: this.#box };
+    const context: EvalContext = { ...ctx, box: this.#box, recent: this.#recent };
     const unlocked: AchievementUnlock[] = [];
 
     for (const def of this.#defs) {
@@ -126,10 +143,7 @@ export class AchievementTracker {
   }
 
   /** Folds a whole stream in — a finished match, replayed through the defs in one call. */
-  consumeAll(
-    events: Iterable<AchievementEvent>,
-    ctx: Omit<EvalContext, 'box'>,
-  ): AchievementUnlock[] {
+  consumeAll(events: Iterable<AchievementEvent>, ctx: MatchContext): AchievementUnlock[] {
     const unlocked: AchievementUnlock[] = [];
     for (const event of events) unlocked.push(...this.consume(event, ctx));
     return unlocked;

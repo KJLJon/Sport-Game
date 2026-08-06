@@ -77,6 +77,7 @@ import {
 import { appDatabase } from '../../storage/app-db.ts';
 import { buildRecord } from '../../stats/record.ts';
 import { payoutDetail } from '../../economy/earning.ts';
+import { HISTORY_FOR_ACHIEVEMENTS } from '../../achievements/session.ts';
 import { entityAthletes, matchMetaEvents, settleAchievements } from '../../achievements/session.ts';
 import type { AchievementUnlock } from '../../achievements/types.ts';
 import type { Payout } from '../../economy/types.ts';
@@ -380,7 +381,13 @@ export function liveScreen(options: LiveScreenOptions): Screen {
               await settleAchievements({
                 db,
                 events: match.bus.history(),
-                meta: matchMetaEvents(record),
+                meta: matchMetaEvents(record, {
+                  // The career facts an achievement about "every difficulty" or "both sports"
+                  // needs. Read here, where the career is, rather than counted inside a def that
+                  // would forget it on the next reload.
+                  history: await db.matches.recent(HISTORY_FOR_ACHIEVEMENTS),
+                  firstWinToday: payout.items.some((item) => item.id === 'first-win'),
+                }),
                 context: {
                   at: playedAt,
                   sport: options.sport.id,

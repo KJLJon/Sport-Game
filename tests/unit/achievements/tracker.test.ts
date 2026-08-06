@@ -18,13 +18,13 @@
 import { describe, expect, it } from 'vitest';
 import { AchievementTracker, progressFraction, progressText } from '@/achievements/tracker.ts';
 import { def, onEvent, onMeta } from '@/achievements/conditions.ts';
-import { MetaKind, type AchievementDef, type EvalContext } from '@/achievements/types.ts';
+import { MetaKind, type AchievementDef, type MatchContext } from '@/achievements/types.ts';
 import { EventKind, event, type SportEvent } from '@/engine/match/events.ts';
 import { NO_ASSISTS } from '@/modes/assists.ts';
 
 const AT = 1_800_000_000_000;
 
-function ctx(overrides: Partial<Omit<EvalContext, 'box'>> = {}): Omit<EvalContext, 'box'> {
+function ctx(overrides: Partial<MatchContext> = {}): MatchContext {
   return {
     at: AT,
     sport: 'basketball',

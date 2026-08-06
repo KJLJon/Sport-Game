@@ -158,3 +158,29 @@ export function actorAthlete(event: SportEvent, ctx: EvalContext): Athlete | und
 export function unaided(ctx: EvalContext): boolean {
   return assistsOff(ctx.assists);
 }
+
+/**
+ * True when something matching `predicate` happened on the player's side within `steps` of the
+ * event being evaluated.
+ *
+ * This is how a *sequence* is expressed without any def keeping state: a fast break is points
+ * scored moments after a takeaway, a header is a goal moments after the ball was floated in. Both
+ * are already in the stream in the right order; all a def needs is a window to look back through.
+ */
+export function shortlyAfter(
+  event: SportEvent,
+  ctx: EvalContext,
+  steps: number,
+  predicate: (candidate: SportEvent) => boolean,
+): boolean {
+  for (let index = ctx.recent.length - 1; index >= 0; index -= 1) {
+    const candidate = ctx.recent[index];
+    if (candidate === undefined || candidate === event) continue;
+    if (event.step - candidate.step > steps) return false;
+    if (candidate.side === event.side && predicate(candidate)) return true;
+  }
+  return false;
+}
+
+/** Simulation steps inside which one event still counts as a consequence of another. */
+export const TRANSITION_STEPS = 180;

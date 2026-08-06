@@ -419,3 +419,84 @@ time this game has felt like it has a *why* outside the match. "First win today 
 lands hardest — it is the only line that rewards coming back rather than playing well, and it makes
 tomorrow feel like something. The arcade credit is the opposite: 160 coins for twenty seconds reads
 as a bug even though it is the spec's own table, which is its own argument for the finding above.
+
+---
+
+### T-8.6
+
+*Achievement engine: declarative defs, event-stream evaluation, progress, once-only grants*
+
+**A def is data with one function on it, and the function sees one event.** That is `05` §6's shape
+taken literally, and everything else follows from it. `evaluate(event, ctx) → number | null` returns
+a *progress delta*, so "make 5 threes in one game" and "sell 20 athletes" are the same kind of
+object; and because it sees one event and has nowhere to keep a counter, anything that needs memory
+is declared rather than written. Hence `scope: 'career' | 'match'`, which the tracker keeps.
+
+**Match scope stores the best attempt, not the running total.** A progress bar on "3 threes in one
+game" that read a career total of 40 would be a lie about what the achievement is. Best-so-far is
+the honest number and the useful one.
+
+**INV-7 is two fields, and that is the whole design.** `unlockedAt` says the condition was met;
+`rewardedAt` says the coins were paid. A kill between the two writes leaves "unlocked, unpaid" — an
+unambiguous state that the bootstrap grant resolves on the next launch, exactly once. One flag could
+not express it, so a retry would either double-pay or never pay. `grantPending` is the only place in
+the app that credits an achievement, so "at most once" is a property of one function rather than a
+convention spread across callers.
+
+**Writing the invariant test found the other half of INV-7.** Two settlements in the same tick both
+read "unpaid" and both paid — 600 coins for a 300-coin achievement. Not hypothetical: a match
+finishing while the bootstrap grant is still running does exactly that. The store now serialises the
+read-decide-write step the way the wallet already did, and the race is a passing test.
+
+**A broken def cannot break a match.** `evaluate` runs inside a try, for the same reason `EventBus`
+contains listener errors. Losing an unlock is bad; losing the match somebody is playing is worse.
+
+**Reachable on day one.** Live, Playbook, arcade runs, and athlete creation all emit into it, and
+achievement coins land in the wallet ledger under the achievement's own title. The post-match panel
+shows what unlocked; the gallery is T-8.9.
+
+---
+
+### T-8.7
+
+*Achievement content: 79 defs*
+
+**79 across every category `05` §6 names**, against a promise of sixty. The count, the categories,
+and the reward shape are asserted rather than eyeballed — a content file dropped from the registry
+now fails a test instead of quietly halving the gallery.
+
+**The ten arcade-unlock ids are load-bearing and now have a test.** `modes/arcade/registry.ts` gates
+each game behind an id from `achievements/ids.ts`; if no def ever awards one, the game is
+permanently unreachable and *nothing anywhere fails*. There is now a test that every gated id is
+awarded by a real def, and that none of the ten is hidden — a hidden unlock condition would leave a
+locked tile telling the player to do something the gallery refuses to describe.
+
+**Two of `09` §3.2's conditions asked for data the sim does not emit**, and neither needed a change
+to a sport to answer:
+
+- *"Score 10 fast-break points."* A fast break is not a thing the rules produce; it is points scored
+  moments after winning the ball back. The tracker keeps a bounded window of the match's recent
+  events, and the def asks for a basket within three seconds of the player's own steal or defensive
+  rebound.
+- *"Score a header."* Soccer emits no header event, but it does emit a `lofted` pass beyond thirty
+  metres — a cross. A goal within two seconds of one is the header from a cross, which is the same
+  reading `soccer/playbook/key-moments.ts` already takes.
+
+That window (`EvalContext.recent`) is the one facility this task added to the engine, and it is
+general: sequence-shaped achievements were otherwise impossible without every sport learning new
+vocabulary for facts already present in the stream's ordering.
+
+**Career facts are computed where the career is, not counted inside a def.** "Win on each
+difficulty" and "win in two sports" were briefly written as closures holding a `Set`. That is a bug
+with a long fuse: the set forgets itself on reload, so a player who wins at basketball today and
+soccer tomorrow would never be credited. Those facts are now computed from the match history when
+the meta event is built, and the def reads a number.
+
+**Every economy achievement is about spending or collecting, never about earning coins.** An
+achievement that paid coins for having coins is a loop, and `05` §5.5 exists to keep the economy
+closed.
+
+**Feel note.** The cross-sport ones are the best thing in the list, and reading them back is the
+first time the *game's* pitch is legible from inside the game: "Wrong Sport, Right Athlete — score
+30+ in a basketball match with a soccer-primary athlete", paying three times what a hat-trick does.
+That row is an argument for trying something, which is more than most achievement lists manage.

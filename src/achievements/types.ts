@@ -126,7 +126,22 @@ export interface EvalContext {
   readonly athleteOf: (entity: EntityId) => Athlete | undefined;
   /** The match so far. Empty outside a match. */
   readonly box: BoxScore;
+  /**
+   * The last few events of this match, oldest first, including the one being evaluated.
+   *
+   * A box score answers "how many", and some achievements are about *sequence*: a fast break is
+   * points scored moments after a takeaway, a header is a goal moments after a ball was floated in.
+   * Neither is a fact the sports emit, and neither needs them to — the ordering is already in the
+   * stream, and a bounded window is enough to read it without any def keeping state.
+   */
+  readonly recent: readonly SportEvent[];
 }
+
+/**
+ * The part of an eval context a caller supplies. `box` and `recent` are the tracker's, derived from
+ * the same events, so no caller can get them wrong or forget them.
+ */
+export type MatchContext = Omit<EvalContext, 'box' | 'recent'>;
 
 export interface AchievementDef {
   readonly id: string;
