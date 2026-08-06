@@ -28,6 +28,7 @@ import { generateStarterRoster } from '../athletes/starter-roster.ts';
 import { TeamRepository } from '../teams/repository.ts';
 import { MatchRepository } from '../stats/repository.ts';
 import { EconomyRepository } from '../economy/repository.ts';
+import { AchievementRepository } from '../achievements/repository.ts';
 import { Database } from './idb.ts';
 import { describeOutcome, runMigrations, type MigrationOutcome } from './migrations.ts';
 
@@ -39,6 +40,8 @@ export interface AppDatabase {
   readonly matches: MatchRepository;
   /** The coin balance and its ledger (T-8.10). */
   readonly economy: EconomyRepository;
+  /** Unlock state and progress per achievement (T-8.6). */
+  readonly achievements: AchievementRepository;
   /** What the migration chain did on open. Shown by the data screens (`10` §10). */
   readonly migration: MigrationOutcome;
 }
@@ -71,6 +74,7 @@ async function open(onBlocked?: () => void): Promise<AppDatabase> {
     teams: new TeamRepository(db),
     matches: new MatchRepository(db),
     economy: new EconomyRepository(db),
+    achievements: new AchievementRepository(db),
     migration,
   };
 }

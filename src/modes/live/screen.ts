@@ -77,8 +77,11 @@ import {
 import { appDatabase } from '../../storage/app-db.ts';
 import { buildRecord } from '../../stats/record.ts';
 import { payoutDetail } from '../../economy/earning.ts';
+import { entityAthletes, matchMetaEvents, settleAchievements } from '../../achievements/session.ts';
+import type { AchievementUnlock } from '../../achievements/types.ts';
 import type { Payout } from '../../economy/types.ts';
 import { payoutPanel } from '../../ui/components/payout.ts';
+import { unlockedPanel } from '../../ui/components/achievement.ts';
 import {
   DEFAULT_HUD_THEME,
   boxRows,
@@ -369,6 +372,25 @@ export function liveScreen(options: LiveScreenOptions): Screen {
               detail: payoutDetail(record, options.sport.meta.displayName),
               at: playedAt,
             });
+
+            // The same events, through the same defs, in both modes (T-8.6). Achievement coins
+            // land in the wallet after the match payout, so the ledger reads in the order the
+            // player earned them.
+            unlocked = (
+              await settleAchievements({
+                db,
+                events: match.bus.history(),
+                meta: matchMetaEvents(record),
+                context: {
+                  at: playedAt,
+                  sport: options.sport.id,
+                  difficulty,
+                  playerSide: view.playerSide,
+                  assists,
+                  athleteOf: entityAthletes(lineup, options.rosters),
+                },
+              })
+            ).unlocked;
             // The summary is already on screen by now — it is drawn the frame the match ends, and
             // the wallet is a database round trip behind. Re-render rather than delay the panel.
             if (match.finished) renderOverlay();
@@ -381,6 +403,8 @@ export function liveScreen(options: LiveScreenOptions): Screen {
 
       /** What the match paid, once the wallet has said. `null` until then, and on any failure. */
       let payout: Payout | null = null;
+      /** What it unlocked (T-8.6). Empty until the defs have run, and after a failure. */
+      let unlocked: readonly AchievementUnlock[] = [];
 
       const lineup = options.sport.lineup?.(match.sportState as never);
 
@@ -390,7 +414,9 @@ export function liveScreen(options: LiveScreenOptions): Screen {
           // A finished match is not an interrupted one (T-8.4).
           dropCheckpoint();
           recordMatch();
-          overlay.appendChild(summaryPanel(doc, match, () => context.navigate('/play'), payout));
+          overlay.appendChild(
+            summaryPanel(doc, match, () => context.navigate('/play'), payout, unlocked),
+          );
           return;
         }
         if (paused) {
@@ -912,6 +938,7 @@ export function summaryPanel(
   match: LiveMatch,
   onDone: () => void,
   payout: Payout | null = null,
+  unlocked: readonly AchievementUnlock[] = [],
 ): HTMLElement {
   const panel = doc.createElement('section');
   panel.className = 'live-panel';
@@ -936,6 +963,7 @@ export function summaryPanel(
   actions.append(action(doc, 'Done', 'primary', onDone));
 
   panel.append(heading, score, result);
+  if (unlocked.length > 0) panel.appendChild(unlockedPanel(doc, unlocked));
   if (payout !== null) panel.appendChild(payoutPanel(doc, payout));
   panel.append(boxTable(doc, match), actions);
   return panel;

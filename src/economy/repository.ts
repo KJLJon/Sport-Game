@@ -29,6 +29,7 @@ import {
   type EconomyState,
   type LedgerEntry,
   type LedgerReason,
+  type PackTier,
   type Payout,
 } from './types.ts';
 
@@ -117,6 +118,34 @@ export class EconomyRepository {
     return this.#mutate((state) => {
       const settled = settleMatch(state, record, options);
       return { state: settled.state, result: settled.payout };
+    });
+  }
+
+  /**
+   * Records a pack the player is owed (an achievement reward, a tournament win).
+   *
+   * Not a coin movement, so it writes no ledger entry — the thing that earned it will have written
+   * its own. Opening it is T-8.12's; until then it simply waits, which is the honest state.
+   */
+  owePack(tier: PackTier): Promise<EconomyState> {
+    return this.#mutate((state) => {
+      const next = { ...state, owedPacks: [...state.owedPacks, tier] };
+      return { state: next, result: next };
+    });
+  }
+
+  /**
+   * Takes one owed pack of a tier, or `null` when none is owed. The removal and the read are one
+   * step, so two callers cannot open the same free pack.
+   */
+  takeOwedPack(tier: PackTier): Promise<EconomyState | null> {
+    return this.#mutate((state) => {
+      const index = state.owedPacks.indexOf(tier);
+      if (index === -1) return { state, result: null };
+      const owedPacks = [...state.owedPacks];
+      owedPacks.splice(index, 1);
+      const next = { ...state, owedPacks };
+      return { state: next, result: next };
     });
   }
 

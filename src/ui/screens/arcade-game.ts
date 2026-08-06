@@ -60,6 +60,8 @@ import {
   type FeedbackState,
 } from '../../modes/arcade/accessibility.ts';
 import { appDatabase } from '../../storage/app-db.ts';
+import { recordMetaEvents } from '../../achievements/session.ts';
+import { MetaKind } from '../../achievements/types.ts';
 import { buildHash } from '../../app/router.ts';
 import { CHECKPOINT_VERSION, clearCheckpoint, saveCheckpoint } from '../../modes/checkpoint.ts';
 import type { Screen, ScreenContext } from '../../app/screen.ts';
@@ -393,6 +395,24 @@ export function arcadeGameScreen(): Screen {
             await economy.earn(reward.coins, 'arcade', `${game.name} · ${result.stars}★`);
             paid = rewardSummary(reward);
             renderOverlay();
+
+            // "Warm-Up", and whatever arcade content T-8.7 adds (T-8.6). A practice run never gets
+            // here — `rewarded` is false and `result` was filtered above — which is `09` §3.3's
+            // "unlimited and unrewarded" holding for achievements as well as for coins.
+            void recordMetaEvents(await appDatabase(), [
+              {
+                kind: MetaKind.ARCADE_RUN,
+                at: Date.now(),
+                athleteId: result.athleteId,
+                detail: {
+                  game: result.game,
+                  sport: result.sport,
+                  stars: result.stars,
+                  score: result.score,
+                  mode: result.mode,
+                },
+              },
+            ]);
 
             // The daily's athlete is generated, not one of yours, so there is nothing to store.
             if (progress !== null && config.mode !== 'daily') await athletes.put(progress.athlete);

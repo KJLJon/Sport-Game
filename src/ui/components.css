@@ -1211,3 +1211,123 @@
   font-size: var(--text-14);
   color: var(--text-lo);
 }
+
+/* ── Achievements (T-8.6, T-8.9) ──────────────────────────────────────────── */
+
+/*
+ * One row shape for the gallery and for the post-match block. Locked rows are dimmed *and* say
+ * "Locked", because `10` §11 does not allow a state to live in an opacity.
+ */
+.achievement-unlocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.achievement-unlocks__heading {
+  margin: 0;
+  font-size: var(--text-14);
+  font-weight: 600;
+  color: var(--text-lo);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.achievement-unlocks__list,
+.achievement-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.achievement {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.achievement[data-state='locked'] {
+  opacity: 0.72;
+}
+
+.achievement[data-state='unlocked'] {
+  border-color: var(--accent-alt);
+}
+
+.achievement__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.achievement__title {
+  margin: 0;
+  font-size: var(--text-16);
+  font-weight: 650;
+  color: var(--text-hi);
+}
+
+.achievement__description {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.achievement__status {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+.achievement__progress {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
+  height: 16px;
+}
+
+.achievement__progress-track {
+  width: 8rem;
+  max-width: 40vw;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.achievement__progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.achievement__progress-text {
+  font-size: var(--text-12);
+  color: var(--text-lo);
+  font-variant-numeric: var(--font-numeric);
+}
+
+.achievement__reward {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex: none;
+}
+
+.achievement__pack {
+  font-size: var(--text-12);
+  font-weight: 600;
+  color: var(--accent-alt);
+}

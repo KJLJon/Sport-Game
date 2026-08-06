@@ -30,6 +30,18 @@
 export const ECONOMY_VERSION = 1;
 
 /**
+ * The four pack tiers from `05` §5.2. Their prices, odds, and pity timers are T-8.12's; the *names*
+ * live here because an achievement can be rewarded with a pack (T-8.6) and the wallet has to be able
+ * to hold one that is owed before there is anything to open it with.
+ */
+export const PACK_TIERS = ['bronze', 'silver', 'gold', 'elite'] as const;
+export type PackTier = (typeof PACK_TIERS)[number];
+
+export function isPackTier(value: unknown): value is PackTier {
+  return typeof value === 'string' && (PACK_TIERS as readonly string[]).includes(value);
+}
+
+/**
  * Why coins moved. A closed set, because the wallet screen groups by it and an unrecognised reason
  * would be an unlabelled row.
  *
@@ -81,6 +93,14 @@ export interface EconomyState {
   readonly lastWinDay: string | null;
   /** Newest first, capped at `LEDGER_LIMIT`. */
   readonly ledger: readonly LedgerEntry[];
+  /**
+   * Packs the player has been given and not yet opened — an achievement reward, a tournament win.
+   *
+   * Held here rather than granted on the spot because opening one is a screen (T-8.12) and the
+   * grant is an event. A pack owed is a pack owed whether or not the player was looking at the
+   * store when they earned it, and INV-7 needs the grant recorded exactly once regardless.
+   */
+  readonly owedPacks: readonly PackTier[];
 }
 
 /**
@@ -102,6 +122,7 @@ export function emptyEconomy(): EconomyState {
     entryCount: 0,
     lastWinDay: null,
     ledger: [],
+    owedPacks: [],
   };
 }
 
@@ -164,5 +185,6 @@ export function normaliseEconomy(value: unknown): EconomyState {
     entryCount: Math.max(ledger.length, finiteInt(raw.entryCount, ledger.length)),
     lastWinDay: typeof raw.lastWinDay === 'string' ? raw.lastWinDay : null,
     ledger: ledger.slice(0, LEDGER_LIMIT),
+    owedPacks: Array.isArray(raw.owedPacks) ? raw.owedPacks.filter(isPackTier) : [],
   };
 }

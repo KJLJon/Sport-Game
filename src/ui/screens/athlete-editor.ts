@@ -36,6 +36,8 @@ import {
 import { RATEABLE_SPORTS, sportsForAthlete } from '../../sports/catalogue.ts';
 import type { SportId } from '../../sports/types.ts';
 import { appDatabase } from '../../storage/app-db.ts';
+import { recordMetaEvents } from '../../achievements/session.ts';
+import { MetaKind } from '../../achievements/types.ts';
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { el } from '../dom.ts';
 import { athleteCardFull } from '../components/athlete-card.ts';
@@ -442,8 +444,16 @@ export function athleteEditorScreen(): Screen {
 
         saveStatus.textContent = 'Saving…';
         try {
-          const { athletes } = await appDatabase();
-          await athletes.put(athlete);
+          const db = await appDatabase();
+          await db.athletes.put(athlete);
+
+          // "Architect" and "Team Sheet" (T-8.6). Emitted here because this is the only place an
+          // athlete is created by hand; a pack emits its own when packs exist.
+          const at = Date.now();
+          void recordMetaEvents(db, [
+            { kind: MetaKind.ATHLETE_CREATED, at, athleteId: athlete.id },
+            { kind: MetaKind.ROSTER_SIZE, at, detail: { size: await db.athletes.count() } },
+          ]);
         } catch {
           saveStatus.textContent = 'Could not save — this build cannot write to storage right now.';
           return;

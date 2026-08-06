@@ -73,6 +73,10 @@ import { buildRecord } from '../../stats/record.ts';
 import { payoutDetail } from '../../economy/earning.ts';
 import type { Payout } from '../../economy/types.ts';
 import { payoutPanel } from '../components/payout.ts';
+import { unlockedPanel } from '../components/achievement.ts';
+import { matchMetaEvents, settleAchievements } from '../../achievements/session.ts';
+import type { AchievementUnlock } from '../../achievements/types.ts';
+import { defaultAssists } from '../../modes/assists.ts';
 import { buildHash } from '../../app/router.ts';
 
 /**
@@ -196,6 +200,8 @@ export function playbookMatchScreen(): Screen {
       let recorded = false;
       /** What the match paid, once the wallet has said. `null` until then, and if the write failed. */
       let payout: Payout | null = null;
+      /** What it unlocked (T-8.6). Empty until the defs have run, and after a failure. */
+      let unlocked: readonly AchievementUnlock[] = [];
       const recordMatch = (): void => {
         if (recorded) return;
         recorded = true;
@@ -228,6 +234,25 @@ export function playbookMatchScreen(): Screen {
               detail: payoutDetail(record, module.meta.displayName),
               at: playedAt,
             });
+
+            // The same defs, over the same stream, as Live (T-8.6).
+            unlocked = (
+              await settleAchievements({
+                db,
+                events: match.events,
+                meta: matchMetaEvents(record),
+                context: {
+                  at: playedAt,
+                  sport: module.id,
+                  difficulty: setup.difficulty,
+                  playerSide: 0,
+                  // Playbook offers no assists to turn off, so the no-assist achievements are not
+                  // reachable here rather than being handed out for help that was never available.
+                  assists: defaultAssists(setup.difficulty),
+                  athleteOf: () => undefined,
+                },
+              })
+            ).unlocked;
             // The results panel is already up: it is drawn the moment the match ends, and the
             // wallet is a round trip behind. Re-render in place rather than delay it.
             if (stage === 'over') renderStage();
@@ -480,6 +505,7 @@ export function playbookMatchScreen(): Screen {
             el(doc, 'p', { text: describeKeyMoments(mine.keyMoments) }),
             el(doc, 'p', { text: describeCalls(mine) }),
             el(doc, 'p', { text: describeLuck(mine) }),
+            ...(unlocked.length === 0 ? [] : [unlockedPanel(doc, unlocked)]),
             ...(payout === null ? [] : [payoutPanel(doc, payout)]),
             button(doc, {
               label: 'Back to Playbook',

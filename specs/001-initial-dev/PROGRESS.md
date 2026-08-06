@@ -12,31 +12,23 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** none. **T-8.10 is done** — the wallet, its ledger, `05` §5.3's earning table, and the
-  itemised payout on both post-match screens. PR **#18** is open as a draft.
-- **Branch:** `claude/continue-session-c1lrpo`, off `main` at `956d3e9`.
-- **Suite:** 188 files, **3 284 unit tests**, 57 E2E, typecheck and lint clean.
-- **What T-8.10 unblocked:** T-8.12 (packs) and T-8.13 (sell-back) both waited on the wallet.
-  `pnpm -s next` now lists **T-8.3, T-8.6, T-8.13** — T-8.12 also needs T-8.11, which is done, so it
-  is ready too.
-- ⚠️ **A balance finding for T-8.16, recorded not fixed.** With a match rate finally visible,
-  arcade's coin numbers from T-4.13 are badly front-loaded against it: a won 12-minute Live match
-  pays 250 coins, a 21-second three-star free-throw run pays 160, and the entire daily ceiling (320)
-  can be collected in under three minutes. For a player with five minutes, arcade is the efficient
-  farm — which `09` §7 rules out. The ceiling is fine; how fast it is reachable is not. Retuning it
-  touches pack prices that do not exist yet, so it belongs to T-8.16. Written up in
-  [notes/phase-8.md](./notes/phase-8.md#t-810).
-- 🧵 **The recurring find, twice more.** `modes/arcade/rewards.ts` has computed a coin award for
-  every scored run since T-4.13 and said in its own header that crediting it was "one call away" —
-  nobody had ever been paid one. And `coinPill` (T-0.4) has carried a *prohibited* `aria-label` on a
-  bare `<span>` since the design system landed; the Store a11y audit went red the first time a real
-  screen used it, because until now it lived only in the dev gallery, which the sweep does not
-  visit. **A component only the gallery uses has not been tested.**
-- **Next step:** T-8.3 (tournaments) or T-8.6 (achievement engine) — both can now pay real coins.
-  T-8.6 → T-8.7 → T-8.8 is the longer chain and gates "every arcade game is unlockable through
-  play", which is half of Gate 8.
+- **Task:** T-8.6 — Achievement engine (declarative defs, event-stream evaluation, progress,
+  once-only grants)
+- **Status:** in_progress
+- **Started:** 2026-08-06
+- **Branch:** `claude/continue-session-c1lrpo`. T-8.10 is done and on the same branch (PR **#18**).
+- **Done so far:**
+  - [x] `achievements/types.ts` — the `05` §6 def shape, `MetaEvent`, the stored record
+  - [x] `achievements/tracker.ts` — evaluation, match vs career scope, deterministic unlocks
+  - [x] `achievements/repository.ts` — the store and `grantPending`, the one place a reward is paid
+  - [x] `achievements/session.ts` — the one call both match screens make
+  - [x] `achievements/conditions.ts` — the combinators T-8.7's content is written with
+  - [x] Wired: Live, Playbook, arcade runs, athlete creation, and a bootstrap grant
+  - [x] `tests/invariants/inv-7-once-only-grants.test.ts`
+  - [ ] Task row, notes, mark done
+- **Next step:** T-8.7 — the ~75 defs, written against `conditions.ts`.
 - **Blockers:** none for the code. **Gates 2 through 12 are all still held by the same two user
-  actions:** the device matrix and a tagged deploy. A tag is the only thing that ships.
+  actions:** the device matrix and a tagged deploy.
 
 ---
 
