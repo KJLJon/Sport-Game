@@ -500,3 +500,34 @@ closed.
 first time the *game's* pitch is legible from inside the game: "Wrong Sport, Right Athlete — score
 30+ in a basketball match with a soccer-primary athlete", paying three times what a hat-trick does.
 That row is an argument for trying something, which is more than most achievement lists manage.
+
+---
+
+### T-8.8
+
+*Arcade unlock wiring: achievements gate arcade games, with a clear unlock moment*
+
+**`ACHIEVEMENTS_LANDED` is `true`.** T-4.3 introduced that constant with a note saying Phase 8 would
+flip it: nothing wrote an unlock back then, so ten permanently locked tiles would have made Gate 4's
+"a child can start one unaided" unreachable, and the hub opened everything through one greppable
+boolean rather than a quietly permissive check. That was the right shortcut and this is the commit
+that pays it back. The flag stays rather than being deleted — it is the switch a future sport's
+arcade set flips on itself.
+
+**`earnedAchievements` had to learn what "earned" means.** It was written before there were records
+to read and counted every row in the store. The store is now full of *progress* — three of five
+steals — and an unlocked achievement is one with a non-null `unlockedAt`. Counting progress as an
+unlock would have opened games the player is still working towards, which is the feature backwards.
+
+**The unlock is a moment, not a state change.** `09` §3.2 asks the notification to say "unlocked —
+you can practise this any time now", and it is right to insist: five of these achievements exist *to*
+open a game, and an unlock you have to infer from a tile that stopped being grey is not a moment. The
+post-match panel prints the sentence with the game named. Doing that needed the game's display name
+somewhere a UI component can read without loading two sport modules, so `ARCADE_UNLOCKS` gained a
+`game` field — `09` §3.2 pairs them in one table anyway — with a test asserting each name matches
+the real game def.
+
+**The hub's tests had to earn their unlocks.** Half of `arcade.test.ts` asserted things about
+playable tiles and quietly depended on everything being open. They now write the achievements first,
+the way a player would earn them, and there is a new case for the fresh save: ten locked tiles, each
+naming what earns it, and the word "buy" nowhere on the screen.

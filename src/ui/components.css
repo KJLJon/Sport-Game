@@ -1331,3 +1331,14 @@
   font-weight: 600;
   color: var(--accent-alt);
 }
+
+/* The arcade unlock moment (T-8.8) — `09` §3.2's sentence, given room to be read. */
+.achievement-unlocks__game {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-8);
+  background: var(--surface-2);
+  color: var(--text-hi);
+  font-size: var(--text-14);
+  font-weight: 600;
+}

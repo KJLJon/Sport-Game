@@ -1,5 +1,9 @@
 /**
- * T-4.3 — unlock state, and the interim rule that keeps the hub usable before Phase 8.
+ * T-4.3, T-8.8 — unlock state, now that achievements actually gate the games.
+ *
+ * The interim rule (`ACHIEVEMENTS_LANDED === false`, every game open because nothing wrote an
+ * unlock) ended with T-8.8. These assert the real behaviour: a game opens when its achievement is
+ * earned, and a locked tile says what earns it and never a price.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -21,15 +25,10 @@ describe('unlockStateFor', () => {
     const game = { ...fakeGame(), unlockAchievement: ARCADE_UNLOCKS.fiveSteals.id };
     const state = unlockStateFor(game, new Set());
 
-    if (ACHIEVEMENTS_LANDED) {
-      expect(state.unlocked).toBe(false);
-      expect(state.requirement).toBe('Record 5 steals');
-      expect(state.requirement).not.toMatch(/buy|coins|store/i);
-    } else {
-      // The documented interim: no achievement is ever written until Phase 8, so locking every game
-      // would make Gate 4 unreachable. One greppable constant, not a quietly permissive check.
-      expect(state.unlocked).toBe(true);
-    }
+    expect(ACHIEVEMENTS_LANDED).toBe(true);
+    expect(state.unlocked).toBe(false);
+    expect(state.requirement).toBe('Record 5 steals');
+    expect(state.requirement).not.toMatch(/buy|coins|store/i);
   });
 });
 

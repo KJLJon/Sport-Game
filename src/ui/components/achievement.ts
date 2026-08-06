@@ -3,6 +3,7 @@
  * @phase   8 — Modes hub, progression, achievements, economy
  * @task    T-8.6 — Achievement engine: declarative defs, event-stream evaluation, progress,
  *          once-only grants (INV-7)
+ * @task    T-8.8 — Arcade unlock wiring: achievements gate arcade games, with a clear unlock moment
  * @task    T-8.9 — Achievement UI: gallery, filters, progress bars, in-match toast, post-match
  *          summary
  * @story   US-8.1 — Unlock achievements as I play
@@ -24,6 +25,7 @@
 import { el } from '../dom.ts';
 import { coinPill } from './meters.ts';
 import { progressFraction, progressText } from '../../achievements/tracker.ts';
+import { unlocksGame } from '../../achievements/ids.ts';
 import type {
   AchievementDef,
   AchievementRecord,
@@ -154,6 +156,30 @@ export function unlockedPanel(doc: Document, unlocked: readonly AchievementUnloc
         class: 'achievement-unlocks__list',
         children: unlocked.map(({ def, record }) => achievementRow(doc, { def, record })),
       }),
+      ...unlockNotes(doc, unlocked),
     ],
   });
+}
+
+/**
+ * The arcade unlock moment (T-8.8).
+ *
+ * `09` §3.2 asks that the notification say "unlocked — you can practise this any time now", and it
+ * is right to insist: five of these achievements exist *to* open a game, and an unlock the player
+ * has to infer from a tile that stopped being grey is not a moment. The sentence names the game and
+ * links straight to it, so the reward is one tap away from the screen that announced it.
+ */
+function unlockNotes(doc: Document, unlocked: readonly AchievementUnlock[]): HTMLElement[] {
+  const notes: HTMLElement[] = [];
+  for (const { def } of unlocked) {
+    const game = unlocksGame(def.id);
+    if (game === undefined) continue;
+    notes.push(
+      el(doc, 'p', {
+        class: 'achievement-unlocks__game',
+        text: `${game} unlocked — you can practise this any time now.`,
+      }),
+    );
+  }
+  return notes;
 }

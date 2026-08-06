@@ -93,3 +93,27 @@ describe('the achievement registry', () => {
     }
   });
 });
+
+describe('the arcade unlock moment (T-8.8)', () => {
+  it('names the real game for every unlock id', async () => {
+    const [{ BASKETBALL_ARCADE }, { SOCCER_ARCADE }, { unlocksGame }] = await Promise.all([
+      import('@/sports/basketball/arcade/index.ts'),
+      import('@/sports/soccer/arcade/index.ts'),
+      import('@/achievements/ids.ts'),
+    ]);
+    const games = [...BASKETBALL_ARCADE, ...SOCCER_ARCADE];
+
+    for (const unlock of Object.values(ARCADE_UNLOCKS)) {
+      const game = games.find((entry) => entry.unlockAchievement === unlock.id);
+      expect(game, unlock.id).toBeDefined();
+      // The name shown in "X unlocked — you can practise this any time now" has to be the name on
+      // the tile the player then goes looking for.
+      expect(unlocksGame(unlock.id), unlock.id).toBe(game?.name);
+    }
+  });
+
+  it('names no game for an achievement that opens none', async () => {
+    const { unlocksGame } = await import('@/achievements/ids.ts');
+    expect(unlocksGame('onboarding.first-whistle')).toBeUndefined();
+  });
+});
