@@ -317,7 +317,9 @@ describe('INV-12 — coins across modes (T-8.10)', () => {
     const matchesInTheSameTime = Math.floor(arcadeSeconds / 60 / PLAYED_MINUTES);
     const matchCoins = matchesInTheSameTime * worstMatch.total;
 
-    expect(arcadeCoins).toBe(DAILY_COIN_CAP);
+    // At or under the ceiling — since T-8.16's retune the per-game decay bites before the cap does,
+    // which is the intended shape: the cap is a backstop, not a target to grind towards.
+    expect(arcadeCoins).toBeLessThanOrEqual(DAILY_COIN_CAP);
     expect(matchesInTheSameTime).toBeGreaterThan(1);
     expect(arcadeCoins).toBeLessThan(matchCoins);
   }, 60_000);

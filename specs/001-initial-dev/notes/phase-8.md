@@ -673,3 +673,64 @@ board" have to be one decision, or two taps buy one athlete twice. Same for an o
 screen in the build that is worth *opening* when you are not going to play. The buy-offers are what
 make it feel like a market rather than a shop: somebody wants your player, and the number is
 sometimes better than the sell screen's, which is exactly the small decision `05` §5.4 was after.
+
+---
+
+### T-8.16
+
+*Economy balance pass: pack EV vs sell value vs earn rate, simulated over 200 matches*
+
+**Gate 8's sentence, turned into assertions.** "A new save can be played from zero coins to a
+meaningfully improved roster with no loop that generates coins faster than it consumes them" is two
+testable claims, and `src/economy/simulate.ts` produces the numbers for both against the real
+earning table, odds, valuation and generator. `pnpm balance:economy` prints them:
+
+```
+── Earning, over 200 matches ──
+rookie     36252 coins  (181/match, ×0.75)   bronze 48  gold  7  elite 3
+pro        44650 coins  (223/match, ×1)      bronze 59  gold  8  elite 3
+allStar    61310 coins  (307/match, ×1.4)    bronze 81  gold 12  elite 5
+legend     79150 coins  (396/match, ×2)      bronze 105 gold 15  elite 6
+
+── Packs: price vs selling every card back ──
+bronze  750 → 198 (26%)   silver 2 000 → 480 (24%)
+gold  5 000 → 1 213 (24%)  elite 12 000 → 3 440 (29%)
+```
+
+A season at Pro buys eight Gold packs — forty athletes — so "meaningfully improved" has a number
+behind it. Every farming cycle is tens of thousands of coins under water. Nothing needed changing
+there; the formulas from `05` §5.1 and the odds from §5.2 produce a closed economy on the first try.
+
+#### 🧵 The T-8.10 arcade finding, corrected and then acted on
+
+T-8.10 recorded a worry with a table: a 21-second three-star arcade run paid 160 coins where a won
+12-minute match pays 250, i.e. **453 coins a minute against 21**. With the whole economy visible,
+that comparison is against the wrong denominator — *you cannot fit a twelve-minute match into
+twenty-one seconds*. The question a player faces is what to do with the time they have:
+
+- Under twelve minutes, a match pays **nothing**, because it cannot be finished. Arcade winning
+  there is not a farm; it is the entire reason arcade exists.
+- At one match or longer, playing should win, and keep winning.
+
+So the property worth asserting is **the crossover**, not the per-minute rate. And measured against
+*that*, the numbers really were wrong: the old daily ceiling of 320 beat a single won match's 250,
+so even sitting down for a proper game was worse than three minutes of free throws.
+
+**The retune.** `COINS_BY_STARS` 20/40/70 → 8/16/30, the first-three-star bonus 90 → 30, and
+`DAILY_COIN_CAP` 320 → 200. The ceiling is now below one won match, which makes "no mode is the
+efficient farm" (`09` §7) true at every session length worth measuring, and the values are sized so
+that reaching the ceiling takes the first run of three or four *different* games — `09` §3.3's
+shape, rather than one lucky free-throw run. A side effect worth naming: the per-game decay now
+bites before the cap does, so a 200-run day earns 156 rather than 200. The cap became a backstop
+instead of a target, which is what it should have been.
+
+**The lesson, which is not about arcade.** The first analysis was rigorous and wrong, because it
+measured a rate without asking what the player could actually substitute. A per-minute comparison
+between activities of very different lengths is almost always meaningless; the useful question is
+"for a session of length T, what is best". Worth remembering the next time a balance number looks
+alarming.
+
+**Feel note.** Arcade paying less is the right call and it does cost something: a great free-throw
+run used to feel like a windfall and now feels like pocket money. What buys it back is that the
+first run of *each* game is now worth playing, so a five-minute session is a tour of the set rather
+than one game five times — which is the arcade the spec actually describes.
