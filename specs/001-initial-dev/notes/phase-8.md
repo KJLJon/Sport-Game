@@ -561,3 +561,36 @@ history after the final whistle. So the toast is free to be best-effort — it i
 database read and is allowed to miss the first few events, because the post-match pass catches them.
 A toast that delayed kick-off to read IndexedDB would be the wrong trade, and a toast that granted
 anything would put INV-7 back in play for no benefit.
+
+---
+
+### T-8.13
+
+*Sell-back: valuation, squad-lock guard, confirmation, anti-farm invariants*
+
+**`05` §5.1's four formulas, with the randomness taken as an argument.** `marketAsk` and `buyOffer`
+are random in the spec and *seeded* in the build (INV-2, T-8.14), so they take a factor in `[0,1)`
+and the caller supplies it from an `Rng`. A valuation that reached for `Math.random()` would make
+the market unreproducible and every invariant test below meaningless.
+
+**The overall is passed in, because there is no such field.** An overall is per sport and derived
+from that sport's weight tables (`05` §3.4), which live in the sport module. Putting an `await`
+inside a price would have been the alternative.
+
+**INV-5 is swept, not sampled.** "sellPrice < marketAsk for the same athlete" is exactly the rule a
+later tuning pass breaks by moving one constant, so the test walks every rarity × every overall from
+30 to 99 × four levels, against the *cheapest* ask the market can produce. There is also a
+structural version — `SELL_FRACTION < ASK_RANGE[0]` — which says *why* the sweep passes, so a future
+failure points at the constant rather than at three hundred cases.
+
+**The squad guard warns; the last-athlete guard refuses.** US-9.3 says an athlete in a squad can be
+sold "unless I confirm", so that one is overridable and names the team it would leave short. Selling
+the only athlete in a save is not overridable: an empty roster is a save that cannot play, and no
+confirmation makes that a good idea. One boolean separates the two, which is why both have tests.
+
+**Paid before deleted.** A crash between the two leaves the player with the coins *and* the athlete
+— a bug in their favour. The other order loses them both.
+
+**Feel note.** Naming the athlete in the confirmation is what makes this screen feel like a
+transfer rather than a delete key. "Sell Ada Quill for 1 240 coins? This cannot be undone" is a
+sentence you hesitate over, which is exactly the right amount of friction.

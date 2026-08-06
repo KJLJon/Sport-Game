@@ -285,6 +285,15 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
+    // Store → Sell (`10` §7). Packs and the market join it at T-8.12 and T-8.14.
+    pattern: '/store/sell',
+    value: {
+      id: 'store-sell',
+      title: 'Sell athletes',
+      load: async () => (await import('../ui/screens/sell.ts')).sellScreen(),
+    },
+  },
+  {
     pattern: '/store',
     value: {
       // The wallet is the first thing behind this tab (T-8.10). Packs, the market, and selling are

@@ -20,6 +20,7 @@
  */
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { appDatabase } from '../../storage/app-db.ts';
+import { button } from '../components/button.ts';
 import { coinPill } from '../components/meters.ts';
 import { emptyState, errorState } from '../components/states.ts';
 import { el } from '../dom.ts';
@@ -134,10 +135,17 @@ export function walletScreen(): Screen {
       }
 
       children.push(
+        el(doc, 'nav', {
+          class: 'wallet__links',
+          attrs: { 'aria-label': 'Store' },
+          children: [
+            button(doc, { label: 'Sell athletes', variant: 'secondary', href: '#/store/sell' }),
+          ],
+        }),
         el(doc, 'p', {
           class: 'wallet__note',
           // Says what is not here yet, rather than leaving a tab that looks finished and is not.
-          text: 'Packs, the transfer market, and selling athletes arrive later in this phase.',
+          text: 'Packs and the transfer market arrive later in this phase.',
         }),
       );
 
