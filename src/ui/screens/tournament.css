@@ -1,0 +1,153 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   8 — Modes hub, progression, achievements, economy
+ * @task    T-8.3 — Tournament mode: 4/8/16 bracket, persistence, results, rewards
+ * @story   US-7.4 — Play a tournament
+ * @design  10-ui-ux.md §3 (tokens), §4 (phone layout), §11 (44 px, nothing by colour alone)
+ *
+ * Purpose: a bracket that reads as a list.
+ *
+ * A drawn bracket is illegible at 360 px and unreadable to a screen reader, so rounds are headed
+ * lists. The current round is marked with a border *and* comes with a "Next:" line above the
+ * bracket, so the highlight is never the only signal.
+ */
+
+.tournament {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.tournament__title {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.tournament__standing {
+  margin: 0;
+  font-size: var(--text-20);
+  font-weight: 650;
+  color: var(--text-hi);
+}
+
+.tournament__note,
+.tournament__pending {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.tournament__prize {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin: 0;
+  padding: var(--space-12);
+  border: 1px solid var(--accent-alt);
+  border-radius: var(--radius-12);
+  font-size: var(--text-14);
+}
+
+.tournament__next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.tournament__next-line {
+  margin: 0;
+  font-size: var(--text-16);
+  color: var(--text-hi);
+}
+
+.tournament__next .button {
+  min-height: 44px;
+}
+
+.tournament__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tournament__field label {
+  font-size: var(--text-12);
+  color: var(--text-lo);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tournament__select {
+  min-height: 44px;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface-1);
+  color: var(--text-hi);
+  font-size: var(--text-14);
+}
+
+.tournament__bracket {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.tournament__round {
+  padding: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.tournament__round[data-current='true'] {
+  border-color: var(--accent);
+}
+
+.tournament__round-name {
+  margin: 0 0 var(--space-8);
+  font-size: var(--text-14);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-lo);
+}
+
+.tournament__matches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tournament__match {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-4) 0;
+  font-size: var(--text-14);
+}
+
+.tournament__match[data-player='true'] .tournament__pair {
+  font-weight: 700;
+}
+
+.tournament__outcome {
+  color: var(--text-lo);
+  font-size: var(--text-12);
+  text-align: right;
+  flex: none;
+}
+
+.tournament__actions {
+  display: flex;
+  gap: var(--space-8);
+}

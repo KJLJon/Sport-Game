@@ -1150,3 +1150,227 @@
   font-size: var(--text-12);
   color: var(--text-lo);
 }
+
+/* ── Coin payout (T-8.10) ─────────────────────────────────────────────────── */
+
+/*
+ * The post-match itemisation (`06` §4). Two columns on anything wider than a phone in portrait,
+ * one label-and-amount pair per row, and the total separated by a rule so it reads as the sum of
+ * what is above it rather than as one more line.
+ */
+.payout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.payout__heading {
+  margin: 0;
+  font-size: var(--text-14);
+  font-weight: 600;
+  color: var(--text-lo);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.payout__lines {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-4) var(--space-12);
+  margin: 0;
+}
+
+.payout__lines dt,
+.payout__lines dd {
+  margin: 0;
+}
+
+.payout__label {
+  font-size: var(--text-14);
+  color: var(--text-hi);
+}
+
+.payout__amount {
+  justify-self: end;
+}
+
+.payout__total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  margin: 0;
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--border);
+  font-weight: 700;
+}
+
+.payout__empty {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+/* ── Achievements (T-8.6, T-8.9) ──────────────────────────────────────────── */
+
+/*
+ * One row shape for the gallery and for the post-match block. Locked rows are dimmed *and* say
+ * "Locked", because `10` §11 does not allow a state to live in an opacity.
+ */
+.achievement-unlocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.achievement-unlocks__heading {
+  margin: 0;
+  font-size: var(--text-14);
+  font-weight: 600;
+  color: var(--text-lo);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.achievement-unlocks__list,
+.achievement-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.achievement {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+/*
+ * A locked row is marked by its surface and by the word "Locked", never by fading it.
+ *
+ * It *was* `opacity: 0.72`, which dropped `--text-lo` on the light theme to a 3.22:1 contrast ratio
+ * — below AA — and the axe audit said so the first time this screen was swept (T-8.9). Opacity is
+ * the one styling shortcut that silently breaks contrast everywhere it is used, because it dilutes
+ * the foreground and the background by the same amount and the ratio collapses.
+ */
+.achievement[data-state='locked'] {
+  background: var(--surface-2);
+  border-style: dashed;
+}
+
+.achievement[data-state='unlocked'] {
+  border-color: var(--accent-alt);
+}
+
+.achievement__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.achievement__title {
+  margin: 0;
+  font-size: var(--text-16);
+  font-weight: 650;
+  color: var(--text-hi);
+}
+
+.achievement__description {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.achievement__status {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+.achievement__progress {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
+  height: 16px;
+}
+
+.achievement__progress-track {
+  width: 8rem;
+  max-width: 40vw;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.achievement__progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.achievement__progress-text {
+  font-size: var(--text-12);
+  color: var(--text-lo);
+  font-variant-numeric: var(--font-numeric);
+}
+
+.achievement__reward {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex: none;
+}
+
+/*
+ * `--accent-alt` is the rewards colour (`10` §3.1) and it is a *fill* colour, not a text colour —
+ * on the light theme it is 2.4:1 against a raised surface, which axe correctly fails. The coin pill
+ * uses it on an icon and keeps its number in the text colour; this label does the same thing with
+ * weight instead of hue.
+ */
+.achievement__pack {
+  font-size: var(--text-12);
+  font-weight: 700;
+  color: var(--text-hi);
+}
+
+/* The arcade unlock moment (T-8.8) — `09` §3.2's sentence, given room to be read. */
+.achievement-unlocks__game {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-8);
+  background: var(--surface-2);
+  color: var(--text-hi);
+  font-size: var(--text-14);
+  font-weight: 600;
+}
+
+/* In-match achievement toasts (T-8.9). Top-centre, above the HUD, out of the thumbs' way. */
+.live__toasts {
+  position: absolute;
+  top: calc(var(--safe-top, 0px) + var(--space-12, 12px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.live__toasts:empty {
+  display: none;
+}

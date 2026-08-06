@@ -1,0 +1,120 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   8 — Modes hub, progression, achievements, economy
+ * @task    T-8.14 — Transfer market: rotating listings, tamper-resistant refresh, paid refreshes,
+ *          buy-offers, seeded price walk
+ * @story   US-9.4 — Work the transfer market
+ * @design  10-ui-ux.md §3 (tokens), §11 (44 px targets)
+ *
+ * Purpose: two lists and a clock. The rows share their shape with the sell screen deliberately —
+ * an athlete and a price is the same object whichever direction the coins are going.
+ */
+
+.market {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.market__title {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.market__balance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.market__status:empty {
+  display: none;
+}
+
+.market__status {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-8);
+  background: var(--surface-2);
+  font-size: var(--text-14);
+}
+
+.market__board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.market__timer,
+.market__empty,
+.market__refresh-note {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.market__refresh .button {
+  min-height: 44px;
+}
+
+.market__heading {
+  margin: var(--space-8) 0 0;
+  font-size: var(--text-16);
+}
+
+.market-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.market-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.market-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.market-row__name {
+  margin: 0;
+  font-size: var(--text-16);
+  font-weight: 650;
+  color: var(--text-hi);
+}
+
+.market-row__meta {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+  text-transform: capitalize;
+}
+
+.market-row__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex: none;
+}
+
+.market-row__actions .button {
+  min-height: 44px;
+  min-width: 44px;
+}

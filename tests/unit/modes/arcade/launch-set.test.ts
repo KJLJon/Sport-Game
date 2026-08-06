@@ -134,14 +134,23 @@ describe('unlocks (US-16.2)', () => {
     }
   });
 
-  it('leaves every game available while nothing writes achievements, and says so', () => {
-    // `ACHIEVEMENTS_LANDED` is `false` until T-8.6: a hub of ten permanently locked tiles is worse
-    // than an honest temporary shortcut. This asserts the shortcut is still in force, so that the
-    // commit which flips the flag has to come here and turn this test into its opposite rather than
-    // discovering the behaviour change in the hub.
-    expect(ACHIEVEMENTS_LANDED).toBe(false);
-    const states = unlockStates(LAUNCH_SET, new Set());
-    for (const game of LAUNCH_SET) expect(states.get(game.id)?.unlocked, game.id).toBe(true);
+  it('locks every game until its achievement is earned, and opens exactly that one (T-8.8)', () => {
+    // `ACHIEVEMENTS_LANDED` was `false` from T-4.3 until T-8.6 landed the system that writes
+    // unlocks: ten permanently locked tiles would have made Gate 4 unreachable. It is `true` now,
+    // and this is the behaviour that replaced the shortcut.
+    expect(ACHIEVEMENTS_LANDED).toBe(true);
+
+    const locked = unlockStates(LAUNCH_SET, new Set());
+    for (const game of LAUNCH_SET) expect(locked.get(game.id)?.unlocked, game.id).toBe(false);
+
+    for (const game of LAUNCH_SET) {
+      const states = unlockStates(LAUNCH_SET, new Set([game.unlockAchievement]));
+      for (const other of LAUNCH_SET) {
+        expect(states.get(other.id)?.unlocked, `${game.id} → ${other.id}`).toBe(
+          other.id === game.id,
+        );
+      }
+    }
   });
 });
 

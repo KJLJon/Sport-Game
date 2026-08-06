@@ -23,6 +23,7 @@
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { appDatabase } from '../../storage/app-db.ts';
 import { emptyState, errorState } from '../components/states.ts';
+import { button } from '../components/button.ts';
 import { el } from '../dom.ts';
 import { buildCareers, percentage } from '../../stats/record.ts';
 import { resultOf, type CareerLine, type MatchRecord } from '../../stats/types.ts';
@@ -161,6 +162,24 @@ export function historyScreen(): Screen {
           class: 'history',
           children: [
             el(doc, 'h1', { class: 'history__title', text: 'Progress' }),
+            // The other half of this tab (`10` §7). A link rather than a second list, because the
+            // gallery is seventy-nine rows and this screen is already two tables.
+            el(doc, 'nav', {
+              class: 'history__links',
+              attrs: { 'aria-label': 'More progress' },
+              children: [
+                button(doc, {
+                  label: 'Achievements',
+                  variant: 'secondary',
+                  href: '#/progress/achievements',
+                }),
+                button(doc, {
+                  label: 'Tournament',
+                  variant: 'secondary',
+                  href: '#/progress/tournament',
+                }),
+              ],
+            }),
             table(
               doc,
               `Recent matches (${records.length})`,

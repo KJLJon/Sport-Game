@@ -150,6 +150,28 @@ describe('the post-match summary', () => {
     button?.click();
     expect(done).toBe(1);
   });
+
+  it('itemises the coins when the wallet has settled (T-8.10, `06` §4)', () => {
+    const match = played();
+    const panel = summaryPanel(document, match, () => undefined, {
+      total: 250,
+      items: [
+        { id: 'completed', label: 'Match completed', coins: 100 },
+        { id: 'win', label: 'Win', coins: 150 },
+      ],
+    });
+
+    expect(panel.querySelector('.payout')).not.toBeNull();
+    expect(panel.textContent).toContain('Match completed');
+    expect(panel.querySelector('.payout__total')?.textContent).toContain('250');
+  });
+
+  it('shows the summary without waiting for the wallet', () => {
+    // The panel is drawn the frame the match ends; the credit is a database round trip behind it.
+    const panel = summaryPanel(document, played(), () => undefined);
+    expect(panel.querySelector('.payout')).toBeNull();
+    expect(panel.textContent).toContain('Full time');
+  });
 });
 
 describe('the box score table', () => {

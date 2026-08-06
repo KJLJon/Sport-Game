@@ -24,6 +24,7 @@ import { athlete, attributes } from '../../helpers/athletes.ts';
 import { forgetPlayers, loadPlayers } from '../../../src/modes/local-players.ts';
 import { BASKETBALL_ARCADE } from '../../../src/sports/basketball/arcade/index.ts';
 import { SOCCER_ARCADE } from '../../../src/sports/soccer/arcade/index.ts';
+import type { AchievementRecord } from '../../../src/achievements/types.ts';
 
 /**
  * Games in this build: basketball's five plus soccer's set. Counted from the modules rather than
@@ -47,6 +48,25 @@ function hints(host: HTMLElement): string[] {
   return [...host.querySelectorAll('.arcade-tile__hint')].map((node) => node.textContent ?? '');
 }
 
+/**
+ * Every arcade game unlocked (T-8.8).
+ *
+ * Since achievements started gating the hub, a fresh save shows ten locked tiles — which is the
+ * correct behaviour and has its own test below. Everything else here is about what an *unlocked*
+ * tile says, so those cases earn their unlocks the way a player would, by having the achievements
+ * in the store.
+ */
+async function unlockEverything(): Promise<void> {
+  const { achievements } = await appDatabase();
+  const records: AchievementRecord[] = [...BASKETBALL_ARCADE, ...SOCCER_ARCADE].map((game) => ({
+    id: game.unlockAchievement,
+    progress: 1,
+    unlockedAt: 1_700_000_000_000,
+    rewardedAt: 1_700_000_000_000,
+  }));
+  await achievements.putMany(records);
+}
+
 beforeEach(async () => {
   await closeAppDatabase();
   await deleteDatabase();
@@ -61,6 +81,7 @@ describe('the arcade hub', () => {
   it('shows a tile per game, each one a real button', async () => {
     const { athletes } = await appDatabase();
     await athletes.put(athlete({ id: 'a1', displayName: 'Ada' }));
+    await unlockEverything();
 
     const ctx = context();
     await arcadeScreen().mount(ctx);
@@ -74,6 +95,7 @@ describe('the arcade hub', () => {
     await athletes.put(athlete({ id: 'star', displayName: 'Star', attributes: attributes(92) }));
 
     const ctx = context();
+    await unlockEverything();
     await arcadeScreen().mount(ctx);
 
     const lines = hints(ctx.host);
@@ -92,6 +114,7 @@ describe('the arcade hub', () => {
     });
 
     const ctx = context();
+    await unlockEverything();
     await arcadeScreen().mount(ctx);
     const before = hints(ctx.host);
 
@@ -109,6 +132,7 @@ describe('the arcade hub', () => {
     await athletes.put(athlete({ id: 'a1' }));
 
     const first = context();
+    await unlockEverything();
     await arcadeScreen().mount(first);
     expect(first.host.textContent).toContain('No runs yet');
 
@@ -144,6 +168,7 @@ describe('the arcade hub', () => {
 
     const navigate = vi.fn();
     const ctx = context(navigate);
+    await unlockEverything();
     await arcadeScreen().mount(ctx);
 
     tiles(ctx.host)[0]?.dispatchEvent(new Event('click'));
@@ -153,9 +178,29 @@ describe('the arcade hub', () => {
     });
   });
 
+  it('locks every game on a fresh save, and says what earns each one (T-8.8, US-16.2)', async () => {
+    const { athletes } = await appDatabase();
+    await athletes.put(athlete({ id: 'a1' }));
+
+    const ctx = context();
+    await arcadeScreen().mount(ctx);
+
+    const all = tiles(ctx.host);
+    expect(all).toHaveLength(ARCADE_GAME_COUNT);
+    // A locked tile is an `<article>`, not a button: there is nothing to press yet.
+    for (const tile of all) expect(tile.tagName).toBe('ARTICLE');
+    expect(ctx.host.querySelectorAll('.arcade-tile--locked')).toHaveLength(ARCADE_GAME_COUNT);
+
+    // Every locked tile says what earns it, and none of them mentions paying (`09` §3.2).
+    const text = ctx.host.textContent ?? '';
+    expect(text).toContain('Make a free throw in any mode');
+    expect(text).not.toMatch(/\bbuy\b|\bpurchase\b/i);
+  });
+
   it('offers to make an athlete when there are none, rather than an unusable picker', async () => {
     await appDatabase();
     const ctx = context();
+    await unlockEverything();
     await arcadeScreen().mount(ctx);
 
     expect(ctx.host.querySelector('.empty-state')).not.toBeNull();
@@ -167,6 +212,8 @@ describe('the arcade hub', () => {
     await db.put('meta', { schemaVersion: CURRENT_SCHEMA_VERSION + 5 }, 'meta');
     db.close();
 
+    // No `unlockEverything()` here: the database is deliberately unreadable, so writing to it
+    // would be the test failing before the case starts.
     const ctx = context();
     await arcadeScreen().mount(ctx);
 
@@ -181,6 +228,7 @@ describe('the daily challenge card (US-16.4)', () => {
     await athletes.put(athlete({ id: 'a1' }));
 
     const ctx = context();
+    await unlockEverything();
     await arcadeScreen().mount(ctx);
 
     const daily = ctx.host.querySelector<HTMLInputElement>('#arcade-mode-daily');
@@ -199,6 +247,7 @@ describe('the daily challenge card (US-16.4)', () => {
     await athletes.put(athlete({ id: 'a1' }));
 
     const ctx = context();
+    await unlockEverything();
     await arcadeScreen().mount(ctx);
     expect(ctx.host.querySelector('.arcade__lede')?.textContent).toContain('One run');
 
@@ -215,6 +264,7 @@ describe('the party set-up (T-4.11, US-17.2)', () => {
     await athletes.put(athlete({ id: 'a1' }));
 
     const ctx = context();
+    await unlockEverything();
     await arcadeScreen().mount(ctx);
 
     const panel = ctx.host.querySelector('.arcade__party-panel');
@@ -228,6 +278,7 @@ describe('the party set-up (T-4.11, US-17.2)', () => {
     await athletes.put(athlete({ id: 'a1' }));
 
     const ctx = context();
+    await unlockEverything();
     await arcadeScreen().mount(ctx);
 
     const three = ctx.host.querySelector<HTMLInputElement>('#arcade-seats-3');
@@ -244,6 +295,7 @@ describe('the party set-up (T-4.11, US-17.2)', () => {
 
     const navigate = vi.fn();
     const ctx = context(navigate);
+    await unlockEverything();
     await arcadeScreen().mount(ctx);
 
     const two = ctx.host.querySelector<HTMLInputElement>('#arcade-seats-2');

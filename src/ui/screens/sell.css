@@ -1,0 +1,93 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   8 — Modes hub, progression, achievements, economy
+ * @task    T-8.13 — Sell-back: valuation, squad-lock guard, confirmation, anti-farm invariants
+ * @story   US-9.3 — Sell athletes for coins
+ * @design  10-ui-ux.md §3 (tokens), §11 (44 px targets, warnings in words)
+ *
+ * Purpose: a list of people and prices, on a phone.
+ *
+ * The warning line is styled with the danger colour *and* says what it means — the colour is the
+ * decoration, the sentence is the information (`10` §11).
+ */
+
+.sell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.sell__title {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.sell__note {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.sell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.sell-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.sell-row[data-blocked='true'] {
+  border-color: var(--danger);
+}
+
+.sell-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sell-row__name {
+  margin: 0;
+  font-size: var(--text-16);
+  font-weight: 650;
+  color: var(--text-hi);
+}
+
+.sell-row__meta {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+  text-transform: capitalize;
+}
+
+.sell-row__warning {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--danger);
+}
+
+.sell-row__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex: none;
+}
+
+.sell-row__actions .button {
+  min-height: 44px;
+  min-width: 44px;
+}

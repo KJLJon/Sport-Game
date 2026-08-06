@@ -213,7 +213,12 @@ export function coinPill(doc: Document, options: CoinPillOptions): HTMLElement {
   return el(doc, 'span', {
     class: 'coin-pill',
     dataset: { tone: amount < 0 ? 'debit' : 'credit' },
-    attrs: { 'aria-label': `${text} coins` },
+    // `role="img"` is not decoration: the pill's visible content is an icon plus a number, both
+    // hidden from assistive tech, and `aria-label` is *prohibited* on a span with no role — axe
+    // fails it as a serious violation. Found the day the wallet (T-8.10) became the first real
+    // screen to use this component; until then it existed only in the dev gallery, which the a11y
+    // sweep does not visit. `starRating` above has always done the same thing.
+    attrs: { role: 'img', 'aria-label': `${text} coins` },
     children: [
       svg(doc, 'svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, [
         svg(doc, 'path', { d: COIN_PATH }),

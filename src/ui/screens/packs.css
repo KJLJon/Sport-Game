@@ -1,0 +1,189 @@
+/**
+ * @spec    001-initial-dev
+ * @phase   8 — Modes hub, progression, achievements, economy
+ * @task    T-8.12 — Packs: tiers, prices, published odds, pity timers, reveal animation with skip
+ * @story   US-9.2 — Open packs to earn new athletes
+ * @design  10-ui-ux.md §3 (tokens), §11 (44 px, reduced motion), 05-data-model.md §5.2
+ *
+ * Purpose: four cards of odds on a phone, and a reveal that reads as a reveal.
+ *
+ * The card animation is a single fade-and-rise, and it is disabled outright under
+ * `prefers-reduced-motion` — the screen already draws the whole pack at once in that case, so this
+ * is belt and braces rather than the only guard.
+ */
+
+.packs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+}
+
+.packs__title {
+  margin: 0;
+  font-size: var(--text-24);
+}
+
+.packs__balance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.packs__status:empty {
+  display: none;
+}
+
+.packs__status {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-8);
+  background: var(--surface-2);
+  font-size: var(--text-14);
+}
+
+.packs__reveal:empty {
+  display: none;
+}
+
+.packs__reveal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border: 1px solid var(--accent-alt);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.packs__reveal-title {
+  margin: 0;
+  font-size: var(--text-20);
+}
+
+.packs__pity-hit,
+.packs__reveal-done {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-lo);
+}
+
+.packs__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.packs__card {
+  padding: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface-2);
+  animation: pack-card-in 220ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .packs__card {
+    animation: none;
+  }
+}
+
+@keyframes pack-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.packs__card-name {
+  margin: 0;
+  font-size: var(--text-16);
+  font-weight: 650;
+  color: var(--text-hi);
+}
+
+.packs__card-meta {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+  text-transform: capitalize;
+}
+
+.packs__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--space-12);
+}
+
+.pack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.pack__name {
+  margin: 0;
+  font-size: var(--text-20);
+}
+
+.pack__price,
+.pack__cards,
+.pack__pity,
+.pack__short {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+.pack__free {
+  /* Weight, not hue: `--accent-alt` is a fill colour and fails AA as text (see components.css). */
+  font-weight: 700;
+  color: var(--text-hi);
+}
+
+.pack__pity {
+  text-transform: capitalize;
+}
+
+.pack__odds {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-12);
+  font-variant-numeric: var(--font-numeric);
+}
+
+.pack__odds caption {
+  text-align: left;
+  padding-bottom: var(--space-4);
+  color: var(--text-lo);
+}
+
+.pack__odds th,
+.pack__odds td {
+  padding: 2px 0;
+  text-align: left;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.pack__odds td {
+  text-align: right;
+}
+
+.pack .button {
+  min-height: 44px;
+}

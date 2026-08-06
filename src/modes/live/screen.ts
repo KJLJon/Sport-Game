@@ -76,6 +76,20 @@ import {
 } from '../checkpoint.ts';
 import { appDatabase } from '../../storage/app-db.ts';
 import { buildRecord } from '../../stats/record.ts';
+import { payoutDetail } from '../../economy/earning.ts';
+import {
+  HISTORY_FOR_ACHIEVEMENTS,
+  entityAthletes,
+  matchMetaEvents,
+  settleAchievements,
+} from '../../achievements/session.ts';
+import { AchievementTracker } from '../../achievements/tracker.ts';
+import { ACHIEVEMENTS } from '../../achievements/registry.ts';
+import { toast } from '../../ui/components/feedback.ts';
+import type { AchievementUnlock } from '../../achievements/types.ts';
+import type { Payout } from '../../economy/types.ts';
+import { payoutPanel } from '../../ui/components/payout.ts';
+import { unlockedPanel } from '../../ui/components/achievement.ts';
 import {
   DEFAULT_HUD_THEME,
   boxRows,
@@ -101,6 +115,9 @@ import { teamLine } from './box-score.ts';
  * Returning the fit-the-field scale for a small field is what makes it safe for every sport without
  * naming one.
  */
+/** How long an unlock toast stays up. Long enough to read mid-match, short enough not to nag. */
+export const UNLOCK_TOAST_MS = 4000;
+
 export function zoomFloor(
   viewWidth: number,
   fieldWidth: number,
@@ -170,12 +187,15 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       if (window === null) return;
 
       const difficulty = options.difficulty ?? lastDifficulty();
+      // Resolved once, because the payout is paid against the help the player actually had
+      // (US-7.3) and reading it twice could disagree with what the match was played with.
+      const assists = options.assists ?? loadAssists(difficulty);
       const match = new LiveMatch({
         sport: options.sport,
         seed: options.seed,
         playerSide: options.playerSide ?? 0,
         difficulty,
-        assists: options.assists ?? loadAssists(difficulty),
+        assists,
         ...(options.rosters === undefined ? {} : { rosters: options.rosters }),
         ...(options.rules === undefined ? {} : { rules: options.rules }),
         ...(options.ruleOptions === undefined ? {} : { ruleOptions: options.ruleOptions }),
@@ -283,6 +303,39 @@ export function liveScreen(options: LiveScreenOptions): Screen {
       overlay.className = 'live__overlay';
       root.appendChild(overlay);
 
+      /**
+       * The in-match achievement toast (T-8.9).
+       *
+       * A *preview* tracker, seeded from the stored records and fed the same events as they happen.
+       * It writes nothing and pays nothing — the authoritative settlement replays the whole history
+       * after the final whistle — so the toast can be best-effort without risking a double grant.
+       * Its only job is that unlocking something mid-match feels like it happened during the match,
+       * which is what `US-8.1`'s "unobtrusive in-match toast" is asking for.
+       *
+       * It is also allowed to miss the first few events: it is built from an async database read,
+       * and the post-match pass catches anything that landed before it existed. A toast that
+       * delayed kick-off to read IndexedDB would be the wrong trade.
+       */
+      const toasts = doc.createElement('div');
+      toasts.className = 'live__toasts';
+      root.appendChild(toasts);
+
+      let preview: AchievementTracker | null = null;
+      const toastTimers: ReturnType<typeof setTimeout>[] = [];
+
+      const showUnlock = (unlock: AchievementUnlock): void => {
+        const node = toast(doc, {
+          message: `${unlock.def.title} unlocked`,
+          tone: 'success',
+        });
+        toasts.appendChild(node);
+        toastTimers.push(
+          setTimeout(() => {
+            node.remove();
+          }, UNLOCK_TOAST_MS),
+        );
+      };
+
       // The sport supplies the event→cue mapping; a sport without one is silent (T-6.16).
       const audio = new MatchAudio(null, {}, options.sport.audio ?? null);
       const stopAudio = audio.attach(match.bus);
@@ -337,32 +390,108 @@ export function liveScreen(options: LiveScreenOptions): Screen {
         recorded = true;
 
         const view = match.view();
+        const playedAt = Date.now();
+        const record = buildRecord({
+          id: `${options.seed}:${playedAt.toString(36)}`,
+          playedAt,
+          sportId: options.sport.id,
+          mode: 'live',
+          difficulty,
+          score: view.score,
+          playerSide: view.playerSide,
+          teamNames: options.teamNames ?? ['Home', 'Away'],
+          periodsPlayed: view.period,
+          events: match.bus.history(),
+          box: match.box,
+          ...(lineup === undefined ? {} : { lineup }),
+        });
+
         void appDatabase()
-          .then((db) =>
-            db.matches.record(
-              buildRecord({
-                id: `${options.seed}:${Date.now().toString(36)}`,
-                playedAt: Date.now(),
-                sportId: options.sport.id,
-                mode: 'live',
-                difficulty,
-                score: view.score,
-                playerSide: view.playerSide,
-                teamNames: options.teamNames ?? ['Home', 'Away'],
-                periodsPlayed: view.period,
+          .then(async (db) => {
+            await db.matches.record(record);
+            // Paid from the record, not from the view: the same input Playbook settles from, so the
+            // same match pays the same coins in either mode (INV-6).
+            payout = await db.economy.settleMatch(record, {
+              assists,
+              detail: payoutDetail(record, options.sport.meta.displayName),
+              at: playedAt,
+            });
+
+            // The same events, through the same defs, in both modes (T-8.6). Achievement coins
+            // land in the wallet after the match payout, so the ledger reads in the order the
+            // player earned them.
+            unlocked = (
+              await settleAchievements({
+                db,
                 events: match.bus.history(),
-                box: match.box,
-                ...(lineup === undefined ? {} : { lineup }),
-              }),
-            ),
-          )
+                meta: matchMetaEvents(record, {
+                  // The career facts an achievement about "every difficulty" or "both sports"
+                  // needs. Read here, where the career is, rather than counted inside a def that
+                  // would forget it on the next reload.
+                  history: await db.matches.recent(HISTORY_FOR_ACHIEVEMENTS),
+                  firstWinToday: payout.items.some((item) => item.id === 'first-win'),
+                }),
+                context: {
+                  at: playedAt,
+                  sport: options.sport.id,
+                  difficulty,
+                  playerSide: view.playerSide,
+                  assists,
+                  athleteOf: entityAthletes(lineup, options.rosters),
+                },
+              })
+            ).unlocked;
+            // The summary is already on screen by now — it is drawn the frame the match ends, and
+            // the wallet is a database round trip behind. Re-render rather than delay the panel.
+            if (match.finished) renderOverlay();
+          })
           .catch(() => {
             // A match that was played is worth more than a record of it. Losing the record is bad;
             // throwing on the summary screen the player is looking at is worse.
           });
       };
 
+      /** What the match paid, once the wallet has said. `null` until then, and on any failure. */
+      let payout: Payout | null = null;
+      /** What it unlocked (T-8.6). Empty until the defs have run, and after a failure. */
+      let unlocked: readonly AchievementUnlock[] = [];
+
       const lineup = options.sport.lineup?.(match.sportState as never);
+
+      const evalContext = (): Parameters<AchievementTracker['consume']>[1] => ({
+        at: Date.now(),
+        sport: options.sport.id,
+        difficulty,
+        playerSide: match.view().playerSide,
+        assists,
+        athleteOf: entityAthletes(lineup, options.rosters),
+      });
+
+      void appDatabase()
+        .then(async (db) => {
+          const tracker = new AchievementTracker(
+            ACHIEVEMENTS,
+            (await db.achievements.byId()).values(),
+          );
+          tracker.beginMatch();
+          preview = tracker;
+        })
+        .catch(() => {
+          // No preview, no toast. The post-match settlement is unaffected.
+        });
+
+      listeners.push(
+        match.bus.on((event) => {
+          if (preview === null || match.finished) return;
+          for (const unlock of preview.consume(event, evalContext())) showUnlock(unlock);
+        }),
+      );
+      // A toast whose timer outlives the screen would try to remove a node from a document nobody
+      // is looking at, and would keep the closure alive with it.
+      listeners.push(() => {
+        for (const timer of toastTimers) clearTimeout(timer);
+        toastTimers.length = 0;
+      });
 
       const renderOverlay = (): void => {
         overlay.replaceChildren();
@@ -370,7 +499,9 @@ export function liveScreen(options: LiveScreenOptions): Screen {
           // A finished match is not an interrupted one (T-8.4).
           dropCheckpoint();
           recordMatch();
-          overlay.appendChild(summaryPanel(doc, match, () => context.navigate('/play')));
+          overlay.appendChild(
+            summaryPanel(doc, match, () => context.navigate('/play'), payout, unlocked),
+          );
           return;
         }
         if (paused) {
@@ -878,8 +1009,22 @@ function cameraMotionRow(
   return row;
 }
 
-/** The post-match summary (`06` §4). Coins, XP, and achievements arrive with Phase 8. */
-export function summaryPanel(doc: Document, match: LiveMatch, onDone: () => void): HTMLElement {
+/**
+ * The post-match summary (`06` §4): result, box score, and the coin itemisation.
+ *
+ * `payout` is `null` while the wallet is still settling — the panel is drawn the frame the match
+ * ends and the credit is a database round trip behind it — and stays `null` if the write failed.
+ * Either way the summary shows without it rather than waiting: the score is what the player is
+ * looking for, and coins that arrive a moment later re-render in place. XP and achievements join it
+ * with T-8.6.
+ */
+export function summaryPanel(
+  doc: Document,
+  match: LiveMatch,
+  onDone: () => void,
+  payout: Payout | null = null,
+  unlocked: readonly AchievementUnlock[] = [],
+): HTMLElement {
   const panel = doc.createElement('section');
   panel.className = 'live-panel';
   panel.setAttribute('role', 'dialog');
@@ -902,7 +1047,10 @@ export function summaryPanel(doc: Document, match: LiveMatch, onDone: () => void
   actions.className = 'live-panel__actions';
   actions.append(action(doc, 'Done', 'primary', onDone));
 
-  panel.append(heading, score, result, boxTable(doc, match), actions);
+  panel.append(heading, score, result);
+  if (unlocked.length > 0) panel.appendChild(unlockedPanel(doc, unlocked));
+  if (payout !== null) panel.appendChild(payoutPanel(doc, payout));
+  panel.append(boxTable(doc, match), actions);
   return panel;
 }
 

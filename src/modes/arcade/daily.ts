@@ -33,21 +33,12 @@ export const DAILY_DIFFICULTY: Difficulty = 'pro';
 /** How many twists a day gets. Two is enough to change the feel and few enough to read. */
 const MODIFIERS_PER_DAY = 2;
 
-/** `YYYY-MM-DD` in UTC — the identity of a day, and the only input the challenge has. */
-export function dateKey(now: number | Date = Date.now()): string {
-  const date = now instanceof Date ? now : new Date(now);
-  const year = date.getUTCFullYear().toString().padStart(4, '0');
-  const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
-  const day = date.getUTCDate().toString().padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-/** Milliseconds until the next UTC midnight — the "new challenge in 6h 12m" line. */
-export function millisUntilNextDay(now: number = Date.now()): number {
-  const date = new Date(now);
-  const next = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1);
-  return next - now;
-}
+/**
+ * The day boundary itself lives in `modes/day.ts` (T-8.10) — the economy's first-win-of-the-day
+ * bonus needs the same answer, and two definitions of "today" is one too many. Re-exported here so
+ * everything that already asked the daily challenge what day it is still can.
+ */
+export { dateKey, millisUntilNextDay } from '../day.ts';
 
 /** The seed for a day's run of one game. Everything below forks from it. */
 export function dailySeed(day: string, game: ArcadeGameId): string {

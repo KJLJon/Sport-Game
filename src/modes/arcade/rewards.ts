@@ -1,7 +1,8 @@
 /**
  * @spec    001-initial-dev
- * @phase   4 — Arcade framework + basketball arcade set
+ * @phase   4 — Arcade framework + basketball arcade set, 8 — economy
  * @task    T-4.13 — Arcade balance: daily reward caps, anti-farm verification (INV-12)
+ * @task    T-8.16 — Economy balance pass: pack EV vs sell value vs earn rate
  * @story   US-16.6 — Not be able to farm it
  * @design  09-modes-and-arcade.md §3.3 (coin rewards), §7 (balance across modes)
  * @invariant INV-12 (reward rate per minute is within ±25% across modes)
@@ -25,11 +26,20 @@
 import { emptyDay, type ArcadeDay } from './records.ts';
 import type { ArcadeGameId, ArcadeResult, StarCount } from './types.ts';
 
-/** Coins for a first run of a game today, by stars earned. */
-export const COINS_BY_STARS: readonly [number, number, number, number] = [0, 20, 40, 70];
+/**
+ * Coins for a first run of a game today, by stars earned.
+ *
+ * **Retuned at T-8.16, when there was finally a match rate to compare against.** T-4.13 set these
+ * with `src/economy/` empty and nothing to calibrate them by; a won 12-minute match turned out to
+ * pay 250, and the old values let a skilled player collect the entire daily ceiling in under three
+ * minutes. The ceiling is what stops arcade being a farm, so it now sits *below one match's
+ * payout* — and these values are sized so that reaching it takes the first run of three or four
+ * different games, which is `09` §3.3's shape rather than one lucky free-throw run.
+ */
+export const COINS_BY_STARS: readonly [number, number, number, number] = [0, 8, 16, 30];
 
 /** The one-off for the first three-star run of each game each day (`09` §3.3). */
-export const FIRST_THREE_STAR_BONUS = 90;
+export const FIRST_THREE_STAR_BONUS = 30;
 
 /**
  * How sharply a repeat run of the *same game* decays, per run already played today. Sharp on
@@ -37,8 +47,17 @@ export const FIRST_THREE_STAR_BONUS = 90;
  */
 export const REPEAT_DECAY = 0.55;
 
-/** Everything arcade can pay in one day, across every game. */
-export const DAILY_COIN_CAP = 320;
+/**
+ * Everything arcade can pay in one day, across every game.
+ *
+ * **Below the payout of a single won match** (250 at Pro, `05` §5.3), which is the property that
+ * makes "no mode is the efficient farm" (`09` §7) true at every session length worth measuring: sit
+ * down for one match and you beat a whole day of arcade. Under twelve minutes there is no match to
+ * finish and arcade is the only thing that pays, which is what arcade is *for* — the crossover, not
+ * the per-minute rate, is the honest form of the invariant, and
+ * `tests/invariants/economy-balance.test.ts` asserts it.
+ */
+export const DAILY_COIN_CAP = 200;
 
 export interface RewardBreakdown {
   /** Coins actually awarded, after the decay and the cap. */
