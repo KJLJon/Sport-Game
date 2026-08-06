@@ -1254,8 +1254,17 @@
   background: var(--surface-1);
 }
 
+/*
+ * A locked row is marked by its surface and by the word "Locked", never by fading it.
+ *
+ * It *was* `opacity: 0.72`, which dropped `--text-lo` on the light theme to a 3.22:1 contrast ratio
+ * — below AA — and the axe audit said so the first time this screen was swept (T-8.9). Opacity is
+ * the one styling shortcut that silently breaks contrast everywhere it is used, because it dilutes
+ * the foreground and the background by the same amount and the ratio collapses.
+ */
 .achievement[data-state='locked'] {
-  opacity: 0.72;
+  background: var(--surface-2);
+  border-style: dashed;
 }
 
 .achievement[data-state='unlocked'] {
@@ -1326,10 +1335,16 @@
   flex: none;
 }
 
+/*
+ * `--accent-alt` is the rewards colour (`10` §3.1) and it is a *fill* colour, not a text colour —
+ * on the light theme it is 2.4:1 against a raised surface, which axe correctly fails. The coin pill
+ * uses it on an icon and keeps its number in the text colour; this label does the same thing with
+ * weight instead of hue.
+ */
 .achievement__pack {
   font-size: var(--text-12);
-  font-weight: 600;
-  color: var(--accent-alt);
+  font-weight: 700;
+  color: var(--text-hi);
 }
 
 /* The arcade unlock moment (T-8.8) — `09` §3.2's sentence, given room to be read. */

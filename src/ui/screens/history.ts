@@ -173,6 +173,11 @@ export function historyScreen(): Screen {
                   variant: 'secondary',
                   href: '#/progress/achievements',
                 }),
+                button(doc, {
+                  label: 'Tournament',
+                  variant: 'secondary',
+                  href: '#/progress/tournament',
+                }),
               ],
             }),
             table(

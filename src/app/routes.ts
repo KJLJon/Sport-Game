@@ -322,6 +322,15 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
+    // Progress → Tournaments (`10` §7). One tournament at a time, persisted in `progress`.
+    pattern: '/progress/tournament',
+    value: {
+      id: 'tournament',
+      title: 'Tournament',
+      load: async () => (await import('../ui/screens/tournament.ts')).tournamentScreen(),
+    },
+  },
+  {
     // Progress → Achievements (`10` §7). A route of its own rather than a tab on the history
     // screen, so the unlock moment in a match summary can link straight at it.
     pattern: '/progress/achievements',

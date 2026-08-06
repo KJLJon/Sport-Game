@@ -734,3 +734,103 @@ alarming.
 run used to feel like a windfall and now feels like pocket money. What buys it back is that the
 first run of *each* game is now worth playing, so a five-minute session is a tour of the set rather
 than one game five times — which is the arcade the spec actually describes.
+
+---
+
+### T-8.3
+
+*Tournament mode: 4/8/16 bracket, persistence, results, rewards; playable in Live or Playbook*
+
+**A tournament match is an ordinary match, and nothing in the match modes knows otherwise.** The
+bracket says who plays whom; the player leaves for a normal Live or Playbook match through the
+normal screens, and comes back. The tournament screen then looks for a `MatchRecord` filed since
+they left and advances the bracket with it. That is INV-9 holding one level up: `modes/live/` and
+`modes/playbook/` file the record they always filed, and the tournament reads it. The alternative —
+threading a tournament id through both match screens and having them report back — would have put
+tournament awareness inside two files that had no business gaining it.
+
+**The rest of the round is simulated, not skipped.** In an 8-team bracket three of the four
+quarter-finals are CPU against CPU, and their results come from a seeded coin weighted by generated
+strength. The whole round settles the moment the player's match does, rather than lazily, so a
+bracket cannot change depending on when you look at it — the opponent you meet in the final is the
+one the bracket always said it would be.
+
+**A knocked-out player stays on the round they went out in.** `round` means "where this run got to",
+and advancing it past a defeat had the results screen name a round they never played. Caught by the
+test that plays a 16-team bracket out with the player losing every match.
+
+**One tournament at a time, in `progress`.** The same reasoning `modes/checkpoint.ts` gives for the
+interrupted match: a value fetched whole and never queried does not need a store of its own. A
+record from an older build is dropped rather than migrated — it describes a run in progress, and a
+wrong bracket is worse than no bracket.
+
+**The bracket is a list, not a drawing.** A drawn bracket is illegible at 360 px and says nothing to
+a screen reader. Rounds as headed lists carry the same information, and every match states its
+outcome in words — "Harbour Rovers through, 88–80" — rather than bolding a winner.
+
+**Feel note.** Seeing "Semi-final against Portsend Comets" on the Progress tab, then playing an
+ordinary match and coming back to find the bracket moved on, is the first thing in this build that
+feels like a *season* rather than a series of matches. The simulated half of the round is what does
+it: other results happened while you were playing.
+
+---
+
+## Gate record
+
+**Gate 8 — evaluated 2026-08-06. Result: NOT PASSED**, on the same two user actions that have held
+every gate since Gate 2. Every criterion this project can check itself is met.
+
+### `03`'s criteria
+
+> "A new save can be played from zero coins to a meaningfully improved roster with no loop that
+> generates coins faster than it consumes them, and every arcade game is unlockable through play."
+
+Both halves are machine-checkable, and both are checked:
+
+| Criterion | Evidence | Result |
+|---|---|---|
+| Zero coins → meaningfully improved roster | `tests/invariants/economy-balance.test.ts`; `pnpm balance:economy` | **Met.** 200 matches at Pro earns 44 650 coins — eight Gold packs, forty athletes — and at least four Gold packs at every difficulty including Rookie. |
+| No loop generating coins faster than it consumes | Same file, plus `tests/invariants/inv-5-anti-farm.test.ts` and `tests/unit/economy/packs.test.ts` | **Met.** Open-and-sell is between −21 910 and −33 680 per tier over a season; sell-back returns 24–29% of pack price; `sellPrice < marketAsk` swept across every rarity × overall 30–99 × four levels; arcade is capped at 200/day, below one won match. |
+| Every arcade game unlockable through play | `tests/unit/achievements/registry.test.ts`, `tests/unit/modes/arcade/launch-set.test.ts` | **Met.** All ten unlock ids are awarded by real defs, none of them hidden, and each opens exactly its own game. `ACHIEVEMENTS_LANDED` is `true`. |
+
+### The full check list (`CLAUDE.md` §5)
+
+1. **Every task done or cut.** Sixteen of sixteen `done`, none cut.
+2. **Full suite green.** 199 files, 3 407 tests; typecheck and lint clean. The a11y + smoke E2E
+   suite runs green in Chromium against a real build.
+3. **Coverage thresholds.** Held; not lowered.
+4. **No invariant regressed.** INV-5, INV-7 and INV-12 all gained tests this phase rather than
+   losing any. INV-7's test found a real double-grant race, which is now fixed.
+5. **Device matrix (`12` §7).** ❌ **Not run.** No device.
+6. **Gate criteria.** Met, above.
+7. **Tag and deploy.** ❌ **Not done.** No publish rights.
+8. This record.
+
+### What the a11y sweep found, and why it is worth naming
+
+Six new screens went into the audit list, and three real violations came out that no unit test would
+have caught:
+
+1. `coinPill` carried `aria-label` on a bare `<span>` — prohibited ARIA, serious. Present since
+   T-0.4, invisible because the component only ever lived in the dev gallery.
+2. A locked achievement row used `opacity: 0.72`, dropping body text to 3.22:1 on the light theme.
+   Opacity is the one styling shortcut that silently breaks contrast, because it dilutes foreground
+   and background equally and the ratio collapses.
+3. `--accent-alt` used as *text* is 2.4:1 on a raised surface. It is a fill colour — the coin pill
+   always used it on an icon and kept its number in the text colour; two new labels did not.
+
+The lesson is the same one three times: **a component is not tested until a screen that ships uses
+it and that screen is audited.** The six new paths are now in `tests/e2e/a11y-and-smoke.spec.ts`.
+
+### One observed flake, unreproduced
+
+A single full-suite run during T-8.3 reported one failure; three consecutive full runs afterwards
+were green and the failing test name was not captured. Recorded rather than dismissed — if it
+recurs, this is the thread to pull.
+
+### Deferred, with reasons
+
+- **The device matrix.** Every phone-shaped claim in Phase 8 — that the pack reveal reads well, that
+  the bracket is legible at 360 px, that the market's rows are thumb-sized — is asserted against
+  jsdom and Chromium and unverified by a hand.
+- **The deploy.** Eight gates now depend on it. A tag is still the only thing that ships.

@@ -150,8 +150,9 @@
 }
 
 .pack__free {
+  /* Weight, not hue: `--accent-alt` is a fill colour and fails AA as text (see components.css). */
   font-weight: 700;
-  color: var(--accent-alt);
+  color: var(--text-hi);
 }
 
 .pack__pity {

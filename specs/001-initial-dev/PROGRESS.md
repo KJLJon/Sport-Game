@@ -12,23 +12,22 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-8.6 — Achievement engine (declarative defs, event-stream evaluation, progress,
-  once-only grants)
-- **Status:** in_progress
-- **Started:** 2026-08-06
-- **Branch:** `claude/continue-session-c1lrpo`. T-8.10 is done and on the same branch (PR **#18**).
-- **Done so far:**
-  - [x] `achievements/types.ts` — the `05` §6 def shape, `MetaEvent`, the stored record
-  - [x] `achievements/tracker.ts` — evaluation, match vs career scope, deterministic unlocks
-  - [x] `achievements/repository.ts` — the store and `grantPending`, the one place a reward is paid
-  - [x] `achievements/session.ts` — the one call both match screens make
-  - [x] `achievements/conditions.ts` — the combinators T-8.7's content is written with
-  - [x] Wired: Live, Playbook, arcade runs, athlete creation, and a bootstrap grant
-  - [x] `tests/invariants/inv-7-once-only-grants.test.ts`
-  - [ ] Task row, notes, mark done
-- **Next step:** T-8.7 — the ~75 defs, written against `conditions.ts`.
-- **Blockers:** none for the code. **Gates 2 through 12 are all still held by the same two user
-  actions:** the device matrix and a tagged deploy.
+- **Task:** none. **Phase 8 is complete — all sixteen tasks done.** PR **#18** is open as a draft.
+- **Branch:** `claude/continue-session-c1lrpo`, off `main` at `956d3e9`.
+- **Suite:** 199 files, **3 407 unit tests**, typecheck and lint clean; the a11y + smoke E2E suite
+  runs green in Chromium across fourteen screens, six of them new this phase.
+- **What Phase 8 added:** the wallet and its ledger (T-8.10), the achievement engine and 79 defs
+  (T-8.6, T-8.7), arcade unlocks finally gating the hub (T-8.8), the gallery and in-match toast
+  (T-8.9), sell-back (T-8.13), packs (T-8.12), the transfer market (T-8.14), the economy balance
+  pass (T-8.16), and tournaments (T-8.3).
+- ⚠️ **One observed flake, unreproduced.** A single full-suite run failed one test; three
+  consecutive full runs afterwards were green and the failing name was not captured. Recorded rather
+  than ignored — if it recurs, that is the thread to pull.
+- **Next step:** **Gate 8 needs the user.** Every code criterion is met and recorded below; what is
+  missing is the same two things every gate since Gate 2 has been waiting on — the manual device
+  matrix (`12` §7) and a tagged deploy. After that, Phase 9 (UI/UX, accessibility, performance, data
+  safety) is the road to v1.0.
+- **Blockers:** none for the code. **Gates 2 through 12 are all held by the same two user actions.**
 
 ---
 
@@ -44,13 +43,13 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
 | 6 | Soccer · all three modes | 30 | 30 | `done` | v0.5 |
 | 7 | CPU AI depth & difficulty ladder | 11 | 4 | `in_progress` | — |
-| 8 | Modes hub, progression, achievements, economy | 16 | 1 | `in_progress` | — |
+| 8 | Modes hub, progression, achievements, economy | 16 | 16 | `done` | — |
 | 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **203** | **120** | | |
+| | **Total** | **203** | **150** | | |
 
 ---
 
@@ -233,7 +232,7 @@ there; this file is read at every session start and the notes file only when you
 |---|---|---|---|---|---|---|---|
 | T-8.1 | Home screen, mode selector, Quick Play (two taps from cold launch) | M | `done` | | `tests/unit/ui/play.test.ts`, `tests/unit/modes/last-played.test.ts`, `tests/e2e/play-hub.spec.ts` | auto+device | Pulled forward: the Play tab was still a Phase-0 placeholder, so no shipped mode was reachable by tapping — [notes](./notes/phase-8.md#t-81) |
 | T-8.2 | Match setup screens for Live and Playbook: sport, teams, difficulty, length, rules toggles | M | `done` | | `tests/unit/modes/match-setup.test.ts`, `tests/unit/modes/rule-options.test.ts`, `tests/e2e/play-hub.spec.ts` | auto | Also the first thing to hand Live your actual athletes, and `generateCpuTeam`’s first caller. Setup is a second target beside the card, not in front of it — `10` §2’s two taps still hold. [notes](./notes/phase-8.md#t-82) |
-| T-8.3 | Tournament mode: 4/8/16 bracket, persistence, results, rewards; playable in Live or Playbook | L | `todo` | | | | |
+| T-8.3 | Tournament mode: 4/8/16 bracket, persistence, results, rewards; playable in Live or Playbook | L | `done` | | `tests/unit/modes/tournament.test.ts` | auto + a11y E2E | A tournament match is an ordinary match: the bracket claims the `MatchRecord` when the player comes back, so neither mode knows tournaments exist. [notes](./notes/phase-8.md#t-83) |
 | T-8.4 | Match checkpointing and resume-after-kill, all three modes | M | `done` | | `tests/unit/modes/checkpoint.test.ts`, `tests/e2e/live-match.spec.ts` | auto | Stores the match’s *public* state, not the sim: score and clock come back, positions and the box score do not, and the card says so. Arcade is deliberately not resumable. [notes](./notes/phase-8.md#t-84) |
 | T-8.5 | Stats store: match history, box scores, career stats per sport per mode | M | `done` | | `tests/unit/stats/record.test.ts`, `tests/e2e/play-hub.spec.ts` | auto | One builder for both modes off one event stream — the mode labels a record, it never changes how one is computed. Adds `SportModule.lineup()` and the first real Progress screen. [notes](./notes/phase-8.md#t-85) |
 | T-8.6 | Achievement engine: declarative defs, event-stream evaluation, progress, once-only grants (INV-7) | L | `done` | | `tests/unit/achievements/tracker.test.ts`, `tests/invariants/inv-7-once-only-grants.test.ts` | auto | Defs are data with one function; match vs career scope is the tracker's, not the def's. INV-7 is two fields — writing its test found that two settlements in one tick both paid. [notes](./notes/phase-8.md#t-86) |
@@ -362,6 +361,7 @@ One row per gate: the result and what it turned on. The full evaluation — ever
 | 4 — Arcade (v0.3) | 2026-07-28 | **NOT PASSED** | Same two blockers, now three gates deep. Two of `03`'s four criteria ("fun standalone", "a child can start one unaided") are claims about a person, not a program, and no test will close them. 1 941 tests, coverage 94.9%. | [phase 4 notes](./notes/phase-4.md#gate-record) |
 | 7 — CPU AI depth & difficulty ladder | 2026-08-03 | **NOT PASSED** | Every automatable check green and, for the first time in the project, **all three balance harnesses in band at once** — soccer's ten included. `pnpm ai:ladder` reports zero findings. 3 066 unit, 45 E2E, coverage 95.1%. Two of `03`'s four criteria ("comfortably winnable by a newcomer", "beats an experienced player more often than not") are claims about a person and no batch closes them; the device matrix and the deploy are the same blockers, now **six gates deep**. | [phase 7 notes](./notes/phase-7.md#gate-record) |
 | 6 — Soccer · all three modes (v0.5) | 2026-07-31 | **NOT PASSED** | Every automatable check green: 2 788 unit, 45 E2E, coverage 94.9%, bench 0.058 ms/step at 11v11, budgets inside. All three of `03`'s criteria met, the third (`engine/` touched only for core improvements) demonstrably so — three changes, none naming a sport. Blocked on the device matrix and the deploy, now **five gates deep**, with five mini-games never played by a human. One open finding handed to Phase 7: Live soccer scores 12.8 goals a match on shot *volume*, not conversion. | [phase 6 notes](./notes/phase-6.md#gate-record) |
+| 8 — Modes hub, progression, achievements, economy | 2026-08-06 | **NOT PASSED** | All sixteen tasks done and every automatable check green: **3 407 unit tests** across 199 files, typecheck and lint clean, and the a11y + smoke E2E suite green in Chromium across **fourteen** screens — six of them new this phase, and the sweep found three real violations that unit tests could not. Both of `03`'s Gate 8 criteria are machine-checkable and **met**: `tests/invariants/economy-balance.test.ts` shows a 200-match season buys eight Gold packs with every farming cycle tens of thousands of coins under water, and `tests/unit/achievements/registry.test.ts` shows every one of the ten arcade games is gated on an achievement a real def awards. Same two standing blockers — the device matrix (`12` §7) and a tagged deploy — now **eight gates deep**. | [phase 8 notes](./notes/phase-8.md#gate-record) |
 | 12 — Camera, framing, and readability | 2026-08-03 | **NOT PASSED** | All nine tasks done, every automatable check green: 3 160 unit, **51 E2E** including six new framing cases at 360 px in both orientations, coverage **94.91%**, bench and bundle budgets inside. Two of `03`'s four criteria are met and machine-checkable; the other two — an athlete *legible* on a phone, and ≥55 fps **with the camera moving** — are a render measurement and a claim about eyes, and neither can be closed without the device. Same two standing blockers, now **seven gates deep**, and for this phase the device matrix is the subject rather than a formality. | [phase 12 notes](./notes/phase-12.md#gate-record) |
 
 ---
