@@ -198,11 +198,12 @@ describe('the box score table', () => {
   it('ends each side with a team total that matches the scoreboard', () => {
     const match = played();
     const wrapper = boxTable(document, match);
-    const rows = wrapper.querySelectorAll('table:first-of-type tbody tr');
-    const last = rows[rows.length - 1];
+    // The team line is the table's foot, not its last body row (T-9.1) — a totals row is what a
+    // `<tfoot>` is for, and the stat table renders it there.
+    const foot = wrapper.querySelector('table tfoot tr');
 
-    expect(last?.querySelector('th')?.textContent).toBe('Team');
-    expect(last?.querySelectorAll('td')[0]?.textContent).toBe(String(match.view().score[0]));
+    expect(foot?.querySelector('th')?.textContent).toBe('Team');
+    expect(foot?.querySelectorAll('td')[0]?.textContent).toBe(String(match.view().score[0]));
   });
 });
 

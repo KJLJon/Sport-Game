@@ -24,8 +24,21 @@ import {
 import { banner, sheet, toast } from '../components/feedback.ts';
 import { emptyState, errorState, skeleton } from '../components/states.ts';
 import { callSheet } from '../components/play-call.ts';
+import { attributeRadar } from '../components/radar.ts';
+import { statTable } from '../components/table.ts';
+import { ATTRIBUTE_IDS, type Attributes } from '../../athletes/types.ts';
 
 const ICON_PLAY = 'M8 5v14l11-7z';
+
+/**
+ * Fixed attribute sets for the radar. Hand-written rather than generated, because the gallery is
+ * the visual-regression target: a shape that changes between runs is a snapshot that always fails.
+ */
+function radarSample(values: readonly number[]): Attributes {
+  return Object.fromEntries(
+    ATTRIBUTE_IDS.map((id, index) => [id, values[index % values.length] ?? 50]),
+  ) as Attributes;
+}
 
 function section(doc: Document, title: string, items: readonly [string, Node][]): HTMLElement {
   return el(doc, 'section', {
@@ -175,6 +188,68 @@ export function galleryScreen(): Screen {
         ['skeleton', skeleton(doc, { lines: 3 })],
       ]);
 
+      // The data primitives (T-9.1). Both carry numbers, so both are shown holding real ones.
+      const data = section(doc, 'Data', [
+        [
+          'attribute radar',
+          attributeRadar(doc, {
+            series: [{ label: 'Ada K.', attributes: radarSample([88, 81, 74, 46, 69, 77, 62]) }],
+          }),
+        ],
+        [
+          'attribute radar · compare',
+          attributeRadar(doc, {
+            series: [
+              { label: 'Ada K.', attributes: radarSample([88, 81, 74, 46, 69, 77, 62]) },
+              { label: 'Bo R.', attributes: radarSample([54, 61, 58, 91, 44, 66, 83]) },
+            ],
+            hideValues: true,
+          }),
+        ],
+        [
+          'stat table',
+          statTable(doc, {
+            caption: 'Home — 88',
+            rowHeaderLabel: 'Athlete',
+            columns: [
+              { key: 'points', label: 'PTS', description: 'Points' },
+              { key: 'shooting', label: 'FG', description: 'Field goals made of attempted' },
+              { key: 'rebounds', label: 'REB', description: 'Rebounds' },
+              { key: 'assists', label: 'AST', description: 'Assists' },
+            ],
+            rows: [
+              {
+                header: 'Ada K.',
+                values: { points: 24, shooting: '9-17', rebounds: 7, assists: 5 },
+                emphasis: true,
+              },
+              {
+                header: 'Bo R.',
+                values: { points: 18, shooting: '7-13', rebounds: 3, assists: 9 },
+              },
+              { header: 'Cy M.', values: { points: 4, shooting: '2-6', rebounds: 11 } },
+            ],
+            totals: {
+              header: 'Team',
+              values: { points: 88, shooting: '34-71', rebounds: 41, assists: 22 },
+            },
+          }),
+        ],
+        [
+          'stat table · empty',
+          statTable(doc, {
+            caption: 'Career — Soccer',
+            rowHeaderLabel: 'Season',
+            columns: [
+              { key: 'apps', label: 'APP', description: 'Appearances' },
+              { key: 'goals', label: 'G', description: 'Goals' },
+            ],
+            rows: [],
+            emptyText: 'No matches played in this sport yet.',
+          }),
+        ],
+      ]);
+
       // `10` §5's inventory names the play-call card; the gallery is where it is looked at.
       const playbook = section(doc, 'Playbook', [
         [
@@ -225,6 +300,7 @@ export function galleryScreen(): Screen {
             meters,
             feedback,
             states,
+            data,
             playbook,
           ],
         }),

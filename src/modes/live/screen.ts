@@ -90,6 +90,7 @@ import type { AchievementUnlock } from '../../achievements/types.ts';
 import type { Payout } from '../../economy/types.ts';
 import { payoutPanel } from '../../ui/components/payout.ts';
 import { unlockedPanel } from '../../ui/components/achievement.ts';
+import { statTable, type StatColumn } from '../../ui/components/table.ts';
 import {
   DEFAULT_HUD_THEME,
   boxRows,
@@ -1063,44 +1064,48 @@ export function resultText(home: number, away: number, playerSide: Side): string
   return won ? 'You win.' : 'You lose.';
 }
 
-/** The box score, as a real table so a screen reader can navigate it (`10` §6). */
+/**
+ * The box score, as a real table so a screen reader can navigate it (`10` §6).
+ *
+ * The table itself is `ui/components/table.ts` (T-9.1) — the box score is one caller of the stat
+ * table `10` §5 names, not a table of its own. `boxRows` puts the team line last; here it becomes
+ * the `<tfoot>`, which is what a totals row is.
+ */
 export function boxTable(doc: Document, match: LiveMatch): HTMLElement {
   const wrapper = doc.createElement('div');
   wrapper.className = 'live-panel__box';
 
+  const columns: StatColumn[] = [
+    { key: 'points', label: 'PTS', description: 'Points' },
+    { key: 'shooting', label: 'FG', description: 'Field goals made of attempted' },
+    { key: 'rebounds', label: 'REB', description: 'Rebounds' },
+    { key: 'assists', label: 'AST', description: 'Assists' },
+  ];
+
   for (const side of [0, 1] as const) {
-    const table = doc.createElement('table');
-    const caption = doc.createElement('caption');
     const totals = teamLine(match.box, side);
-    caption.textContent = `${side === 0 ? 'Home' : 'Away'} — ${totals.points}`;
+    const rows = boxRows(match.view(), side).map((row) => ({
+      header: row.label,
+      values: {
+        points: row.points,
+        shooting: row.shooting,
+        rebounds: row.rebounds,
+        assists: row.assists,
+      },
+    }));
+    // `boxRows` appends the team line; it belongs in the foot, not the body.
+    const team = rows.pop();
 
-    const head = doc.createElement('thead');
-    const headRow = doc.createElement('tr');
-    for (const label of ['Athlete', 'PTS', 'FG', 'REB', 'AST']) {
-      const th = doc.createElement('th');
-      th.scope = 'col';
-      th.textContent = label;
-      headRow.appendChild(th);
-    }
-    head.appendChild(headRow);
-
-    const body = doc.createElement('tbody');
-    for (const row of boxRows(match.view(), side)) {
-      const tr = doc.createElement('tr');
-      const label = doc.createElement('th');
-      label.scope = 'row';
-      label.textContent = row.label;
-      tr.appendChild(label);
-      for (const value of [row.points, row.shooting, row.rebounds, row.assists]) {
-        const td = doc.createElement('td');
-        td.textContent = value;
-        tr.appendChild(td);
-      }
-      body.appendChild(tr);
-    }
-
-    table.append(caption, head, body);
-    wrapper.appendChild(table);
+    wrapper.appendChild(
+      statTable(doc, {
+        caption: `${side === 0 ? 'Home' : 'Away'} — ${totals.points}`,
+        rowHeaderLabel: 'Athlete',
+        columns,
+        rows,
+        ...(team === undefined ? {} : { totals: team }),
+        emptyText: 'No stats yet.',
+      }),
+    );
   }
 
   return wrapper;

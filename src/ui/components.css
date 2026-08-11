@@ -576,6 +576,206 @@
   }
 }
 
+/* ── Attribute radar (T-9.1) ──────────────────────────────────────────────── */
+
+/*
+ * `10` §6's radar. The polygon is decoration — the value list under it carries the numbers, and
+ * the two series are told apart by line style as well as by colour (INV-11).
+ */
+
+.attribute-radar {
+  display: grid;
+  gap: var(--space-12);
+  justify-items: center;
+  margin: 0;
+}
+
+.attribute-radar__plot {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+}
+
+.attribute-radar__ring,
+.attribute-radar__spoke {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.attribute-radar__ring {
+  fill: var(--surface-2);
+  fill-opacity: 0.25;
+}
+
+.attribute-radar__axis-label {
+  fill: var(--text-lo);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.attribute-radar__shape[data-role='primary'] {
+  fill: var(--accent);
+  fill-opacity: 0.28;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.attribute-radar__shape[data-role='compare'] {
+  fill: none;
+  stroke: var(--info);
+  stroke-width: 2;
+  /* The second shape is dashed, not merely a second colour. */
+  stroke-dasharray: 5 3;
+  stroke-linejoin: round;
+}
+
+.attribute-radar__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  font-size: var(--text-14);
+}
+
+.attribute-radar__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--text-lo);
+}
+
+.attribute-radar__key::before {
+  content: '';
+  width: 18px;
+  height: 0;
+  border-top-width: 2px;
+}
+
+.attribute-radar__key[data-role='primary']::before {
+  border-top-style: solid;
+  border-top-color: var(--accent);
+}
+
+.attribute-radar__key[data-role='compare']::before {
+  border-top-style: dashed;
+  border-top-color: var(--info);
+}
+
+.attribute-radar__values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4) var(--space-16);
+  width: 100%;
+  font-size: var(--text-14);
+}
+
+.attribute-radar__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.attribute-radar__name {
+  color: var(--text-lo);
+}
+
+.attribute-radar__value {
+  font-variant-numeric: var(--font-numeric);
+  font-weight: 650;
+}
+
+.attribute-radar__value[data-role='compare'] {
+  color: var(--info);
+}
+
+/* ── Stat table (T-9.1) ───────────────────────────────────────────────────── */
+
+.stat-table {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.stat-table:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+
+.stat-table__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-14);
+}
+
+.stat-table__caption {
+  padding: var(--space-12) var(--space-12) var(--space-8);
+  font-size: var(--text-16);
+  font-weight: 650;
+  text-align: left;
+  color: var(--text-hi);
+}
+
+.stat-table__column-header,
+.stat-table__row-header,
+.stat-table__cell,
+.stat-table__corner,
+.stat-table__empty {
+  padding: var(--space-8) var(--space-12);
+  border-top: 1px solid var(--border);
+}
+
+.stat-table__column-header {
+  font-size: var(--text-12);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-lo);
+  white-space: nowrap;
+}
+
+.stat-table__row-header {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-hi);
+  white-space: nowrap;
+}
+
+.stat-table__column-header[data-numeric='true'],
+.stat-table__cell[data-numeric='true'] {
+  text-align: right;
+  font-variant-numeric: var(--font-numeric);
+}
+
+.stat-table__cell {
+  color: var(--text-hi);
+}
+
+/* The reader's own row. A left rule as well as a tint, so it survives a greyscale print. */
+.stat-table__row[data-emphasis='true'] {
+  background: var(--surface-2);
+}
+
+.stat-table__row[data-emphasis='true'] .stat-table__row-header {
+  box-shadow: inset 3px 0 0 var(--accent);
+  font-weight: 650;
+}
+
+.stat-table tfoot .stat-table__row-header,
+.stat-table tfoot .stat-table__cell {
+  font-weight: 650;
+  border-top-width: 2px;
+}
+
+.stat-table__empty {
+  padding: var(--space-24) var(--space-12);
+  text-align: center;
+  color: var(--text-lo);
+}
+
 /* ── Screen-level helpers ─────────────────────────────────────────────────── */
 
 .home {
