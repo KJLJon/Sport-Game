@@ -95,56 +95,13 @@ body {
 
 /* ── Tab bar ──────────────────────────────────────────────────────────────── */
 
+/*
+ * The bar itself is `.tab-bar` in `ui/components.css` (T-9.1). What is left here is placement:
+ * the shell's height and the safe-area inset it sits above.
+ */
 .shell__tabs {
-  display: flex;
-  justify-content: space-around;
-  align-items: stretch;
   min-height: var(--shell-tabs-h);
   padding-bottom: var(--safe-bottom);
-  background: var(--surface-1);
-  border-top: 1px solid var(--surface-2);
-}
-
-.shell__tab {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  /* `10` §2 — minimum interactive target is 44 px. */
-  min-width: 44px;
-  min-height: 44px;
-  padding: var(--space-8) var(--space-4);
-  color: var(--text-lo);
-  text-decoration: none;
-  font-size: var(--text-12);
-}
-
-.shell__tab svg {
-  width: 24px;
-  height: 24px;
-  fill: currentcolor;
-}
-
-.shell__tab[aria-current='page'] {
-  color: var(--accent);
-}
-
-/* The active tab is also marked by a bar, so state is never colour alone (`10` §11). */
-.shell__tab[aria-current='page']::before {
-  content: '';
-  position: absolute;
-  width: 24px;
-  height: 3px;
-  border-radius: 2px;
-  background: currentcolor;
-  transform: translateY(-6px);
-}
-
-.shell__tab:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -3px;
 }
 
 /* ── Bare chrome: Live matches and full-screen arcade games ───────────────── */

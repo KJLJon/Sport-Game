@@ -40,11 +40,19 @@
   flex: none;
 }
 
-.button:active:not(:disabled, [aria-disabled='true']) {
+/*
+ * `data-force` is how the gallery shows a states matrix (`10` §5). A screenshot cannot hold a
+ * finger down or move focus, so the two transient states are also reachable as an attribute — and
+ * reachable through the *same* declarations, so the matrix cannot drift from the real thing.
+ * Nothing outside `#/dev/ui` sets it.
+ */
+.button:active:not(:disabled, [aria-disabled='true']),
+.button[data-force='pressed'] {
   transform: scale(0.97);
 }
 
-.button:focus-visible {
+.button:focus-visible,
+.button[data-force='focus'] {
   outline: 2px solid var(--info);
   outline-offset: 2px;
 }
@@ -573,6 +581,254 @@
 @keyframes shimmer {
   to {
     background-position: -200% 0;
+  }
+}
+
+/* ── Tab bar (T-9.1) ──────────────────────────────────────────────────────── */
+
+/*
+ * Lifted out of the app shell, where it had lived since Phase 0 with no states matrix and no
+ * gallery entry. The shell keeps its placement rules; everything the bar *is* lives here.
+ */
+
+.tab-bar {
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  background: var(--surface-1);
+  border-top: 1px solid var(--surface-2);
+}
+
+.tab-bar__tab {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* `10` §3.2 — minimum interactive target is 44 px. */
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  padding: var(--space-8) var(--space-4);
+  color: var(--text-lo);
+  text-decoration: none;
+  font-size: var(--text-12);
+}
+
+.tab-bar__tab svg {
+  width: 24px;
+  height: 24px;
+  fill: currentcolor;
+}
+
+.tab-bar__tab[aria-current='page'] {
+  color: var(--accent);
+}
+
+/* The active tab is also marked by a bar, so state is never colour alone (`10` §11). */
+.tab-bar__tab[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentcolor;
+  transform: translateY(-6px);
+}
+
+.tab-bar__tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
+/* ── Athlete list row (T-9.1) ─────────────────────────────────────────────── */
+
+/*
+ * `10` §5's list form of the athlete. The compact card is the grid form; this is what a screen
+ * showing twenty athletes at once uses.
+ */
+
+.athlete-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  /* `10` §3.2's floor: the whole row is the target when it carries a link. */
+  min-height: var(--target-min);
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  list-style: none;
+}
+
+.athlete-row__portrait {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  font-weight: 650;
+}
+
+/* Rarity is an edge, and never the only signal — the card carries the word (`10` §6). */
+.athlete-row[data-rarity='rare'] .athlete-row__portrait {
+  box-shadow: inset 0 0 0 2px var(--info);
+}
+
+.athlete-row[data-rarity='epic'] .athlete-row__portrait {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--info) 55%, var(--danger));
+}
+
+.athlete-row[data-rarity='legendary'] .athlete-row__portrait {
+  box-shadow: inset 0 0 0 2px var(--accent-alt);
+}
+
+.athlete-row__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.athlete-row__headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+}
+
+.athlete-row__name {
+  font-size: var(--text-16);
+  font-weight: 650;
+  color: var(--text-hi);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.athlete-row__name:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+  border-radius: var(--radius-8);
+}
+
+.athlete-row__position {
+  flex: 0 0 auto;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-lo);
+  font-size: var(--text-12);
+}
+
+.athlete-row__meta,
+.athlete-row__warning {
+  margin: 2px 0 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+/* A blocked row says why. The dot is decoration on top of the sentence, not instead of it. */
+.athlete-row__warning {
+  color: var(--accent-alt);
+}
+
+.athlete-row__warning::before {
+  content: '● ';
+}
+
+.athlete-row__trailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex: 0 0 auto;
+}
+
+.athlete-row__overall {
+  font-size: var(--text-20);
+  font-weight: 650;
+  font-variant-numeric: var(--font-numeric);
+}
+
+/* Selection is a rule and a tint, so it survives greyscale and colourblind viewing (INV-11). */
+.athlete-row[data-selected='true'] {
+  background: var(--surface-2);
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.athlete-row[data-disabled='true'] {
+  opacity: 0.72;
+}
+
+/* ── Onboarding coach-mark (T-9.1) ────────────────────────────────────────── */
+
+/*
+ * One instruction, pointed at one control (`10` §5, §8.1). It never covers the control it is about,
+ * and never takes pointer events away from anything but itself.
+ */
+
+.coach-mark {
+  position: relative;
+  max-width: 22rem;
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-12);
+  background: var(--info);
+  color: var(--on-info);
+  box-shadow: var(--elevation-2);
+  animation: coach-mark-in var(--dur-reveal) var(--ease-spring);
+}
+
+.coach-mark__arrow {
+  position: absolute;
+  left: var(--space-24);
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+.coach-mark[data-placement='below'] .coach-mark__arrow {
+  top: -6px;
+}
+
+.coach-mark[data-placement='above'] .coach-mark__arrow {
+  bottom: -6px;
+}
+
+.coach-mark__step {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-12);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.coach-mark__title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-16);
+  font-weight: 700;
+}
+
+.coach-mark__text {
+  margin: 0 0 var(--space-12);
+  font-size: var(--text-14);
+}
+
+/* The dismiss button inverts: it sits on the accent surface, not on a page surface. */
+.coach-mark__dismiss.button--primary {
+  min-height: var(--target-min);
+  background: var(--on-info);
+  color: var(--info);
+}
+
+@keyframes coach-mark-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
   }
 }
 

@@ -114,13 +114,20 @@ function targetButton(
   return button;
 }
 
+/** Keeps each sheet's radio group distinct from every other's. Never read for anything else. */
+let sheetCount = 0;
+
 /**
  * The call sheet. Returns a handle rather than a bare element so the turn screen can send it back
  * to its list — a call half-chosen when the turn is force-resolved must not stay half-chosen.
  */
 export function callSheet(doc: Document, options: CallSheetOptions): CallSheetHandle {
   const element = el(doc, 'section', { class: 'play-call-sheet' });
-  const name = `call-sheet-${Math.round(Date.now() % 100000)}`;
+  // A counter, not the clock (T-9.1). Two sheets built in the same millisecond used to share a
+  // radio-group name, which makes choosing a call in one clear the other — and it made the dev
+  // gallery, the visual-regression target, render differently on every load.
+  sheetCount += 1;
+  const name = `call-sheet-${sheetCount}`;
   let pendingCall: CallOption | null = null;
 
   const renderList = (): void => {
