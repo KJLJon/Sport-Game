@@ -17,7 +17,15 @@ const SCREENS = [
   { path: '#/play', name: 'Play' },
   { path: '#/squad', name: 'Squad' },
   { path: '#/store', name: 'Store' },
+  // Phase 8's four new screens behind the Store and Progress tabs. Added here rather than trusted:
+  // the tab roots passed while `coinPill` carried a prohibited `aria-label` for eight phases,
+  // because nothing that used it was ever audited (T-8.10).
+  { path: '#/store/packs', name: 'Packs' },
+  { path: '#/store/market', name: 'Transfer market' },
+  { path: '#/store/sell', name: 'Sell athletes' },
   { path: '#/progress', name: 'Progress' },
+  { path: '#/progress/achievements', name: 'Achievements' },
+  { path: '#/progress/tournament', name: 'Tournament' },
   { path: '#/settings', name: 'Settings' },
   { path: '#/settings/app', name: 'App & updates' },
 ] as const;

@@ -60,6 +60,12 @@ import {
   type FeedbackState,
 } from '../../modes/arcade/accessibility.ts';
 import { appDatabase } from '../../storage/app-db.ts';
+import { recordMetaEvents } from '../../achievements/session.ts';
+import { MetaKind, type MetaEvent } from '../../achievements/types.ts';
+import { sportSkillFor } from '../../athletes/types.ts';
+import { sportOverall, type SportRatingTables } from '../../athletes/derivation.ts';
+import { FAMILIARITY } from '../../athletes/tuning.ts';
+import type { SportId } from '../../sports/types.ts';
 import { buildHash } from '../../app/router.ts';
 import { CHECKPOINT_VERSION, clearCheckpoint, saveCheckpoint } from '../../modes/checkpoint.ts';
 import type { Screen, ScreenContext } from '../../app/screen.ts';
@@ -111,7 +117,8 @@ export function arcadeGameScreen(): Screen {
       }
 
       // The award table the run trains against comes from the game's own sport (`09` §3.4).
-      const xpAwards = (await loadSport(game.sport)).xpAwards ?? [];
+      const sportModule = await loadSport(game.sport);
+      const xpAwards = sportModule.xpAwards ?? [];
 
       const requested = context.query['mode'] ?? 'scored';
       const mode: ArcadeMode = isArcadeMode(requested) ? requested : 'scored';
@@ -371,7 +378,7 @@ export function arcadeGameScreen(): Screen {
         renderOverlay();
 
         void appDatabase()
-          .then(async ({ db, athletes }) => {
+          .then(async ({ db, athletes, economy }) => {
             const arcade = new ArcadeRepository(db);
             await arcade.recordRun(result, game.stars);
 
@@ -380,11 +387,61 @@ export function arcadeGameScreen(): Screen {
             const today = dateKey();
             const reward = awardRun(result, await arcade.day(today));
             await arcade.putDay(reward.day);
+            /**
+             * And now they are actually paid (T-8.10). T-4.13 computed an award for every scored
+             * run and left the crediting to whatever owned the balance; until this line, nobody had
+             * ever received one.
+             *
+             * The day is written *before* the credit deliberately: if the second write fails the
+             * player is short a run's coins, which is a bad afternoon. If the order were reversed a
+             * failure would credit coins the day never counted, and the daily cap — the thing that
+             * makes arcade unfarmable — would be the part that broke.
+             */
+            await economy.earn(reward.coins, 'arcade', `${game.name} · ${result.stars}★`);
             paid = rewardSummary(reward);
             renderOverlay();
 
+            // "Warm-Up", and whatever arcade content T-8.7 adds (T-8.6). A practice run never gets
+            // here — `rewarded` is false and `result` was filtered above — which is `09` §3.3's
+            // "unlimited and unrewarded" holding for achievements as well as for coins.
+            void recordMetaEvents(await appDatabase(), [
+              {
+                kind: MetaKind.ARCADE_RUN,
+                at: Date.now(),
+                athleteId: result.athleteId,
+                detail: {
+                  game: result.game,
+                  sport: result.sport,
+                  stars: result.stars,
+                  score: result.score,
+                  mode: result.mode,
+                },
+              },
+            ]);
+
             // The daily's athlete is generated, not one of yours, so there is nothing to store.
-            if (progress !== null && config.mode !== 'daily') await athletes.put(progress.athlete);
+            if (progress !== null && config.mode !== 'daily') {
+              await athletes.put(progress.athlete);
+
+              /**
+               * The two cross-sport achievements that are about an athlete rather than a match
+               * (T-8.7).
+               *
+               * Emitted here because this is the only place in the build where progression
+               * actually runs against a stored athlete — Live and Playbook do not call
+               * `applyMatch` yet. When they do, they emit the same two events and nothing in
+               * `achievements/` changes.
+               */
+              void recordMetaEvents(
+                await appDatabase(),
+                familiarityEvents(progress.athlete, result.sport as SportId, {
+                  weights: sportModule.ratingWeights,
+                  ...(sportModule.positionWeights === undefined
+                    ? {}
+                    : { positionWeights: sportModule.positionWeights }),
+                }),
+              );
+            }
           })
           .catch(() => {
             // A lost personal best is not worth interrupting the run-over screen for.
@@ -554,4 +611,49 @@ async function buildConfig(
     athlete: chosen,
     difficulty: 'pro',
   };
+}
+
+/**
+ * The athlete-shaped meta events a finished session can produce: familiarity reaching its cap, and
+ * a second sport overtaking the first (`05` §6 — "Naturalised", "Convert").
+ *
+ * Computed rather than tracked. Both are *states* an athlete can be in, so asking after every
+ * session is simpler and more robust than trying to notice the moment they change — the achievement
+ * itself is once-only, so asking twice costs nothing.
+ */
+function familiarityEvents(
+  athlete: Athlete,
+  sport: SportId,
+  tables: SportRatingTables,
+): MetaEvent[] {
+  const at = Date.now();
+  const events: MetaEvent[] = [];
+
+  const cap = sport === athlete.primarySport ? FAMILIARITY.primaryCap : FAMILIARITY.secondaryCap;
+  if (sportSkillFor(athlete, sport).familiarity >= cap) {
+    events.push({
+      kind: MetaKind.FAMILIARITY_CAPPED,
+      at,
+      athleteId: athlete.id,
+      detail: { sport, primarySport: athlete.primarySport },
+    });
+  }
+
+  if (sport !== athlete.primarySport) {
+    // Both overalls are taken through the *played* sport's tables, which is the only comparison
+    // available synchronously here and the one that matters: it asks whether this athlete is now
+    // better at the sport they have been practising than at the one they came from.
+    const here = sportOverall(athlete, sport, tables).overall;
+    const home = sportOverall(athlete, athlete.primarySport, tables).overall;
+    if (here > home) {
+      events.push({
+        kind: MetaKind.CONVERTED,
+        at,
+        athleteId: athlete.id,
+        detail: { sport, primarySport: athlete.primarySport, overall: here },
+      });
+    }
+  }
+
+  return events;
 }

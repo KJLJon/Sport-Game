@@ -314,3 +314,523 @@ four players because somebody looked at it would be inventing a party.
 **Where the names are, said out loud.** `US-17.3` promises local-only, and they live in preferences
 rather than IndexedDB — not in a backup, not in a roster export, not in a P2P handshake. The screen
 says that in a sentence, because a promise nobody can see is indistinguishable from one nobody kept.
+
+---
+
+### T-8.10
+
+*Wallet, coin ledger, earning rules, difficulty scaling, itemised post-match payout*
+
+**Taken before T-8.3, which is lower-numbered.** T-8.3's own line ends in "results, **rewards**", and
+a tournament that pays 1 500 coins into a wallet that does not exist would have to be built twice.
+The economy is also the Gate 8 spine — T-8.10 → T-8.12 → T-8.13 → T-8.14 → T-8.16 — so it goes first
+and tournaments get a real payout when they land.
+
+**A payout is a pure function of a `MatchRecord`.** That one decision does most of the work.
+`buildRecord` (T-8.5) already turns either mode's event stream into the same record, so `matchPayout`
+takes the record and nothing else: no mode, no simulation, no clock. INV-6 is not upheld here by
+discipline — there is nowhere for a mode to be branched on, because a mode is not an argument. The
+invariant test asserts the consequence: the same record with `mode` swapped pays identically.
+
+**Performance milestones are relative, not absolute.** `05` §5.3 asks for "performance milestones,
+25–150 each, capped". Every milestone that comes to mind is basketball's — 20 points, a
+double-double — and a soccer match would never pay one. Branching on the sport would put a rule about
+basketball inside the economy, so instead each milestone reads a *ratio*: a share of the team's
+scoring, a margin as a fraction of the score, a turnover count against the opponent's. A 2–0 soccer
+win and a 100–80 basketball win both earn "Dominant win", and hockey gets the whole table for free.
+
+**Milestones read the scoreline, not the box score, for anything about the result.** The two can
+differ — an anonymous fixture records no lines at all, an own goal belongs to nobody's line — and a
+shutout awarded because the box score happened to be empty is a bug a test found within the hour.
+
+**Multipliers scale performance; the daily bonus does not.** `05` §5.3 lists the difficulty
+multiplier, the no-assist bonus and the flat awards in one table without saying what multiplies what.
+Both multipliers scale what you did — completion, the win, the milestones — and the
+first-win-of-the-day 250 is added flat afterwards. Scaling it too would make the first Legend win of
+the day worth 500 on its own, turning a "come back tomorrow" nudge into the biggest number on the
+screen.
+
+**Every multiplier line carries the coins it added, computed against the running total.** So the
+lines always sum to the headline, whatever the rounding does. A player who adds up the post-match
+screen and gets a different number stops trusting the screen; there is a test per difficulty level.
+
+**First-win-of-the-day is settled with the credit, not before it.** It is a fact about the wallet's
+history rather than about the match — has today already paid one — so `settleMatch` decides it and
+marks it in the same pure step, and the repository serialises the whole thing. Two matches finishing
+in the same second cannot both be "the first". A loss or a draw does not consume it either: an
+unlucky evening should not cost tomorrow morning's 250.
+
+**The repository queues every write.** A wallet is read-modify-write by nature, both match screens
+credit from a `.then()` on the shared database promise, and an arcade run can settle while a match is
+still writing. Without a queue the second write reads the old balance and the player is simply short.
+There is an integration test that issues three credits in one tick and expects all three.
+
+🧵 **The recurring find, again — and this time it was already written down.**
+`modes/arcade/rewards.ts` has computed a coin award for every scored run since T-4.13, and its own
+header says crediting it "is one call away and belongs with the economy that owns the balance".
+Nobody had ever been paid one. Three lines in `arcade-game.ts` fixed it. The day record is written
+*before* the credit deliberately: if the second write fails the player is short a run's coins, which
+is a bad afternoon, whereas the reverse order would credit coins the day never counted and break the
+daily cap — the thing that makes arcade unfarmable.
+
+**And the find had a twin.** `coinPill` (T-0.4) has carried `aria-label` on a bare `<span>` since
+the design system landed. That is a *prohibited* ARIA attribute — axe fails it as serious — and no
+sweep had ever caught it, because until this task the component existed only in the dev gallery,
+which the a11y sweep does not visit. The wallet was the first real screen to use it, and the Store
+audit went red on the first run. It now carries `role="img"`, as `starRating` beside it always has.
+Worth stating as a rule: **a component that only the gallery uses has not been tested.**
+
+**The Store tab is a real screen now**, which also removed the last `stub()` from the route table:
+every route in the app loads something real. Packs, the market, and selling land alongside the wallet
+at T-8.12 to T-8.14 rather than instead of it — all three spend from the balance it shows.
+
+#### ⚠️ A balance finding for T-8.16
+
+The match rate is now visible for the first time, and arcade's numbers from T-4.13 do not line up
+with it. Measured:
+
+| | Coins | Minutes | Per minute |
+|---|---|---|---|
+| Won Live match, Pro | 250 | 12 | 20.8 |
+| First three-star free-throw run | 160 | 0.35 | **453** |
+| 200 arcade runs (the day's ceiling) | 320 | 103 | 3.1 |
+
+Both arcade figures come from the same tuning; that is what a sharp decay plus a daily cap does. The
+problem is not the ceiling — 320 a day is about 1.3 matches, which is a reasonable place for arcade
+to sit — it is that **the whole ceiling can be collected in under three minutes**. For a player with
+five minutes, arcade is the efficient farm, which is exactly what `09` §7 rules out.
+
+Retuning it is a cross-mode balance decision: it means either much smaller star values or spreading
+the cap over the day, and both interact with pack prices that do not exist yet. That is T-8.16's job
+(economy balance pass, simulated over 200 matches), so this is recorded rather than quietly changed
+by the task that merely made it measurable.
+
+It also decided how INV-12's coin half is tested. A daily cap is a rate that falls the longer you
+play, so no capped payout can sit inside a fixed ±25% per-minute band — the band is meaningful for
+XP, which is uncapped, and meaningless here. So the invariant test asserts what the cap is actually
+*for*: Live and Playbook pay identically, and a day of arcade is worth less than the same minutes
+spent playing matches.
+
+**Verified in a real browser.** The a11y and smoke E2E suite runs green against a build, including
+the Store audit that found the pill.
+
+**Feel note.** Finishing a match and watching four lines add themselves up to a number is the first
+time this game has felt like it has a *why* outside the match. "First win today +250" is the one that
+lands hardest — it is the only line that rewards coming back rather than playing well, and it makes
+tomorrow feel like something. The arcade credit is the opposite: 160 coins for twenty seconds reads
+as a bug even though it is the spec's own table, which is its own argument for the finding above.
+
+---
+
+### T-8.6
+
+*Achievement engine: declarative defs, event-stream evaluation, progress, once-only grants*
+
+**A def is data with one function on it, and the function sees one event.** That is `05` §6's shape
+taken literally, and everything else follows from it. `evaluate(event, ctx) → number | null` returns
+a *progress delta*, so "make 5 threes in one game" and "sell 20 athletes" are the same kind of
+object; and because it sees one event and has nowhere to keep a counter, anything that needs memory
+is declared rather than written. Hence `scope: 'career' | 'match'`, which the tracker keeps.
+
+**Match scope stores the best attempt, not the running total.** A progress bar on "3 threes in one
+game" that read a career total of 40 would be a lie about what the achievement is. Best-so-far is
+the honest number and the useful one.
+
+**INV-7 is two fields, and that is the whole design.** `unlockedAt` says the condition was met;
+`rewardedAt` says the coins were paid. A kill between the two writes leaves "unlocked, unpaid" — an
+unambiguous state that the bootstrap grant resolves on the next launch, exactly once. One flag could
+not express it, so a retry would either double-pay or never pay. `grantPending` is the only place in
+the app that credits an achievement, so "at most once" is a property of one function rather than a
+convention spread across callers.
+
+**Writing the invariant test found the other half of INV-7.** Two settlements in the same tick both
+read "unpaid" and both paid — 600 coins for a 300-coin achievement. Not hypothetical: a match
+finishing while the bootstrap grant is still running does exactly that. The store now serialises the
+read-decide-write step the way the wallet already did, and the race is a passing test.
+
+**A broken def cannot break a match.** `evaluate` runs inside a try, for the same reason `EventBus`
+contains listener errors. Losing an unlock is bad; losing the match somebody is playing is worse.
+
+**Reachable on day one.** Live, Playbook, arcade runs, and athlete creation all emit into it, and
+achievement coins land in the wallet ledger under the achievement's own title. The post-match panel
+shows what unlocked; the gallery is T-8.9.
+
+---
+
+### T-8.7
+
+*Achievement content: 79 defs*
+
+**79 across every category `05` §6 names**, against a promise of sixty. The count, the categories,
+and the reward shape are asserted rather than eyeballed — a content file dropped from the registry
+now fails a test instead of quietly halving the gallery.
+
+**The ten arcade-unlock ids are load-bearing and now have a test.** `modes/arcade/registry.ts` gates
+each game behind an id from `achievements/ids.ts`; if no def ever awards one, the game is
+permanently unreachable and *nothing anywhere fails*. There is now a test that every gated id is
+awarded by a real def, and that none of the ten is hidden — a hidden unlock condition would leave a
+locked tile telling the player to do something the gallery refuses to describe.
+
+**Two of `09` §3.2's conditions asked for data the sim does not emit**, and neither needed a change
+to a sport to answer:
+
+- *"Score 10 fast-break points."* A fast break is not a thing the rules produce; it is points scored
+  moments after winning the ball back. The tracker keeps a bounded window of the match's recent
+  events, and the def asks for a basket within three seconds of the player's own steal or defensive
+  rebound.
+- *"Score a header."* Soccer emits no header event, but it does emit a `lofted` pass beyond thirty
+  metres — a cross. A goal within two seconds of one is the header from a cross, which is the same
+  reading `soccer/playbook/key-moments.ts` already takes.
+
+That window (`EvalContext.recent`) is the one facility this task added to the engine, and it is
+general: sequence-shaped achievements were otherwise impossible without every sport learning new
+vocabulary for facts already present in the stream's ordering.
+
+**Career facts are computed where the career is, not counted inside a def.** "Win on each
+difficulty" and "win in two sports" were briefly written as closures holding a `Set`. That is a bug
+with a long fuse: the set forgets itself on reload, so a player who wins at basketball today and
+soccer tomorrow would never be credited. Those facts are now computed from the match history when
+the meta event is built, and the def reads a number.
+
+**Every economy achievement is about spending or collecting, never about earning coins.** An
+achievement that paid coins for having coins is a loop, and `05` §5.5 exists to keep the economy
+closed.
+
+**Feel note.** The cross-sport ones are the best thing in the list, and reading them back is the
+first time the *game's* pitch is legible from inside the game: "Wrong Sport, Right Athlete — score
+30+ in a basketball match with a soccer-primary athlete", paying three times what a hat-trick does.
+That row is an argument for trying something, which is more than most achievement lists manage.
+
+---
+
+### T-8.8
+
+*Arcade unlock wiring: achievements gate arcade games, with a clear unlock moment*
+
+**`ACHIEVEMENTS_LANDED` is `true`.** T-4.3 introduced that constant with a note saying Phase 8 would
+flip it: nothing wrote an unlock back then, so ten permanently locked tiles would have made Gate 4's
+"a child can start one unaided" unreachable, and the hub opened everything through one greppable
+boolean rather than a quietly permissive check. That was the right shortcut and this is the commit
+that pays it back. The flag stays rather than being deleted — it is the switch a future sport's
+arcade set flips on itself.
+
+**`earnedAchievements` had to learn what "earned" means.** It was written before there were records
+to read and counted every row in the store. The store is now full of *progress* — three of five
+steals — and an unlocked achievement is one with a non-null `unlockedAt`. Counting progress as an
+unlock would have opened games the player is still working towards, which is the feature backwards.
+
+**The unlock is a moment, not a state change.** `09` §3.2 asks the notification to say "unlocked —
+you can practise this any time now", and it is right to insist: five of these achievements exist *to*
+open a game, and an unlock you have to infer from a tile that stopped being grey is not a moment. The
+post-match panel prints the sentence with the game named. Doing that needed the game's display name
+somewhere a UI component can read without loading two sport modules, so `ARCADE_UNLOCKS` gained a
+`game` field — `09` §3.2 pairs them in one table anyway — with a test asserting each name matches
+the real game def.
+
+**The hub's tests had to earn their unlocks.** Half of `arcade.test.ts` asserted things about
+playable tiles and quietly depended on everything being open. They now write the achievements first,
+the way a player would earn them, and there is a new case for the fresh save: ten locked tiles, each
+naming what earns it, and the word "buy" nowhere on the screen.
+
+---
+
+### T-8.9
+
+*Achievement UI: gallery, filters, progress bars, in-match toast, post-match summary*
+
+**The gallery shows locked achievements, and that is the design.** A list of only what you have done
+is a trophy cabinet; this is also the list of things worth trying, which is where the cross-sport
+ones do their work. Hidden ones appear as "???" — present, so the count is honest, and undescribed,
+so the surprise survives. There is a test, because a refactor that rendered `def.title`
+unconditionally would spoil seven of them silently.
+
+**Three `<select>`s, not a row of chips.** Chips would look better and be worse: a select is one
+tap, is announced properly, and does not wrap into four lines at 360 px. Each has a real `<label>`
+(INV-11).
+
+**The counter sits above the filters.** "23 of 79 unlocked · 4 500 coins earned" is what a player
+opens this screen for, and narrowing the list must never appear to change it. Asserted.
+
+**A progress bar prints its own numbers.** A bar alone is information conveyed by width, which is no
+better than information conveyed by colour for anyone who cannot see it — so every bar carries
+"3 / 5" beside it and `role="progressbar"` with the real values.
+
+**The in-match toast runs a *preview* tracker.** Seeded from the stored records, fed the same events
+as they happen, writing nothing and paying nothing; the authoritative settlement replays the whole
+history after the final whistle. So the toast is free to be best-effort — it is built from an async
+database read and is allowed to miss the first few events, because the post-match pass catches them.
+A toast that delayed kick-off to read IndexedDB would be the wrong trade, and a toast that granted
+anything would put INV-7 back in play for no benefit.
+
+---
+
+### T-8.13
+
+*Sell-back: valuation, squad-lock guard, confirmation, anti-farm invariants*
+
+**`05` §5.1's four formulas, with the randomness taken as an argument.** `marketAsk` and `buyOffer`
+are random in the spec and *seeded* in the build (INV-2, T-8.14), so they take a factor in `[0,1)`
+and the caller supplies it from an `Rng`. A valuation that reached for `Math.random()` would make
+the market unreproducible and every invariant test below meaningless.
+
+**The overall is passed in, because there is no such field.** An overall is per sport and derived
+from that sport's weight tables (`05` §3.4), which live in the sport module. Putting an `await`
+inside a price would have been the alternative.
+
+**INV-5 is swept, not sampled.** "sellPrice < marketAsk for the same athlete" is exactly the rule a
+later tuning pass breaks by moving one constant, so the test walks every rarity × every overall from
+30 to 99 × four levels, against the *cheapest* ask the market can produce. There is also a
+structural version — `SELL_FRACTION < ASK_RANGE[0]` — which says *why* the sweep passes, so a future
+failure points at the constant rather than at three hundred cases.
+
+**The squad guard warns; the last-athlete guard refuses.** US-9.3 says an athlete in a squad can be
+sold "unless I confirm", so that one is overridable and names the team it would leave short. Selling
+the only athlete in a save is not overridable: an empty roster is a save that cannot play, and no
+confirmation makes that a good idea. One boolean separates the two, which is why both have tests.
+
+**Paid before deleted.** A crash between the two leaves the player with the coins *and* the athlete
+— a bug in their favour. The other order loses them both.
+
+**Feel note.** Naming the athlete in the confirmation is what makes this screen feel like a
+transfer rather than a delete key. "Sell Ada Quill for 1 240 coins? This cannot be undone" is a
+sentence you hesitate over, which is exactly the right amount of friction.
+
+---
+
+### T-8.12
+
+*Packs: tiers, prices, published odds, pity timers, reveal animation with skip*
+
+**The screen renders `PACKS`, not a copy of it.** US-9.2 requires the odds before the button, and
+the only way the displayed number and the rolled number cannot drift apart is for there to be one
+number. The odds table on the purchase screen is generated from the same object `rollRarity` reads.
+
+**Pity triggers *before* the roll, not after it.** "Guaranteed Rare+ within 6 Bronze" is implemented
+as: the sixth dry Bronze rolls its first card from the Rare-and-above part of the table,
+renormalised. Rolling normally and then upgrading the result would make the published 4.5% a lie —
+the displayed odds would quietly become something else, which is the exact dishonesty publishing
+them is supposed to prevent. The counter also resets on a *lucky* pull at the floor, not only on the
+guaranteed one, because otherwise a player who pulls an Epic on their third Bronze still gets a
+guarantee three packs later and the timer stops meaning what it says.
+
+**The whole pack exists before the first card turns.** `openPack` returns every athlete; the screen
+animates them. That is what makes Skip honest — it shows you what you already had rather than
+hurrying a roll — and it is why `prefers-reduced-motion` can drop the animation entirely without
+changing an outcome.
+
+**Buying is one queued write.** Paying, consuming an owed pack, and advancing the pity counter are
+three changes to the same record, and two taps in the same tick must buy one pack. `purchasePack`
+takes the roll as a *function of the current counters*, so the wallet holds the lock over the roll
+without learning anything about odds tables or athlete generation. There is a test that fires two
+purchases at once and expects one pack and one charge.
+
+**The anti-farm test guessed, and guessed wrong first.** `05` §5.5 asks for
+`expectedSellValue(pack) < price(pack)` over the odds tables and the valuation formula. The first
+version assumed a Legendary is about 94 overall and "failed" against a perfectly sound economy —
+rarity sets the *attribute band* (`05` §4), not the overall, and a Legendary actually averages about
+60. The test now measures: two hundred generated athletes per rarity, taking the best of each, so
+the bound is generous and stays honest if the bands or the derivation ever move. Every tier comes in
+under 90% of its price.
+
+**Feel note.** Three cards turning over one at a time, with the rarity in words under the name, is
+more exciting than it has any right to be — and showing the pity counter ("Rare or better guaranteed
+within 4 more") makes a dry streak feel like progress rather than like being cheated. That line is
+free to add and is the difference between a mechanic and a trick.
+
+---
+
+### T-8.14
+
+*Transfer market: rotating listings, tamper-resistant refresh, paid refreshes, buy-offers, seeded
+price walk*
+
+**A listing is a seed, not an athlete.** Six generated athletes written into the wallet record every
+four hours would be kilobytes of duplicated roster; the seed they were rolled from is thirty bytes
+and regenerates the same athlete every time (INV-2). The screen regenerates them to display and the
+buy regenerates the one being bought, and they are identical because the roll is deterministic.
+
+**The clock is not trusted, and the rule has its own function.** `05` §5.4 spells it out — "the
+stored `lastRefresh` only advances, and a jump larger than the refresh interval grants exactly one
+refresh, not many" — and the natural implementation is a `while` loop, which would turn the device
+clock into a vending machine. `refreshesOwed` returns `0` or `1`, never more, and `lastRefresh` is
+`Math.max`'d so winding the clock *backwards* earns nothing either: the next genuine four hours
+still have to pass. Both directions have tests.
+
+**Scarcity is read at sport level, not position level.** `05` §5.4 asks for scarcity "at positions
+your roster is thin at". Positions are each sport's own vocabulary, and a market that reasoned about
+them would need every sport's role table plus a definition of "thin" per formation. Sport-level
+thinness is the same idea at the granularity this build can express honestly — and it is the one a
+player actually feels, because the complaint is "I cannot field a soccer team", not "I am light at
+left-back". Recorded here as a deliberate narrowing rather than a miss.
+
+**A paid refresh does not reset the free timer.** Buying a reroll should not push the free rotation
+four hours away, or the paid refreshes become a tax on waiting rather than a shortcut.
+
+**Buying and selling are each one queued write.** "Is this listing still there" and "take it off the
+board" have to be one decision, or two taps buy one athlete twice. Same for an offer.
+
+**Feel note.** Six athletes and a countdown is a surprisingly strong pull — the market is the first
+screen in the build that is worth *opening* when you are not going to play. The buy-offers are what
+make it feel like a market rather than a shop: somebody wants your player, and the number is
+sometimes better than the sell screen's, which is exactly the small decision `05` §5.4 was after.
+
+---
+
+### T-8.16
+
+*Economy balance pass: pack EV vs sell value vs earn rate, simulated over 200 matches*
+
+**Gate 8's sentence, turned into assertions.** "A new save can be played from zero coins to a
+meaningfully improved roster with no loop that generates coins faster than it consumes them" is two
+testable claims, and `src/economy/simulate.ts` produces the numbers for both against the real
+earning table, odds, valuation and generator. `pnpm balance:economy` prints them:
+
+```
+── Earning, over 200 matches ──
+rookie     36252 coins  (181/match, ×0.75)   bronze 48  gold  7  elite 3
+pro        44650 coins  (223/match, ×1)      bronze 59  gold  8  elite 3
+allStar    61310 coins  (307/match, ×1.4)    bronze 81  gold 12  elite 5
+legend     79150 coins  (396/match, ×2)      bronze 105 gold 15  elite 6
+
+── Packs: price vs selling every card back ──
+bronze  750 → 198 (26%)   silver 2 000 → 480 (24%)
+gold  5 000 → 1 213 (24%)  elite 12 000 → 3 440 (29%)
+```
+
+A season at Pro buys eight Gold packs — forty athletes — so "meaningfully improved" has a number
+behind it. Every farming cycle is tens of thousands of coins under water. Nothing needed changing
+there; the formulas from `05` §5.1 and the odds from §5.2 produce a closed economy on the first try.
+
+#### 🧵 The T-8.10 arcade finding, corrected and then acted on
+
+T-8.10 recorded a worry with a table: a 21-second three-star arcade run paid 160 coins where a won
+12-minute match pays 250, i.e. **453 coins a minute against 21**. With the whole economy visible,
+that comparison is against the wrong denominator — *you cannot fit a twelve-minute match into
+twenty-one seconds*. The question a player faces is what to do with the time they have:
+
+- Under twelve minutes, a match pays **nothing**, because it cannot be finished. Arcade winning
+  there is not a farm; it is the entire reason arcade exists.
+- At one match or longer, playing should win, and keep winning.
+
+So the property worth asserting is **the crossover**, not the per-minute rate. And measured against
+*that*, the numbers really were wrong: the old daily ceiling of 320 beat a single won match's 250,
+so even sitting down for a proper game was worse than three minutes of free throws.
+
+**The retune.** `COINS_BY_STARS` 20/40/70 → 8/16/30, the first-three-star bonus 90 → 30, and
+`DAILY_COIN_CAP` 320 → 200. The ceiling is now below one won match, which makes "no mode is the
+efficient farm" (`09` §7) true at every session length worth measuring, and the values are sized so
+that reaching the ceiling takes the first run of three or four *different* games — `09` §3.3's
+shape, rather than one lucky free-throw run. A side effect worth naming: the per-game decay now
+bites before the cap does, so a 200-run day earns 156 rather than 200. The cap became a backstop
+instead of a target, which is what it should have been.
+
+**The lesson, which is not about arcade.** The first analysis was rigorous and wrong, because it
+measured a rate without asking what the player could actually substitute. A per-minute comparison
+between activities of very different lengths is almost always meaningless; the useful question is
+"for a session of length T, what is best". Worth remembering the next time a balance number looks
+alarming.
+
+**Feel note.** Arcade paying less is the right call and it does cost something: a great free-throw
+run used to feel like a windfall and now feels like pocket money. What buys it back is that the
+first run of *each* game is now worth playing, so a five-minute session is a tour of the set rather
+than one game five times — which is the arcade the spec actually describes.
+
+---
+
+### T-8.3
+
+*Tournament mode: 4/8/16 bracket, persistence, results, rewards; playable in Live or Playbook*
+
+**A tournament match is an ordinary match, and nothing in the match modes knows otherwise.** The
+bracket says who plays whom; the player leaves for a normal Live or Playbook match through the
+normal screens, and comes back. The tournament screen then looks for a `MatchRecord` filed since
+they left and advances the bracket with it. That is INV-9 holding one level up: `modes/live/` and
+`modes/playbook/` file the record they always filed, and the tournament reads it. The alternative —
+threading a tournament id through both match screens and having them report back — would have put
+tournament awareness inside two files that had no business gaining it.
+
+**The rest of the round is simulated, not skipped.** In an 8-team bracket three of the four
+quarter-finals are CPU against CPU, and their results come from a seeded coin weighted by generated
+strength. The whole round settles the moment the player's match does, rather than lazily, so a
+bracket cannot change depending on when you look at it — the opponent you meet in the final is the
+one the bracket always said it would be.
+
+**A knocked-out player stays on the round they went out in.** `round` means "where this run got to",
+and advancing it past a defeat had the results screen name a round they never played. Caught by the
+test that plays a 16-team bracket out with the player losing every match.
+
+**One tournament at a time, in `progress`.** The same reasoning `modes/checkpoint.ts` gives for the
+interrupted match: a value fetched whole and never queried does not need a store of its own. A
+record from an older build is dropped rather than migrated — it describes a run in progress, and a
+wrong bracket is worse than no bracket.
+
+**The bracket is a list, not a drawing.** A drawn bracket is illegible at 360 px and says nothing to
+a screen reader. Rounds as headed lists carry the same information, and every match states its
+outcome in words — "Harbour Rovers through, 88–80" — rather than bolding a winner.
+
+**Feel note.** Seeing "Semi-final against Portsend Comets" on the Progress tab, then playing an
+ordinary match and coming back to find the bracket moved on, is the first thing in this build that
+feels like a *season* rather than a series of matches. The simulated half of the round is what does
+it: other results happened while you were playing.
+
+---
+
+## Gate record
+
+**Gate 8 — evaluated 2026-08-06. Result: NOT PASSED**, on the same two user actions that have held
+every gate since Gate 2. Every criterion this project can check itself is met.
+
+### `03`'s criteria
+
+> "A new save can be played from zero coins to a meaningfully improved roster with no loop that
+> generates coins faster than it consumes them, and every arcade game is unlockable through play."
+
+Both halves are machine-checkable, and both are checked:
+
+| Criterion | Evidence | Result |
+|---|---|---|
+| Zero coins → meaningfully improved roster | `tests/invariants/economy-balance.test.ts`; `pnpm balance:economy` | **Met.** 200 matches at Pro earns 44 650 coins — eight Gold packs, forty athletes — and at least four Gold packs at every difficulty including Rookie. |
+| No loop generating coins faster than it consumes | Same file, plus `tests/invariants/inv-5-anti-farm.test.ts` and `tests/unit/economy/packs.test.ts` | **Met.** Open-and-sell is between −21 910 and −33 680 per tier over a season; sell-back returns 24–29% of pack price; `sellPrice < marketAsk` swept across every rarity × overall 30–99 × four levels; arcade is capped at 200/day, below one won match. |
+| Every arcade game unlockable through play | `tests/unit/achievements/registry.test.ts`, `tests/unit/modes/arcade/launch-set.test.ts` | **Met.** All ten unlock ids are awarded by real defs, none of them hidden, and each opens exactly its own game. `ACHIEVEMENTS_LANDED` is `true`. |
+
+### The full check list (`CLAUDE.md` §5)
+
+1. **Every task done or cut.** Sixteen of sixteen `done`, none cut.
+2. **Full suite green.** 199 files, 3 407 tests; typecheck and lint clean. The a11y + smoke E2E
+   suite runs green in Chromium against a real build.
+3. **Coverage thresholds.** Held; not lowered.
+4. **No invariant regressed.** INV-5, INV-7 and INV-12 all gained tests this phase rather than
+   losing any. INV-7's test found a real double-grant race, which is now fixed.
+5. **Device matrix (`12` §7).** ❌ **Not run.** No device.
+6. **Gate criteria.** Met, above.
+7. **Tag and deploy.** ❌ **Not done.** No publish rights.
+8. This record.
+
+### What the a11y sweep found, and why it is worth naming
+
+Six new screens went into the audit list, and three real violations came out that no unit test would
+have caught:
+
+1. `coinPill` carried `aria-label` on a bare `<span>` — prohibited ARIA, serious. Present since
+   T-0.4, invisible because the component only ever lived in the dev gallery.
+2. A locked achievement row used `opacity: 0.72`, dropping body text to 3.22:1 on the light theme.
+   Opacity is the one styling shortcut that silently breaks contrast, because it dilutes foreground
+   and background equally and the ratio collapses.
+3. `--accent-alt` used as *text* is 2.4:1 on a raised surface. It is a fill colour — the coin pill
+   always used it on an icon and kept its number in the text colour; two new labels did not.
+
+The lesson is the same one three times: **a component is not tested until a screen that ships uses
+it and that screen is audited.** The six new paths are now in `tests/e2e/a11y-and-smoke.spec.ts`.
+
+### One observed flake, unreproduced
+
+A single full-suite run during T-8.3 reported one failure; three consecutive full runs afterwards
+were green and the failing test name was not captured. Recorded rather than dismissed — if it
+recurs, this is the thread to pull.
+
+### Deferred, with reasons
+
+- **The device matrix.** Every phone-shaped claim in Phase 8 — that the pack reveal reads well, that
+  the bracket is legible at 360 px, that the market's rows are thumb-sized — is asserted against
+  jsdom and Chromium and unverified by a hand.
+- **The deploy.** Eight gates now depend on it. A tag is still the only thing that ships.

@@ -68,3 +68,10 @@
 .history-table td {
   font-variant-numeric: var(--font-numeric);
 }
+
+/* The link across to the achievement gallery (T-8.9). */
+.history__links {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}

@@ -32,7 +32,14 @@ shell.start();
 
 // The starter roster is an install step, and it runs after first paint for the same reason the
 // service worker does: nothing about a fresh install should delay the app appearing (US-5.6).
-void import('./storage/app-db.ts').then(({ ensureStarterRoster }) => ensureStarterRoster());
+void import('./storage/app-db.ts').then(async ({ appDatabase, ensureStarterRoster }) => {
+  await ensureStarterRoster();
+  // Pays any achievement that was unlocked but never credited — the state a kill between the two
+  // writes leaves behind (INV-7, T-8.6). Almost always a no-op, and the one time it is not, it is
+  // coins the player earned and did not get.
+  const { grantOutstanding } = await import('./achievements/session.ts');
+  await grantOutstanding(await appDatabase());
+});
 
 // Deliberately after the shell is up: offline support must never delay first paint, and a failed
 // registration must never stop the app from running (`11` §3).

@@ -33,6 +33,7 @@
     "balance": "tsx tools/balance.ts",
     "balance:playbook": "tsx tools/balance-playbook.ts",
     "balance:soccer": "tsx tools/balance-soccer.ts",
+    "balance:economy": "tsx tools/economy.ts",
     "ai:ladder": "tsx tools/ai-regression.ts"
   },
   "devDependencies": {

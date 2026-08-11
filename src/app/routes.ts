@@ -11,23 +11,7 @@
 import type { RouteDefinition } from './router.ts';
 import type { Screen, ScreenDefinition } from './screen.ts';
 import type { TabDefinition } from './shell.ts';
-import { placeholderScreen } from '../ui/screens/placeholder.ts';
 import type { Athlete } from '../athletes/types.ts';
-
-function stub(
-  id: string,
-  title: string,
-  body: string,
-  arrivesIn: string,
-  extra: Partial<ScreenDefinition> = {},
-): ScreenDefinition {
-  return {
-    id,
-    title,
-    load: () => placeholderScreen({ heading: title, body, arrivesIn }),
-    ...extra,
-  };
-}
 
 /**
  * The Live route, for `#/play/live` and `#/play/live/:sport` alike.
@@ -301,8 +285,60 @@ export const ROUTES: readonly RouteDefinition<ScreenDefinition>[] = [
     },
   },
   {
+    // Store → Packs (`10` §7).
+    pattern: '/store/packs',
+    value: {
+      id: 'store-packs',
+      title: 'Packs',
+      load: async () => (await import('../ui/screens/packs.ts')).packsScreen(),
+    },
+  },
+  {
+    // Store → Market (`10` §7).
+    pattern: '/store/market',
+    value: {
+      id: 'store-market',
+      title: 'Transfer market',
+      load: async () => (await import('../ui/screens/market.ts')).marketScreen(),
+    },
+  },
+  {
+    // Store → Sell (`10` §7).
+    pattern: '/store/sell',
+    value: {
+      id: 'store-sell',
+      title: 'Sell athletes',
+      load: async () => (await import('../ui/screens/sell.ts')).sellScreen(),
+    },
+  },
+  {
     pattern: '/store',
-    value: stub('store', 'Store', 'Packs, the market, and selling athletes.', 'Phase 8'),
+    value: {
+      // The wallet is the first thing behind this tab (T-8.10). Packs, the market, and selling are
+      // T-8.12 to T-8.14 and land alongside it — all three spend from the balance this screen shows.
+      id: 'store',
+      title: 'Store',
+      load: async () => (await import('../ui/screens/wallet.ts')).walletScreen(),
+    },
+  },
+  {
+    // Progress → Tournaments (`10` §7). One tournament at a time, persisted in `progress`.
+    pattern: '/progress/tournament',
+    value: {
+      id: 'tournament',
+      title: 'Tournament',
+      load: async () => (await import('../ui/screens/tournament.ts')).tournamentScreen(),
+    },
+  },
+  {
+    // Progress → Achievements (`10` §7). A route of its own rather than a tab on the history
+    // screen, so the unlock moment in a match summary can link straight at it.
+    pattern: '/progress/achievements',
+    value: {
+      id: 'achievements',
+      title: 'Achievements',
+      load: async () => (await import('../ui/screens/achievements.ts')).achievementsScreen(),
+    },
   },
   {
     pattern: '/progress',
