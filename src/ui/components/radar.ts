@@ -130,8 +130,10 @@ function valueList(doc: Document, series: readonly RadarSeries[]): HTMLElement {
 export function attributeRadar(doc: Document, options: AttributeRadarOptions): HTMLElement {
   const size = options.size ?? 200;
   const centre = size / 2;
-  // Room outside the polygon for the axis labels, which sit 10 px beyond the outer ring.
-  const radius = centre - 26;
+  // Room outside the polygon for the axis labels, which sit 10 px beyond the outer ring. 26 px was
+  // not enough: a three-letter label anchored `end` on the left-hand axes ran off the viewBox and
+  // rendered as "\WA". Checked in a browser at 390 px and at 1.3× UI scale.
+  const radius = centre - 34;
 
   const grid = GRID_RINGS.map((ring) =>
     svg(doc, 'polygon', {

@@ -600,6 +600,11 @@
 }
 
 .tab-bar__tab {
+  /* The active tab's marker is positioned against this. Without it the marker resolved against
+     whatever ancestor happened to be positioned and rendered nowhere near the tab — so the active
+     state was carried by colour alone, which is the one thing INV-11 forbids. Found by putting the
+     bar in the gallery (T-9.1); it had been that way since Phase 0. */
+  position: relative;
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
@@ -625,15 +630,21 @@
   color: var(--accent);
 }
 
-/* The active tab is also marked by a bar, so state is never colour alone (`10` §11). */
+/*
+ * The active tab is also marked by a bar, so state is never colour alone (`10` §11). Pinned to the
+ * top edge: the original `translateY(-6px)` from the element's static position drew it across the
+ * icon, which is where it went the moment the marker started rendering at all.
+ */
 .tab-bar__tab[aria-current='page']::before {
   content: '';
   position: absolute;
+  top: 2px;
+  left: 50%;
   width: 24px;
   height: 3px;
   border-radius: 2px;
   background: currentcolor;
-  transform: translateY(-6px);
+  transform: translateX(-50%);
 }
 
 .tab-bar__tab:focus-visible {
@@ -651,7 +662,13 @@
 .athlete-row {
   display: flex;
   align-items: center;
+  /* Wraps rather than squeezing: with a price and a button trailing it, the meta line on a 390 px
+     phone otherwise breaks over three lines and the row stops looking like a row. */
+  flex-wrap: wrap;
   gap: var(--space-12);
+  /* A list row is full width by definition. Without this, a shrink-to-fit parent combines with
+     `flex-wrap` to size the row to its widest single child, and it wraps against nothing. */
+  width: 100%;
   /* `10` §3.2's floor: the whole row is the target when it carries a link. */
   min-height: var(--target-min);
   padding: var(--space-8) var(--space-12);
@@ -688,7 +705,9 @@
 }
 
 .athlete-row__text {
-  flex: 1 1 auto;
+  /* Shrinks to 6rem before the trailing block is pushed onto its own line — enough for a name to
+     stay readable, small enough that a row with a price *and* a button still fits at 390 px. */
+  flex: 1 1 6rem;
   min-width: 0;
 }
 
@@ -742,8 +761,10 @@ a.athlete-row__name:focus-visible {
 .athlete-row__trailing {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-8);
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  margin-left: auto;
 }
 
 .athlete-row__overall {
