@@ -929,7 +929,7 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: var(--color-surface-sunken, #0b0d11);
+  background: var(--surface-0);
   touch-action: none;
 }
 
@@ -946,10 +946,9 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  padding: calc(var(--safe-top, 0px) + var(--space-4, 16px))
-    calc(var(--safe-right, 0px) + var(--space-4, 16px))
-    calc(var(--safe-bottom, 0px) + var(--space-4, 16px))
-    calc(var(--safe-left, 0px) + var(--space-4, 16px));
+  padding: calc(var(--safe-top, 0px) + var(--space-16))
+    calc(var(--safe-right, 0px) + var(--space-16)) calc(var(--safe-bottom, 0px) + var(--space-16))
+    calc(var(--safe-left, 0px) + var(--space-16));
 }
 
 .live__overlay:empty {
@@ -961,29 +960,29 @@
   max-width: min(46rem, 100%);
   max-height: 100%;
   overflow-y: auto;
-  padding: var(--space-5, 20px);
-  border-radius: var(--radius-lg, 16px);
-  background: var(--color-surface-raised, rgba(18, 21, 27, 0.96));
-  color: var(--color-text, #f2ede4);
-  box-shadow: var(--shadow-lg, 0 18px 48px rgb(0 0 0 / 45%));
+  padding: var(--space-24);
+  border-radius: var(--radius-20);
+  background: var(--surface-1);
+  color: var(--text-hi);
+  box-shadow: var(--elevation-2);
 }
 
 .live-panel__score {
-  font-size: var(--type-2xl, 2rem);
+  font-size: var(--text-32);
   font-weight: 700;
-  margin: var(--space-2, 8px) 0;
+  margin: var(--space-8) 0;
 }
 
 .live-panel__result {
-  color: var(--color-text-muted, #9aa3ad);
-  margin-bottom: var(--space-3, 12px);
+  color: var(--text-lo);
+  margin-bottom: var(--space-12);
 }
 
 .live-panel__actions {
   display: flex;
-  gap: var(--space-3, 12px);
+  gap: var(--space-12);
   flex-wrap: wrap;
-  margin: var(--space-4, 16px) 0;
+  margin: var(--space-16) 0;
 }
 
 /* Every action in here is a primary target, so none of them goes below the 44 px floor (INV-11). */
@@ -992,52 +991,32 @@
   min-width: 44px;
 }
 
+/*
+ * Two stat tables side by side. Everything inside them belongs to `.stat-table` (T-9.1) — this
+ * block used to restate the table's own typography, borders, and alignment, which is how the box
+ * score and the rest of the app drifted apart in the first place.
+ */
 .live-panel__box {
   display: flex;
-  gap: var(--space-4, 16px);
+  gap: var(--space-16);
   flex-wrap: wrap;
 }
 
-.live-panel__box table {
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-  font-size: var(--type-sm, 0.875rem);
-}
-
-.live-panel__box caption {
-  text-align: left;
-  font-weight: 600;
-  padding-bottom: var(--space-1, 4px);
-}
-
-.live-panel__box th,
-.live-panel__box td {
-  padding: 2px var(--space-2, 8px);
-  text-align: right;
-}
-
-.live-panel__box th[scope='row'] {
-  text-align: left;
-  font-weight: 500;
-  color: var(--color-text-muted, #9aa3ad);
-}
-
-.live-panel__box tbody tr:last-child {
-  border-top: 1px solid var(--color-border, rgb(255 255 255 / 14%));
-  font-weight: 600;
+.live-panel__box .stat-table {
+  flex: 1 1 20rem;
 }
 
 .live-panel__settings {
-  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
-  border-radius: var(--radius-md, 10px);
-  padding: var(--space-3, 12px);
-  margin-bottom: var(--space-4, 16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  padding: var(--space-12);
+  margin-bottom: var(--space-16);
 }
 
 .live-panel__setting {
   display: flex;
   align-items: center;
-  gap: var(--space-2, 8px);
+  gap: var(--space-8);
   min-height: 44px;
 }
 
@@ -1058,10 +1037,10 @@
 .live-panel__setting--wide select {
   flex: 1 1 12rem;
   min-height: 44px;
-  padding: 0 var(--space-2, 8px);
-  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
-  border-radius: var(--radius-sm, 6px);
-  background: var(--color-surface, rgb(255 255 255 / 6%));
+  padding: 0 var(--space-8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface-2);
   color: inherit;
   font: inherit;
 }
@@ -1114,7 +1093,7 @@
   gap: var(--space-4);
   min-height: var(--target-primary);
   padding: var(--space-12);
-  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border: 1px solid var(--border);
   border-radius: var(--radius-12);
   background: var(--surface-1);
   cursor: pointer;
@@ -1174,7 +1153,7 @@
   gap: var(--space-4);
   min-height: var(--target-primary);
   padding: var(--space-12);
-  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border: 1px solid var(--border);
   border-radius: var(--radius-12);
   background: var(--surface-1);
   color: var(--text-hi);
@@ -1289,7 +1268,7 @@
   flex-direction: column;
   gap: var(--space-12);
   padding: var(--space-16);
-  border-top: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border-top: 1px solid var(--border);
 }
 
 .playbook-match__handover,
@@ -1561,7 +1540,7 @@
 /* In-match achievement toasts (T-8.9). Top-centre, above the HUD, out of the thumbs' way. */
 .live__toasts {
   position: absolute;
-  top: calc(var(--safe-top, 0px) + var(--space-12, 12px));
+  top: calc(var(--safe-top, 0px) + var(--space-12));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
