@@ -12,22 +12,26 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** none. **Phase 8 is complete — all sixteen tasks done.** PR **#18** is open as a draft.
-- **Branch:** `claude/continue-session-c1lrpo`, off `main` at `956d3e9`.
-- **Suite:** 199 files, **3 407 unit tests**, typecheck and lint clean; the a11y + smoke E2E suite
-  runs green in Chromium across fourteen screens, six of them new this phase.
-- **What Phase 8 added:** the wallet and its ledger (T-8.10), the achievement engine and 79 defs
-  (T-8.6, T-8.7), arcade unlocks finally gating the hub (T-8.8), the gallery and in-match toast
-  (T-8.9), sell-back (T-8.13), packs (T-8.12), the transfer market (T-8.14), the economy balance
-  pass (T-8.16), and tournaments (T-8.3).
-- ⚠️ **One observed flake, unreproduced.** A single full-suite run failed one test; three
-  consecutive full runs afterwards were green and the failing name was not captured. Recorded rather
-  than ignored — if it recurs, that is the thread to pull.
-- **Next step:** **Gate 8 needs the user.** Every code criterion is met and recorded below; what is
-  missing is the same two things every gate since Gate 2 has been waiting on — the manual device
-  matrix (`12` §7) and a tagged deploy. After that, Phase 9 (UI/UX, accessibility, performance, data
-  safety) is the road to v1.0.
-- **Blockers:** none for the code. **Gates 2 through 12 are all held by the same two user actions.**
+- **Task:** T-9.1 — Design system completion: tokens, all components, full state matrices, dev gallery
+- **Status:** in_progress
+- **Started:** 2026-08-11
+- **Branch:** `claude/continuing-work-ugw53l`, off `main` at `288c642`.
+- **Baseline:** 199 files, **3 407 unit tests**, typecheck and lint clean at session start.
+- **Done so far:**
+  - [ ] Audit `10` §5's inventory against `src/ui/components/` — the four genuinely missing
+        primitives are **attribute radar**, **stat table**, **athlete list row**, and
+        **onboarding coach-mark**; the tab bar exists only as `shell__tabs` inside the shell.
+  - [ ] Build the missing primitives with their CSS and unit tests
+  - [ ] Extract the tab bar so the shell consumes the component rather than owning it
+  - [ ] Full state matrices (default/pressed/disabled/loading/error/focus) in `#/dev/ui`
+  - [ ] Gallery covers the whole `10` §5 inventory, deterministically
+- **Next step:** write `src/ui/components/radar.ts` and `src/ui/components/table.ts`.
+- **Files touched:** none yet.
+- **Blockers:** none for the code. **Gates 2 through 12 are all held by the same two user actions**
+  — the manual device matrix (`12` §7) and a tagged deploy.
+- ⚠️ **One observed flake, unreproduced** (carried from Phase 8). A single full-suite run failed one
+  test; every run since has been green and the failing name was never captured. If it recurs, that
+  is the thread to pull.
 
 ---
 
@@ -37,19 +41,19 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
-| 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
+| 2 | Basketball · Live | 13 | 13 | `done` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
 | 6 | Soccer · all three modes | 30 | 30 | `done` | v0.5 |
-| 7 | CPU AI depth & difficulty ladder | 11 | 4 | `in_progress` | — |
+| 7 | CPU AI depth & difficulty ladder | 11 | 11 | `done` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 16 | `done` | — |
-| 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
+| 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `in_progress` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
+| 12 | Camera, framing, and readability (bonus) | 9 | 9 | `done` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **203** | **150** | | |
+| | **Total** | **203** | **151** | | |
 
 ---
 
