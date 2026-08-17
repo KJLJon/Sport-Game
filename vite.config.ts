@@ -39,6 +39,18 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: true,
     reportCompressedSize: true,
+    rollupOptions: {
+      output: {
+        /**
+         * Authored sprite art is its own chunk (T-13.10). It is large, it is pure data, and it must
+         * never sit in the initial graph — `pnpm budget` asserts both the 1.5 MB ceiling from D-24
+         * and that nothing reachable from the entry chunk imports it.
+         */
+        manualChunks(id: string) {
+          return id.includes('/src/art/') ? 'art' : undefined;
+        },
+      },
+    },
   },
   server: {
     host: true,

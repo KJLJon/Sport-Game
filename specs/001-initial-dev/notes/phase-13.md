@@ -125,3 +125,144 @@ sixty-line module doing the whole of what D-24 promised instead of an isometric 
 **Still outstanding:** the sport-side call sites. `sprite-art.ts` does not exist until T-13.3, so
 nothing in a match passes a `sortKey` yet — the gallery preview is the only caller, and the
 pattern to copy.
+
+### T-13.3
+
+**A kit is a fill, an ink and a pattern *name* — the geometry is resolved into the grid, not into
+the palette.** `13` §2.2 leaves it open whether `P` is "the pattern's colour" or "the pattern's
+region". It has to be the region: one authored kit sheet has to serve all four of `10` §3.1's
+patterns, or every pattern would need its own 340 frames. So `tint.ts` rewrites each authored `P`
+pixel to either pattern ink or team fill according to the pattern's geometry, once per atlas build
+— twice a match — and the atlas still comes out fully baked, so an athlete is one `drawImage`.
+
+**Band geometry is keyed to what a mirror cannot move.** Three of the eight facings are drawn
+flipped about the anchor, so vertical stripes are measured as distance from the anchor's column
+(`|x - ax + 0.5|`), which is invariant under that flip. Hoops and halves are keyed to the pattern
+region's own vertical extent, which a horizontal flip cannot touch at all. `halves` is upper/lower
+rather than left/right for the same reason — a left/right split would swap sides the moment an
+athlete turned west, which is precisely the cross-body asymmetry D-24 accepted by *avoiding* it.
+
+**The pattern's contrast is a guarantee, not a hope.** `patternInk` returns the team's own `onFill`
+when it already clears 1.5:1 in WCAG luminance against the fill, and otherwise walks the fill
+toward black or white until it does. Two hues at the same lightness are exactly what a protanopia
+simulation erases, and Gate 13 checks that page. A property test asserts the floor holds for *any*
+fill and *any* ink, so a future team-colour picker (`10` §3.1) cannot produce an invisible kit.
+
+**Animation state is derived, and lives nowhere the sim can see it.** `13` §1 principle 5 says the
+sim must not know sprites exist; the concrete consequence is that `AnimStore` is keyed by entity id
+inside the renderer's closure and can be thrown away and rebuilt from two frames of positions. The
+run cycle advances on **distance travelled** — legs that cycle on a timer slide when an athlete
+slows, and a stride length *is* the relationship between the two — so the same path always draws the
+same frames (INV-8). The idle cycle has nothing to travel, so it runs on a render clock the screen
+advances, offset by entity id rather than by a random, so a bench of ten does not breathe in
+lockstep without anything unseeded entering the render path (INV-2).
+
+**The depth sort happens at the sport seam, not in the renderer.** T-13.6 put an optional `sortKey`
+on `Renderer.submit`, but `SportRenderer.drawAthletes` is called inside *one* submitted command
+(`modes/live/screen.ts`), so there is nothing for a per-command key to attach to at this seam.
+`depthSorted` — which `depth.ts` already exported "for any sport batching its own draws" — is what
+the two `sprite-art.ts` files use, keyed on world y at the feet. The alternative was changing
+`SportRenderer` to take the renderer rather than a context, which would have broken the disc path's
+selectability for no gain.
+
+**The controlled-athlete marker moved to the floor.** The disc renderer rings the body, because the
+body *is* the disc. A sprite's body is two metres of screen above its ground position, so a ring
+around it sits over the head of whoever is standing behind. On the ground at the feet it is still a
+shape rather than a tint (INV-11), and it no longer lies about who is being steered.
+
+**A bug found on the way past, in code neither this task nor this phase owns.** Both disc renderers
+computed `lod?.detail(…) ?? Detail.FULL` and then tested the result for `null` — but `??` had
+already turned the `null` that *means* "culled" into `Detail.FULL`, so T-12.8's culling had never
+excluded a single athlete since it landed. Fixed in all four renderers; the sprite renderers' own
+culling tests are what caught it.
+
+**Delegation.** Three sonnet agents, one per pose file, partitioned by file per `CLAUDE.md` §7.3.3:
+`idle` (5 facings × 2 frames), `run` (5 × 6) and `plant` (5 × 1). The main session settled
+`tint.ts`, `sprite-anim.ts`, `sprite-athlete.ts` and both `sprite-art.ts` files first and committed
+them, so every agent authored against a fixed format with a verification command in its brief.
+
+### T-13.10
+
+**Two assertions, and the second is the one that matters.** D-24's 1.5 MB raw ceiling on
+`src/art/**` is arithmetic that has plenty of headroom while frames are text; art *in the initial
+graph* is the failure that would actually be felt, because it is a first paint waiting on a
+megabyte of pixel data. So `pnpm budget` walks the emitted static-import graph from the entry chunk
+and fails if any `assets/art-*.js` is reachable, rather than trusting `manualChunks` to have done
+its job. A dynamic import is invisible to that walk by construction, which is the whole mechanism
+by which a route keeps art out of the first paint.
+
+**The art line reads 0 KB today, and that is honest rather than green.** Nothing in a production
+build imports `src/art/**` yet: the only consumer is `sprite-art.ts`, which no screen selects until
+T-13.11 wires renderer selection. Verified the machinery works rather than assuming it: temporarily
+importing an atlas from `main.ts` emits `assets/art-<hash>.js` — 8.6 KB raw for the walking
+skeleton — and a dynamic import keeps it out of the graph. The number to quote at Gate 13 is the
+one measured after T-13.11, not this one.
+
+### T-13.4
+
+**The altitude cue is a pair, and neither half works alone.** The shadow stays on the ground and
+shrinks toward 30% as the ball climbs; the sprite lifts up the screen by 0.35 world units per unit
+of height and scales to 1.4×. A shadow alone reads as "somewhere up there"; a growing sprite alone
+reads as a ball rolling toward the camera on a flat plane. Together they are the only depth a
+top-down camera has, and the numbers deliberately match the disc ball's existing rim-height
+reference (3.5 m), so switching renderers mid-match does not change how high "high" looks.
+
+**Spin comes from distance, like the run cycle.** One full four-frame cycle is the ball's own
+circumference, accumulated render-side in the renderer's closure — no clock, no seed, no write back
+into the world, so the same flight always draws the same frames (INV-2, INV-8).
+
+**Honest limit, reported by the agent and not papered over:** at 8×8 a single seam pixel moving
+between four quadrants is closer to a shimmer than to a legible rotation. The spin frames stop the
+ball looking frozen; they do not communicate spin direction, and nothing in the game depends on
+them doing so.
+
+### T-13.5
+
+**The fields stay vectors, and the restyle is additive.** `drawCourt` and `drawPitch` are untouched
+— the disc field is the performance floor and the sprite entry points are new functions in the same
+files, selected by `sprite-art.ts`'s `drawField` and keyed separately in the static layer's cache.
+Not one geometry literal moved: every mark still reads `COURT` / `PITCH`, and the new constants are
+spacing and weight only.
+
+**The style vocabulary Phase 11 inherits** is two names, deliberately generic:
+`SPRITE_STYLE.bandWidth` (basketball's parquet plank spacing; soccer's counterpart is
+`stripeCount`) and the `apron` palette slot — the surround outside the boundary, `--border` in both
+sports so they already agree on what "outside the field" looks like before a rink or a gridiron
+exists.
+
+**A cost to hand to T-13.9.** The Live screen registers an *empty* static layer and submits the
+field as an ordinary per-frame command (`modes/live/screen.ts`), so the field is redrawn every
+frame rather than blitted from the cache. That was free when the field was a flat fill and a dozen
+lines; it is a few hundred draw calls a frame now. Either the screen starts drawing the field into
+the static layer it already registers, or the sprite field's cost goes into T-13.9's budget as-is.
+This is the first thing to measure in session D, and it is a screen-side fix, not a field-side one.
+
+### T-13.3 — what the art actually looks like
+
+**The kit patterns work, and that is the Gate 13 claim.** Rendered at `#/dev/ui` in Chromium, one
+team colour in all four patterns — solid, stripes, hoops, halves — is four visibly different kits
+at 32×48, differing in geometry alone. That is the thing `10` §11 asks for and the thing three
+colour-vision simulations cannot take away.
+
+**Reviewing art as text is necessary and not sufficient.** Every mechanical check on the run sheet
+passed — outline present, nothing below the ground row, torso extents matching idle — and the pose
+was still wrong: a flat slab where idle has shoulders and sleeves, so the running athlete and the
+standing athlete read as two different characters. That was invisible in the grids and obvious in
+the browser within a second. The fix was to stop generating the torso and copy idle's rows verbatim,
+which is also less code. **Render the page and look at it** before calling a pose done; it is in
+`src/art/README.md` rule 6 for that reason.
+
+**Feel note.** Ten athletes in two patterned kits, running, is the first time this has looked like a
+sports game rather than a diagram of one. The run cycle sells motion better than the disc's facing
+tick ever did, and the kit patterns make the two sides readable at a glance without leaning on hue.
+Two honest weaknesses: **facing is barely readable** — the eight facings look much alike at this
+size, and an athlete turning is a subtler change than an athlete moving, which may matter once
+T-13.7 hangs actions off facing; and the arm swing in the run cycle is a three-pixel blob, present
+but not expressive. Both are art passes, not engineering, and both are cheap to revisit because the
+sheet is data.
+
+**`plant` is authored but nothing selects it yet.** `poseFor` returns `idle` or `run`; the pose
+mapping in `13` §5 is T-13.7's. `plant`'s east profile still has rough edges around the shorts and
+hip after two revision rounds, and a third round on a pose no match can reach was not worth the
+session's time — T-13.7 should look at it in the browser when it wires the mapping, and the fix is
+the same one that worked for `run`: copy the torso, animate the limbs.

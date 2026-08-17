@@ -135,8 +135,13 @@ export function paletteFrom(map: Readonly<Record<string, string | null>>): Palet
   return palette;
 }
 
-/** `#rgb`, `#rrggbb`, `#rrggbbaa` → RGBA bytes. Throws on anything else, at build time, loudly. */
-function parseColour(colour: string): [number, number, number, number] {
+/**
+ * `#rgb`, `#rrggbb`, `#rrggbbaa` → RGBA bytes. Throws on anything else, at build time, loudly.
+ *
+ * Exported for `tint.ts` (T-13.3), which measures the luminance contrast between a kit's fill and
+ * its pattern in the same colour space the rasteriser will paint them in.
+ */
+export function parseColour(colour: string): [number, number, number, number] {
   const hex = colour.startsWith('#') ? colour.slice(1) : '';
   const valid = /^[0-9a-fA-F]+$/.test(hex);
 

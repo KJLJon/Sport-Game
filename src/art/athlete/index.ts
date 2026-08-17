@@ -20,12 +20,19 @@ import {
   type SpriteSheet,
 } from '../../engine/render/atlas.ts';
 import type { OffscreenFactory } from '../../engine/render/renderer.ts';
+import { tintKitSheet, type KitPattern, type KitSpec } from '../../engine/render/tint.ts';
 import { IDLE_BODY, IDLE_KIT } from './idle.ts';
+import { PLANT_BODY, PLANT_KIT } from './plant.ts';
+import { RUN_BODY, RUN_KIT } from './run.ts';
 import { ATHLETE_BODY_PALETTE, kitPalette } from './palette.ts';
 
-/** Later poses (run, kick, throw, …) land beside `idle` here as T-13.3 and T-13.7 author them. */
-const BODY_SHEETS: readonly SpriteSheet[] = [IDLE_BODY];
-const KIT_SHEETS: readonly SpriteSheet[] = [IDLE_KIT];
+/**
+ * Every authored pose. T-13.3 brings `idle`, `run` and `plant` across the five authored facings;
+ * the action poses of `13` §3.1 — kick, throw, tackle, fall, celebrate, dejected — land here the
+ * same way when T-13.7 authors them, one import and one array entry each.
+ */
+const BODY_SHEETS: readonly SpriteSheet[] = [IDLE_BODY, RUN_BODY, PLANT_BODY];
+const KIT_SHEETS: readonly SpriteSheet[] = [IDLE_KIT, RUN_KIT, PLANT_KIT];
 
 /** Merges pose sheets into one. A key authored twice is an authoring bug, so it throws. */
 export function mergeSheets(sheets: readonly SpriteSheet[]): SpriteSheet {
@@ -42,19 +49,26 @@ export function mergeSheets(sheets: readonly SpriteSheet[]): SpriteSheet {
 export const ATHLETE_BODY: SpriteSheet = mergeSheets(BODY_SHEETS);
 export const ATHLETE_KIT: SpriteSheet = mergeSheets(KIT_SHEETS);
 
+/** A team's kit. `pattern` defaults to `solid`, which is what a kit with no marking authored is. */
 export interface AthleteKit {
   readonly fill: string;
   readonly onFill: string;
+  readonly pattern?: KitPattern;
 }
 
 /**
  * One team's fully baked athlete atlas. Built once per (kit × theme) at match load — never per
  * frame, and never per athlete (`13` §2.2).
+ *
+ * The kit sheet is resolved for this kit's pattern first (`tint.ts`): every authored `P` pixel
+ * becomes either pattern ink or team fill, so one authored sheet serves all four patterns and the
+ * atlas that comes out is fully baked.
  */
 export function buildAthleteAtlas(kit: AthleteKit, createOffscreen: OffscreenFactory): SpriteAtlas {
+  const spec: KitSpec = { fill: kit.fill, onFill: kit.onFill, pattern: kit.pattern ?? 'solid' };
   return buildAtlas(
-    { body: ATHLETE_BODY, kit: ATHLETE_KIT },
-    { body: ATHLETE_BODY_PALETTE, kit: kitPalette(kit.fill, kit.onFill) },
+    { body: ATHLETE_BODY, kit: tintKitSheet(ATHLETE_KIT, spec.pattern) },
+    { body: ATHLETE_BODY_PALETTE, kit: kitPalette(spec) },
     createOffscreen,
   );
 }

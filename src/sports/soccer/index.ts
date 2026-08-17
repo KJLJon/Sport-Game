@@ -303,8 +303,12 @@ const render: SportRenderer = {
       // Off-screen athletes are not drawn, and distant ones are drawn as less (T-12.8). On a pitch
       // framed to a phase of play this is most of the squad most of the time.
       const radius = world.radius[id] as number;
+      // The same `??`-swallows-null fix as basketball's: an LOD answering null means culled, and
+      // no LOD at all means full detail. They are not the same answer.
       const detail =
-        lod?.detail(world.x[id] as number, world.y[id] as number, radius) ?? Detail.FULL;
+        lod === undefined
+          ? Detail.FULL
+          : lod.detail(world.x[id] as number, world.y[id] as number, radius);
       if (detail === null) return;
 
       const team = world.team[id] === 1 ? 1 : 0;
@@ -374,7 +378,7 @@ const OFFSIDE_LINE = 'rgba(244, 241, 234, 0.28)';
  * defending side's second-deepest athlete rather than their deepest. Returns `null` for a side with
  * fewer than two athletes on the pitch, which a red card can produce.
  */
-function lastDefenderX(
+export function lastDefenderX(
   world: World,
   squad: readonly EntityId[],
   defending: PitchSide,
