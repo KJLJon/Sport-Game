@@ -11,6 +11,7 @@
  */
 import './gallery.css';
 import { el } from '../dom.ts';
+import { spritePreviews } from './sprite-preview.ts';
 import type { Screen, ScreenContext } from '../../app/screen.ts';
 import { button } from '../components/button.ts';
 import { segmented, switchControl } from '../components/controls.ts';
@@ -451,6 +452,10 @@ export function galleryScreen(): Screen {
         ],
       ]);
 
+      // T-13.2's walking skeleton: real authored grids, rasterised into a real atlas, drawn
+      // through the real renderer. `13` §4 makes this the harness every later sprite task uses.
+      const sprites = section(doc, 'Sprites', spritePreviews(doc));
+
       // `10` §5's inventory names the play-call card; the gallery is where it is looked at.
       const playbook = section(doc, 'Playbook', [
         [
@@ -507,6 +512,7 @@ export function galleryScreen(): Screen {
             athletes,
             onboarding,
             playbook,
+            sprites,
           ],
         }),
       );
