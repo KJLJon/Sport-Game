@@ -120,6 +120,19 @@ function drawHalf(
   ctx.strokeStyle = palette.line;
 }
 
+/**
+ * The court as the sprite renderer draws it (`13` §4, T-13.5). Selected by
+ * `sprite-art.ts`'s `drawField`, and keyed separately in the static layer's cache, so the two
+ * styles can never blit each other's cached field.
+ *
+ * **T-13.5 owns the restyle** — parquet bands, richer line work, a boundary apron. Until it lands
+ * this is the line art `drawCourt` already draws, which keeps the sprite renderer runnable and the
+ * seam settled while the art work happens in this file and nowhere else.
+ */
+export function drawCourtSprite(ctx: Canvas2D, field: FieldGeometry, theme: Theme = 'dark'): void {
+  drawCourt(ctx, field, theme);
+}
+
 /** Cache key for the static field layer — the court is fixed, so only the viewport can change it. */
 export function courtKey(field: FieldGeometry, view: ViewTransform): string {
   return `basketball:${field.width}x${field.height}:${view.width}x${view.height}@${view.scale.toFixed(2)}`;

@@ -12,26 +12,31 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** none. **T-13.2 and T-13.6 are done** — Phase 13 session A (`13` §6) is complete: the
-  asset pipeline and the depth sort, both engine-seam work. Phase 13 is 3 of 12.
-- **Branch:** `claude/phase-13-session-a-visual-xaop76`, off `main` at `3b207b5`.
-- **What session A leaves behind:** `src/engine/render/atlas.ts` (grids → rasteriser → packed,
-  kit-tinted atlas → `drawSprite`), `src/engine/render/depth.ts` + `Renderer.submit`'s optional
-  `sortKey`, the extended `Canvas2D` slice (9-arg `drawImage`, `createImageData`, `putImageData`,
-  `imageSmoothingEnabled`), `src/art/README.md` (the authoring format), and the walking skeleton —
-  a real 32×48 `idle` frame in two team kits, drawn through the real renderer on `#/dev/ui`.
-- **Next step for Phase 13:** session B — T-13.3 (main session writes `tint.ts` and the
-  `sprite-art.ts` skeletons; sonnet agents author one pose file each against `src/art/README.md`),
-  then T-13.4 + T-13.5 in parallel, then T-13.10's assertions. Read D-24 + `13` §2.2, §3.1 and the
-  authoring README; the interfaces are settled and should not be re-derived.
-- ⚠️ **T-13.6's sprite call sites are still outstanding**, and can only land with T-13.3: the
-  engine sorts by `sortKey`, but no `sprite-art.ts` exists yet to pass one. The gallery preview is
-  the only real call site today, and it is the pattern to copy — `sortKey` is the athlete's world y
-  at the feet, on the `entities` layer.
+- **Task:** T-13.3 — Athlete rendering: facings, run cycle, kit tint, and pattern
+- **Status:** in_progress
+- **Started:** 2026-08-17
+- **Branch:** `claude/phase-13-session-b-visual-tg6el6`, off `main` at `ce3be44`.
+- **Done so far:**
+  - [x] `src/engine/render/tint.ts` — `KitSpec`, the four patterns as *geometry*, and a pattern ink
+        guaranteed ≥ 1.5:1 in luminance against the fill (`13` §2.2, `10` §11)
+  - [x] `src/engine/render/sprite-anim.ts` + `sprite-athlete.ts` — facing hysteresis, the
+        distance-driven run cycle, the clock-driven idle, the blit and the feet shadow
+  - [x] `src/sports/{basketball,soccer}/sprite-art.ts` — both `SportRenderer` siblings, depth-sorted,
+        `Detail.MINIMAL` falling back to the disc dot, sprite-mode field entry points wired
+  - [ ] Art: `idle` (5 facings × 2 frames), `run` (5 × 6), `plant` (5 × 1) — delegated per file
+  - [ ] T-13.4 (ball) and T-13.5 (field restyle), delegated, disjoint files
+  - [ ] T-13.10 — the art line in `pnpm budget`
+- **Next step:** delegate the three athlete pose files to one sonnet agent each against
+  `src/art/README.md`; the interfaces above are settled and must not be re-derived.
+- **Files touched:** src/engine/render/{tint,sprite-anim,sprite-athlete,atlas}.ts,
+  src/sports/{basketball,soccer}/sprite-art.ts, src/sports/basketball/court-render.ts,
+  src/sports/soccer/pitch-render.ts, src/art/athlete/{index,palette}.ts, tests/helpers/canvas.ts
+- **Blockers:** none.
+- **Notes:** found and fixed a real bug in *both* disc renderers on the way past — `lod?.detail(…)
+  ?? Detail.FULL` swallowed the `null` that means "culled", so T-12.8's culling had never actually
+  excluded anybody. Covered now by the sprite renderers' culling tests.
 - **Phase 9 remains the v1.0 path** (1 of 15, next: T-9.3 or T-9.5 — see the Phase 9 table);
   Phase 13 is bonus work the user asked to advance.
-- **Blockers:** none for the code. **Gates 2 through 12 are all held by the same two user actions**
-  — the manual device matrix (`12` §7) and a tagged deploy.
 - ⚠️ **One observed flake, unreproduced** (carried from Phase 8). A single full-suite run failed one
   test; every run since has been green and the failing name was never captured. If it recurs, that
   is the thread to pull.

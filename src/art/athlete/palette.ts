@@ -15,7 +15,8 @@
  * T-13.3 owns `engine/render/tint.ts` and the `KitSpec`/pattern-geometry work that sits on top of
  * this; what lives here is only the palette binding the pipeline needs to build an atlas at all.
  */
-import { KIT, paletteFrom, type Palette } from '../../engine/render/atlas.ts';
+import { paletteFrom, type Palette } from '../../engine/render/atlas.ts';
+import { kitPalette as tintPalette, type KitSpec } from '../../engine/render/tint.ts';
 
 /**
  * Shared across every athlete, every sport. Skin and hair are one tone each for now — T-13.3
@@ -31,19 +32,18 @@ export const ATHLETE_BODY_PALETTE: Palette = paletteFrom({
   '6': '#f4f5f7', // sock
 });
 
+/** The outline, shared with the body layer so a kit edge reads against the fill either way. */
+export const OUTLINE = '#14161a';
+
 /**
  * A team's kit palette. `fill` and `onFill` come from the sport's existing `TeamPalette`, so the
- * sprite renderer and the disc renderer agree on which side is which colour without a second
- * source of team colour anywhere.
+ * sprite renderer and the disc renderer agree on which side is which colour without a second source
+ * of team colour anywhere.
  *
- * The pattern region defaults to the ink: it is a *shape* either way (`10` §11), and a pattern that
- * differs from the fill only in hue would be exactly the failure Gate 13 checks for.
+ * The pattern ink is `tint.ts`'s (T-13.3): a *shape* in a tone far enough from the fill to survive
+ * a greyscale, because a pattern that differed from the fill only in hue would be exactly the
+ * failure Gate 13 checks for (`10` §11).
  */
-export function kitPalette(fill: string, onFill: string, pattern = onFill): Palette {
-  return paletteFrom({
-    [KIT.fill]: fill,
-    [KIT.ink]: onFill,
-    [KIT.pattern]: pattern,
-    '5': '#14161a', // the outline again, so a kit edge reads against the fill
-  });
+export function kitPalette(kit: KitSpec): Palette {
+  return tintPalette(kit, { '5': OUTLINE });
 }

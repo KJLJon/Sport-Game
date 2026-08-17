@@ -335,7 +335,7 @@ describe('facingOf', () => {
 describe('the art actually in the repository', () => {
   const sheets: readonly [string, SpriteSheet, Palette][] = [
     ['body', ATHLETE_BODY, ATHLETE_BODY_PALETTE],
-    ['kit', ATHLETE_KIT, kitPalette('#4EA8FF', '#04121F')],
+    ['kit', ATHLETE_KIT, kitPalette({ fill: '#4EA8FF', onFill: '#04121F', pattern: 'solid' })],
   ];
 
   it.each(sheets.map(([name]) => name))(

@@ -20,6 +20,7 @@ import {
   type SpriteSheet,
 } from '../../engine/render/atlas.ts';
 import type { OffscreenFactory } from '../../engine/render/renderer.ts';
+import { tintKitSheet, type KitPattern, type KitSpec } from '../../engine/render/tint.ts';
 import { IDLE_BODY, IDLE_KIT } from './idle.ts';
 import { ATHLETE_BODY_PALETTE, kitPalette } from './palette.ts';
 
@@ -42,19 +43,26 @@ export function mergeSheets(sheets: readonly SpriteSheet[]): SpriteSheet {
 export const ATHLETE_BODY: SpriteSheet = mergeSheets(BODY_SHEETS);
 export const ATHLETE_KIT: SpriteSheet = mergeSheets(KIT_SHEETS);
 
+/** A team's kit. `pattern` defaults to `solid`, which is what a kit with no marking authored is. */
 export interface AthleteKit {
   readonly fill: string;
   readonly onFill: string;
+  readonly pattern?: KitPattern;
 }
 
 /**
  * One team's fully baked athlete atlas. Built once per (kit × theme) at match load — never per
  * frame, and never per athlete (`13` §2.2).
+ *
+ * The kit sheet is resolved for this kit's pattern first (`tint.ts`): every authored `P` pixel
+ * becomes either pattern ink or team fill, so one authored sheet serves all four patterns and the
+ * atlas that comes out is fully baked.
  */
 export function buildAthleteAtlas(kit: AthleteKit, createOffscreen: OffscreenFactory): SpriteAtlas {
+  const spec: KitSpec = { fill: kit.fill, onFill: kit.onFill, pattern: kit.pattern ?? 'solid' };
   return buildAtlas(
-    { body: ATHLETE_BODY, kit: ATHLETE_KIT },
-    { body: ATHLETE_BODY_PALETTE, kit: kitPalette(kit.fill, kit.onFill) },
+    { body: ATHLETE_BODY, kit: tintKitSheet(ATHLETE_KIT, spec.pattern) },
+    { body: ATHLETE_BODY_PALETTE, kit: kitPalette(spec) },
     createOffscreen,
   );
 }

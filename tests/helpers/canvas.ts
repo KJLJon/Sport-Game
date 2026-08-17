@@ -8,7 +8,11 @@
  * real canvas. Calls are recorded as strings *and* as structured entries: the strings make an
  * ordering failure readable, the entries make a coordinate assertion possible.
  */
-import type { Canvas2D } from '../../src/engine/render/renderer.ts';
+import type {
+  Canvas2D,
+  OffscreenFactory,
+  OffscreenLayer,
+} from '../../src/engine/render/renderer.ts';
 
 export interface RecordedCall {
   readonly name: string;
@@ -90,4 +94,27 @@ export function recordingCanvas(): RecordingCanvas {
   for (const name of names) ctx[name] = record(name);
 
   return ctx as unknown as RecordingCanvas;
+}
+
+/**
+ * An `OffscreenFactory` whose layers are recording canvases (T-13.2, T-13.3). Every layer gets its
+ * own identity for `canvas`, so a test can assert *which* atlas a sprite was blitted from.
+ */
+export function recordingOffscreen(): {
+  factory: OffscreenFactory;
+  layers: RecordingCanvas[];
+  images: CanvasImageSource[];
+} {
+  const layers: RecordingCanvas[] = [];
+  const images: CanvasImageSource[] = [];
+
+  const factory: OffscreenFactory = (width, height) => {
+    const ctx = recordingCanvas();
+    const canvas = {} as CanvasImageSource;
+    layers.push(ctx);
+    images.push(canvas);
+    return { canvas, ctx, width, height } as OffscreenLayer;
+  };
+
+  return { factory, layers, images };
 }

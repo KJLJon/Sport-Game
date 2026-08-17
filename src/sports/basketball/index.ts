@@ -412,8 +412,12 @@ const render: SportRenderer = {
       // so this rarely excludes anybody here — and it costs one comparison to be correct when the
       // camera does tighten onto a duel.
       const radius = world.radius[id] as number;
+      // `lod?.detail() ?? FULL` swallowed the `null` that *means* "culled, do not draw" — the two
+      // absences are different answers and are kept apart (found by T-13.3's culling test).
       const detail =
-        lod?.detail(world.x[id] as number, world.y[id] as number, radius) ?? Detail.FULL;
+        lod === undefined
+          ? Detail.FULL
+          : lod.detail(world.x[id] as number, world.y[id] as number, radius);
       if (detail === null) return;
 
       const team = world.team[id] === 1 ? 1 : 0;

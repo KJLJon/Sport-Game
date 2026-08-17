@@ -154,6 +154,19 @@ function dot(ctx: Canvas2D, palette: PitchPalette, x: number, y: number): void {
   ctx.fill();
 }
 
+/**
+ * The pitch as the sprite renderer draws it (`13` §4, T-13.5). Selected by `sprite-art.ts`'s
+ * `drawField` and keyed separately in the static layer's cache, so the two styles can never blit
+ * each other's cached field.
+ *
+ * **T-13.5 owns the restyle** — finer mow banding, richer line work, a boundary apron. Until it
+ * lands this is `drawPitch`, which keeps the sprite renderer runnable while the art work happens in
+ * this file and nowhere else.
+ */
+export function drawPitchSprite(ctx: Canvas2D, field: FieldGeometry, theme: Theme = 'dark'): void {
+  drawPitch(ctx, field, theme);
+}
+
 /** Cache key for the static layer, so a theme or a resize redraws it and nothing else does. */
 export function pitchKey(field: FieldGeometry, view: ViewTransform): string {
   return `soccer:${field.width}x${field.height}:${view.width}x${view.height}@${view.scale.toFixed(2)}`;
