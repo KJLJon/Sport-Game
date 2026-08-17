@@ -12,31 +12,31 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** T-13.3 — Athlete rendering: facings, run cycle, kit tint, and pattern
-- **Status:** in_progress
-- **Started:** 2026-08-17
-- **Branch:** `claude/phase-13-session-b-visual-tg6el6`, off `main` at `ce3be44`.
-- **Done so far:**
-  - [x] `src/engine/render/tint.ts` — `KitSpec`, the four patterns as *geometry*, and a pattern ink
-        guaranteed ≥ 1.5:1 in luminance against the fill (`13` §2.2, `10` §11)
-  - [x] `src/engine/render/sprite-anim.ts` + `sprite-athlete.ts` — facing hysteresis, the
-        distance-driven run cycle, the clock-driven idle, the blit and the feet shadow
-  - [x] `src/sports/{basketball,soccer}/sprite-art.ts` — both `SportRenderer` siblings, depth-sorted,
-        `Detail.MINIMAL` falling back to the disc dot, sprite-mode field entry points wired
-  - [ ] Art: `idle` (5 facings × 2 frames), `run` (5 × 6), `plant` (5 × 1) — delegated per file
-  - [ ] T-13.4 (ball) and T-13.5 (field restyle), delegated, disjoint files
-  - [ ] T-13.10 — the art line in `pnpm budget`
-- **Next step:** delegate the three athlete pose files to one sonnet agent each against
-  `src/art/README.md`; the interfaces above are settled and must not be re-derived.
-- **Files touched:** src/engine/render/{tint,sprite-anim,sprite-athlete,atlas}.ts,
-  src/sports/{basketball,soccer}/sprite-art.ts, src/sports/basketball/court-render.ts,
-  src/sports/soccer/pitch-render.ts, src/art/athlete/{index,palette}.ts, tests/helpers/canvas.ts
-- **Blockers:** none.
-- **Notes:** found and fixed a real bug in *both* disc renderers on the way past — `lod?.detail(…)
-  ?? Detail.FULL` swallowed the `null` that means "culled", so T-12.8's culling had never actually
-  excluded anybody. Covered now by the sprite renderers' culling tests.
+- **Task:** none. **Phase 13 session B (`13` §6) is complete** — T-13.3, T-13.4, T-13.5 and T-13.10
+  are `done`. Phase 13 is 7 of 12.
+- **Branch:** `claude/phase-13-session-b-visual-tg6el6`, off `main` at `ce3be44`. PR #22.
+- **What session B leaves behind:** `src/engine/render/tint.ts` (kit patterns as geometry, with a
+  pattern ink guaranteed ≥ 1.5:1 in luminance), `sprite-anim.ts` + `sprite-athlete.ts` (facing
+  hysteresis, a distance-driven run cycle, the blit and the feet shadow),
+  `src/sports/{basketball,soccer}/sprite-art.ts` (both `SportRenderer` siblings, depth-sorted at the
+  seam, disc dot at `Detail.MINIMAL`, disc fallback for any pose the sheet lacks), the athlete sheet
+  — `idle` ×2, `run` ×6, `plant` ×1, across the five authored facings — `src/art/ball/*`, the
+  sprite-mode court and pitch, and the art line in `pnpm budget`.
+- **Next step for Phase 13:** session C — T-13.7 (main session owns `poseFor` per sport, the
+  mapping in `13` §5; sonnet authors the action pose grids one file each) and T-13.8. Read `13`
+  §2.4, §5 and `src/art/README.md`; the sheet format and the renderer seam are settled.
+- ⚠️ **Nothing selects the sprite renderer yet.** `spriteRenderer()` exists for both sports and is
+  fully tested, but no screen constructs it — T-13.11 owns that wiring, and until it lands a match
+  still draws discs and `pnpm budget`'s art line reads 0 KB.
+- ⚠️ **For T-13.9:** the Live screen redraws the field every frame instead of using the static layer
+  it registers, so T-13.5's richer field is a per-frame cost. Measure it first; the fix is
+  screen-side. See `notes/phase-13.md` under T-13.5.
+- ⚠️ **`plant` is authored but unselected**, and its east profile is still rough. T-13.7 should look
+  at it in the browser when it wires the pose mapping.
 - **Phase 9 remains the v1.0 path** (1 of 15, next: T-9.3 or T-9.5 — see the Phase 9 table);
   Phase 13 is bonus work the user asked to advance.
+- **Blockers:** none for the code. **Gates 2 through 12 are all held by the same two user actions**
+  — the manual device matrix (`12` §7) and a tagged deploy.
 - ⚠️ **One observed flake, unreproduced** (carried from Phase 8). A single full-suite run failed one
   test; every run since has been green and the failing name was never captured. If it recurs, that
   is the thread to pull.
@@ -60,8 +60,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 9 | `done` | v1.2 |
-| 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 3 | `in_progress` | v1.3 |
-| | **Total** | **203** | **155** | | |
+| 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 7 | `in_progress` | v1.3 |
+| | **Total** | **203** | **159** | | |
 
 ---
 
@@ -346,14 +346,14 @@ is never the only signal, so kit pattern and silhouette keep carrying team ident
 |---|---|---|---|---|---|---|---|
 | T-13.1 | Decide sprites vs pseudo-3D; record in `07-decisions.md` with the budget arithmetic | M | `done` | | — | `auto` (`progress:check`; docs-only) | **Sprites** (D-24); full execution design for T-13.2–13.12 written as `13-visual-overhaul.md`. [notes](./notes/phase-13.md#t-131) |
 | T-13.2 | Asset pipeline: authored source → packed atlas → typed accessors, all offline and in-bundle | L | `done` | | `tests/unit/engine/atlas.test.ts` | `auto` + Chromium render of `#/dev/ui` — **not device** | Art is text pixel grids in TS, rasterised once at load: no image files, no fetch, no build step, so INV-4 holds by construction and the rasteriser is node-testable. [notes](./notes/phase-13.md#t-132) |
-| T-13.3 | Athlete rendering: facings, run cycle, kit tint, and pattern that survives colour blindness | XL | `in_progress` | | | | |
-| T-13.4 | Ball rendering with height, spin, and a shadow that reads as altitude | M | `todo` | | | | |
-| T-13.5 | Field rendering: pitch, court, rink, and gridiron in the chosen style | L | `todo` | | | | |
+| T-13.3 | Athlete rendering: facings, run cycle, kit tint, and pattern that survives colour blindness | XL | `done` | `ba37106`, `7c0ce66`, `982cb87`, `317701a`, `1a72222` | `tests/unit/engine/tint.test.ts`, `tests/unit/engine/sprite-anim.test.ts`, `tests/unit/sports/basketball/sprite-art.test.ts`, `tests/unit/sports/soccer/sprite-art.test.ts` | `auto` + Chromium render of `#/dev/ui` — **not device** | Kit pattern is *geometry* resolved into the grid, so one authored sheet serves all four patterns and identity survives a greyscale; art reviewed in a browser, which is what caught a pose every text check had passed. [notes](./notes/phase-13.md#t-133) |
+| T-13.4 | Ball rendering with height, spin, and a shadow that reads as altitude | M | `done` | `4e3df07` | `tests/unit/sports/basketball/sprite-ball.test.ts`, `tests/unit/sports/soccer/sprite-ball.test.ts` | `auto` + Chromium render of `#/dev/ui` — **not device** | Altitude is the shadow shrinking and the sprite lifting and scaling together; spin frames come from distance travelled, so a flight always draws the same four. [notes](./notes/phase-13.md#t-134) |
+| T-13.5 | Field rendering: pitch, court, rink, and gridiron in the chosen style | L | `done` | `4e3df07` | `tests/unit/sports/basketball/court-render.test.ts`, `tests/unit/sports/soccer/pitch-render.test.ts` | `auto` — **not device**, and not yet seen at match zoom | Additive sprite-mode variants beside the untouched disc field; not one geometry literal moved, and `bandWidth`/`apron` are the vocabulary Phase 11 inherits. [notes](./notes/phase-13.md#t-135) |
 | T-13.6 | Depth sorting and occlusion, or the 2D equivalent if T-13.1 chose sprites | L | `done` | | `tests/unit/engine/depth.test.ts` | `auto` + Chromium render of `#/dev/ui` — **not device** | An optional `sortKey` on `submit`, applied to the `entities` layer only; keyless frames — every disc frame — return `null` from `depthOrder` and cost nothing. [notes](./notes/phase-13.md#t-136) |
 | T-13.7 | Action animation: shooting, passing, tackling, saving, celebrating | XL | `todo` | | | | |
 | T-13.8 | Crowd, net ripple, weather, and stadium dressing — atmosphere at zero sim cost | L | `todo` | | | | |
 | T-13.9 | Performance: hold the `12` §6 budgets at 22 entities with the new renderer | L | `todo` | | | | |
-| T-13.10 | Bundle budget: keep every asset inside `12`'s size limits, offline, with no CDN (INV-4) | M | `todo` | | | | |
+| T-13.10 | Bundle budget: keep every asset inside `12`'s size limits, offline, with no CDN (INV-4) | M | `done` | `a359b45` | `tests/unit/tools/budget.test.ts` | `auto` + a build with art forced into the graph, to prove the check fires | D-24's 1.5 MB ceiling plus a walk of the emitted static-import graph, so art in the first paint fails the build rather than the launch. Reads 0 KB until T-13.11 gives art a production call site. [notes](./notes/phase-13.md#t-1310) |
 | T-13.11 | Graphics quality setting, defaulting from a device probe, with the disc renderer as the floor | M | `todo` | | | | |
 | T-13.12 | Visual regression snapshots for every new renderer path | M | `todo` | | | | |
 
