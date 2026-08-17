@@ -346,7 +346,7 @@ is never the only signal, so kit pattern and silhouette keep carrying team ident
 |---|---|---|---|---|---|---|---|
 | T-13.1 | Decide sprites vs pseudo-3D; record in `07-decisions.md` with the budget arithmetic | M | `done` | | — | `auto` (`progress:check`; docs-only) | **Sprites** (D-24); full execution design for T-13.2–13.12 written as `13-visual-overhaul.md`. [notes](./notes/phase-13.md#t-131) |
 | T-13.2 | Asset pipeline: authored source → packed atlas → typed accessors, all offline and in-bundle | L | `done` | | `tests/unit/engine/atlas.test.ts` | `auto` + Chromium render of `#/dev/ui` — **not device** | Art is text pixel grids in TS, rasterised once at load: no image files, no fetch, no build step, so INV-4 holds by construction and the rasteriser is node-testable. [notes](./notes/phase-13.md#t-132) |
-| T-13.3 | Athlete rendering: facings, run cycle, kit tint, and pattern that survives colour blindness | XL | `todo` | | | | |
+| T-13.3 | Athlete rendering: facings, run cycle, kit tint, and pattern that survives colour blindness | XL | `in_progress` | | | | |
 | T-13.4 | Ball rendering with height, spin, and a shadow that reads as altitude | M | `todo` | | | | |
 | T-13.5 | Field rendering: pitch, court, rink, and gridiron in the chosen style | L | `todo` | | | | |
 | T-13.6 | Depth sorting and occlusion, or the 2D equivalent if T-13.1 chose sprites | L | `done` | | `tests/unit/engine/depth.test.ts` | `auto` + Chromium render of `#/dev/ui` — **not device** | An optional `sortKey` on `submit`, applied to the `entities` layer only; keyless frames — every disc frame — return `null` from `depthOrder` and cost nothing. [notes](./notes/phase-13.md#t-136) |
