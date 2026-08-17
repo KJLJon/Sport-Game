@@ -13,12 +13,18 @@
  *
  * The head, neck, and shoulder-cap rows are lifted from `idle.ts`'s south frame (shifted two rows
  * down, per the "head sits 2-4 px lower" brief) so the athlete reads as the same character across
- * poses. Below the shoulders the pose diverges: knees bend and flare at row 34 (the widest point,
- * x=4..27 — exactly the same span the feet plant at), and both arms swing out akimbo-style —
- * shoulder, elbow bulge, forearm, hand-near-hip — as one *attached* run of pixels per row (arm skin
- * sits directly beside torso fill with no separating outline and no transparent gap between them;
- * the outline wraps only the outer edge of the combined arm+torso shape). The widest reach (the
- * elbow, row 23) stays inside x=4..27, well within the x=3/x=28 ceiling.
+ * poses. Below the shoulders the pose diverges: both arms swing out akimbo-style — shoulder, elbow
+ * bulge, forearm, hand-near-hip — as one *attached* run of pixels per row (arm skin sits directly
+ * beside torso fill with no separating outline and no transparent gap between them; the outline
+ * wraps only the outer edge of the combined arm+torso shape). The widest reach (the elbow, row 23)
+ * stays inside x=4..27, well within the x=3/x=28 ceiling.
+ *
+ * Each leg's outer (and, since block width is constant through the taper, inner) edge moves in one
+ * direction per phase, never zig-zagging: strictly outward from the hip (row 30) to the knee (row
+ * 34, the widest point, x=4..27 — exactly the span the feet plant at), then strictly inward from the
+ * knee to the ankle (row 39, the narrowest point), then the foot flares back out as its own phase
+ * (rows 40-41) to the plant width. A bent knee at this size reads as one clean flare and one clean
+ * taper, not a wobble.
  *
  * The foot is two rows of sock (42-43) and two rows of shoe (44-45, the second row a pure-outline
  * sole closing the shape) — nothing is drawn at or below row 46, the ground plane.
@@ -28,8 +34,9 @@
  * with its legs (rows 32-45) shifted one column east, reading as the same low brace turned
  * three-quarters — and differ only in head treatment (7 keeps the face, 1 shows hair). Facing 0 (E)
  * is a genuine profile: shoulders narrowed to 14 px, a single bracing arm on the near (east) side
- * only, one foot trailing west and one leading east along the ground rather than a mirrored pair,
- * and a head split hair-behind (west) / skin-in-front (east).
+ * only, one foot trailing west and one leading east along the ground (each leg's own outer edge
+ * monotonic through the same hip/knee/ankle/foot phases) rather than a mirrored pair, and a head
+ * split hair-behind (west) / skin-in-front (east).
  */
 import { poseKey, type SpriteGrid, type SpriteSheet } from '../../engine/render/atlas.ts';
 import { ATHLETE_FRAME } from './idle.ts';
@@ -72,12 +79,12 @@ const PLANT_SOUTH_BODY: SpriteGrid = {
     '.......52225........52225.......',
     '......52225..........52225......',
     '....52225..............52225....',
+    '.....52225............52225.....',
     '......52225..........52225......',
     '.......52225........52225.......',
-    '......52225..........52225......',
-    '.....52225............52225.....',
-    '....52225..............52225....',
-    '....5222225..........5222225....',
+    '........52225......52225........',
+    '.........52225....52225.........',
+    '......5222225......5222225......',
     '....5222225..........5222225....',
     '....5666665..........5666665....',
     '....5666665..........5666665....',
@@ -180,12 +187,12 @@ const PLANT_NORTH_BODY: SpriteGrid = {
     '.......52225........52225.......',
     '......52225..........52225......',
     '....52225..............52225....',
+    '.....52225............52225.....',
     '......52225..........52225......',
     '.......52225........52225.......',
-    '......52225..........52225......',
-    '.....52225............52225.....',
-    '....52225..............52225....',
-    '....5222225..........5222225....',
+    '........52225......52225........',
+    '.........52225....52225.........',
+    '......5222225......5222225......',
     '....5222225..........5222225....',
     '....5666665..........5666665....',
     '....5666665..........5666665....',
@@ -289,9 +296,9 @@ const PLANT_EAST_KIT: SpriteGrid = {
     '..........PPPPPPPPPPPP..........',
     '.........kkkkkkkkkkkkkk.........',
     '.........KKKKKKKKKKKKKK.........',
-    '..........KKK...........KKK.....',
-    '.........KKK...........KKK......',
-    '.......KKK...........KKK........',
+    '........KKK...........KKK.......',
+    '.......KKK.............KKK......',
+    '.....KKK.................KKK....',
     '................................',
     '................................',
     '................................',
@@ -349,12 +356,12 @@ const PLANT_DIAGONAL_BODY_ROWS: readonly string[] = [
   '........52225........52225......',
   '.......52225..........52225.....',
   '.....52225..............52225...',
+  '......52225............52225....',
   '.......52225..........52225.....',
   '........52225........52225......',
-  '.......52225..........52225.....',
-  '......52225............52225....',
-  '.....52225..............52225...',
-  '.....5222225..........5222225...',
+  '.........52225......52225.......',
+  '..........52225....52225........',
+  '.......5222225......5222225.....',
   '.....5222225..........5222225...',
   '.....5666665..........5666665...',
   '.....5666665..........5666665...',
