@@ -14,14 +14,15 @@
  * **How this file is built.** Hand-placing 60 individual 32x48 grids by literal row strings is
  * where transcription errors live, so instead this module authors three keyframes per facing —
  * contact, passing, extension — from small composable shape functions (a hair cap, a face band
- * with a facing-specific skin window, a torso core, a leg bar with an optional forward jog), all
- * routed through one `row(indent, content)` helper that always returns exactly 32 characters. Frames
- * 3-5 are then produced by mirroring frames 0-2's lower body (`mirrorLower`, from the neck down) —
- * a literal reading of "frames 3-5 are frames 0-2 with the legs and arms swapped" from the task
- * brief. This is a stylised simplification, not a biomechanical simulation: mirroring swaps which
- * side carries the planted/reaching leg and the forward-swung arm without tracking which physical
- * leg is which, which is indistinguishable at this resolution anyway. See the report for the one
- * honest caveat this produces.
+ * with a facing-specific skin window, a torso core, a two-segment leg bar with an offset knee),
+ * all routed through one `row(indent, content)` helper that always returns exactly 32 characters,
+ * and every kit row placed one pixel inside its matching body row (`inset`) so the `5` outline
+ * always shows around the union silhouette rather than being painted over — `src/art/README.md`
+ * §2. Frames 3-5 are then produced by mirroring frames 0-2's lower body (`mirrorLower`, from the
+ * neck down) — a literal reading of "frames 3-5 are frames 0-2 with the legs and arms swapped"
+ * from the task brief. This is a stylised simplification, not a biomechanical simulation: mirroring
+ * swaps which side carries the planted/reaching leg and the forward-swung arm without tracking
+ * which physical leg is which, which is indistinguishable at this resolution anyway.
  *
  * Kit sleeves are kept short (arm mostly bare, matching `idle.ts`), so the jersey silhouette itself
  * does not need to change between poses — only its vertical bob offset does — while the whole
@@ -77,6 +78,14 @@ function padTo(rows: readonly string[], n: number): string[] {
   const out = rows.slice();
   while (out.length < n) out.push(EMPTY_ROW);
   return out;
+}
+
+/** `src/art/README.md` §2: the body layer's `5` outline runs around the whole silhouette, and the
+ *  kit composites *inside* it — so every kit row this file writes is one pixel narrower than its
+ *  matching body row on each side, never flush with it. Applied to a body `(indent, width)` pair,
+ *  this returns the kit's own, inset by one column all around. */
+function inset(indent: number, width: number): { readonly indent: number; readonly width: number } {
+  return { indent: indent + 1, width: Math.max(0, width - 2) };
 }
 
 /** Stamps a small rectangular blob (e.g. a swinging forearm) onto `rows` at `(rowStart, col)`. */
@@ -156,8 +165,10 @@ function faceRow(template: string, skinFrom: number, skinTo: number): string {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Leg bar: thigh/shin, sock, then shoe — a straight (optionally forward-jogging) column that
-// either plants on the ground row or stops short of it, which is what "lifted" means here.
+// Leg bar: thigh, then a knee, then shin/sock/shoe — two straight segments offset from each
+// other at the knee, rather than one constant-width column, so the leg reads as jointed instead
+// of a stick. `touchesGround` decides whether the last row is a flat sole (planted, row 46 of
+// the *band* — never below it, the caller reserves the true ground-row-47 gap) or a raised shoe.
 // ---------------------------------------------------------------------------------------------
 
 const LEG_SEG = '51115'; // width 5: outline, skin x3, outline
@@ -168,16 +179,23 @@ const SOLE_SEG = '5555555'; // width 7: flat sole/ground-contact line
 const LIFT = 4; // px a simple lifted foot clears the ground by (13 §3.1 guidance: 2-5px)
 const HIGH_LIFT = 5; // the passing pose's high knee-drive — the top of that range
 
+/** `hipLean`: one-time column shift applied right at the hip (row 1) — the profile facings'
+ *  forward thigh angle. `knee`: one-time column shift applied partway down (~45%) — the shin
+ *  offsetting from the thigh is what makes this a leg instead of a bar; its sign and size vary
+ *  by pose and by which leg (planted/lifted, support/swing, drive/reach) is being drawn. */
 function legBar(
   len: number,
   col: number,
-  jog: number,
-  jogEvery: number,
+  hipLean: number,
+  knee: number,
   touchesGround: boolean,
 ): string[] {
   const out: string[] = [];
   let c = col;
+  const kneeAt = Math.max(2, Math.min(len - 2, Math.round(len * 0.45)));
   for (let i = 0; i < len; i++) {
+    if (i === 1) c += hipLean;
+    if (i === kneeAt) c += knee;
     const fromEnd = len - i;
     let content: string;
     let w: number;
@@ -195,7 +213,6 @@ function legBar(
       w = 5;
     }
     out.push(row(w === 7 ? c - 3 : c - 2, content));
-    if (jog !== 0 && i > 0 && i % jogEvery === 0) c += jog;
   }
   return out;
 }
@@ -210,37 +227,27 @@ interface FacingParams {
   /** Face-band skin window: `[skinFrom, skinTo)` in grid columns. Empty range = all hair (N). */
   readonly skinFrom: number;
   readonly skinTo: number;
-  /** Per-row column drift applied to the planted/reaching leg — the profile facings' forward lean. */
-  readonly jog: number;
-  readonly jogEvery: number;
+  /** One-time hip-to-thigh column shift for the planted/reaching leg — the profile facings' own
+   *  forward lean, passed to `legBar` as `hipLean`. */
+  readonly thighLean: number;
   /** 1-2px forward torso/leg offset versus the idle pose's centred column. */
   readonly lean: number;
   /** Column distance from centre for the front/back leg pair. */
   readonly legOffset: number;
 }
 
+// `idle/6` frame 0 (`idle.ts`) is the ground truth for S: its torso outline spans x=6-25 (20px)
+// and its legs sit within x=11-20 when both feet are under the body. `width: 20, lean: 0` here
+// reproduces that exactly (mainIndent 16 - 10 + 0 = 6); N shares it since both are the wide,
+// front/back-on facings. E/NE/SE are narrowed and leaned by the same proportions idle's own
+// silhouette implies, there being no idle reference for a turned athlete to match against.
 const FACINGS: ReadonlyArray<readonly [Facing, FacingParams]> = (
   [
-    {
-      facing: 0,
-      p: { width: 13, skinFrom: 16, skinTo: 22, jog: 1, jogEvery: 2, lean: 2, legOffset: 4 },
-    }, // E
-    {
-      facing: 1,
-      p: { width: 16, skinFrom: 19, skinTo: 22, jog: 1, jogEvery: 3, lean: 1, legOffset: 4 },
-    }, // NE
-    {
-      facing: 2,
-      p: { width: 19, skinFrom: 22, skinTo: 22, jog: 0, jogEvery: 1, lean: 0, legOffset: 3 },
-    }, // N
-    {
-      facing: 6,
-      p: { width: 19, skinFrom: 10, skinTo: 22, jog: 0, jogEvery: 1, lean: 0, legOffset: 3 },
-    }, // S
-    {
-      facing: 7,
-      p: { width: 16, skinFrom: 12, skinTo: 22, jog: 1, jogEvery: 3, lean: 1, legOffset: 4 },
-    }, // SE
+    { facing: 0, p: { width: 14, skinFrom: 16, skinTo: 22, thighLean: 2, lean: 2, legOffset: 4 } }, // E
+    { facing: 1, p: { width: 17, skinFrom: 19, skinTo: 22, thighLean: 1, lean: 1, legOffset: 4 } }, // NE
+    { facing: 2, p: { width: 20, skinFrom: 22, skinTo: 22, thighLean: 0, lean: 0, legOffset: 3 } }, // N
+    { facing: 6, p: { width: 20, skinFrom: 10, skinTo: 22, thighLean: 0, lean: 0, legOffset: 3 } }, // S
+    { facing: 7, p: { width: 17, skinFrom: 12, skinTo: 22, thighLean: 1, lean: 1, legOffset: 4 } }, // SE
   ] satisfies ReadonlyArray<{ facing: Facing; p: FacingParams }>
 ).map(({ facing, p }) => [facing, p] as const);
 
@@ -248,11 +255,14 @@ type Pose = 'contact' | 'passing' | 'extension';
 
 /** Row budget per pose: fewer empty rows at top = a lower (lower-y) torso = the "contact" bob
  *  low point; more empty rows = the "passing" high point. Head/torso/hip row counts (5/8/1/12/3
- *  = 29) never change — only how many rows sit above them and how many the legs get below. */
+ *  = 29) never change — only how many rows sit above them and how many the legs get below.
+ *  `legfeetN` is the leg *band*, which always ends at grid row 46 (`ay`) — `assembleFrame` adds
+ *  one further, always-empty row after it so nothing is ever drawn on row 47, the row below the
+ *  anchor. `emptyN + legfeetN` is 18 for every pose by construction (29 + 18 + 1 = 48). */
 const LAYOUT: Record<Pose, { readonly emptyN: number; readonly legfeetN: number }> = {
-  extension: { emptyN: 5, legfeetN: 14 },
-  contact: { emptyN: 6, legfeetN: 13 },
-  passing: { emptyN: 4, legfeetN: 15 },
+  extension: { emptyN: 5, legfeetN: 13 },
+  contact: { emptyN: 6, legfeetN: 12 },
+  passing: { emptyN: 4, legfeetN: 14 },
 };
 
 /** Row from which `mirrorLower` swaps left/right when deriving frames 3-5. Chosen to sit at or
@@ -262,22 +272,32 @@ const SWAP_FROM = 17;
 const ARM_BLOB_EAST: readonly string[] = ['115', '115', '.5.'];
 const ARM_BLOB_WEST: readonly string[] = ['511', '511', '.5.'];
 
+/** Knee offsets (px, applied ~45% down the leg bar) per pose and role — this is what turns each
+ *  leg into two jointed segments instead of a constant-width stick, and it changes shape between
+ *  contact, passing and extension the way the brief asks for. Positive = shin drifts toward the
+ *  direction of travel (east) relative to the thigh; negative = shin folds back behind it. */
 function legsFor(pose: Pose, p: FacingParams, legfeetN: number): string[] {
   const front = 16 + p.legOffset + p.lean;
   const back = 16 - p.legOffset + p.lean;
   const centre = 16 + p.lean;
   if (pose === 'contact') {
-    const frontLeg = legBar(legfeetN, front, p.jog, p.jogEvery, true);
-    const backLeg = legBar(Math.max(1, legfeetN - LIFT), back, 0, 1, false);
+    // Planted leg: shin lands slightly ahead of the thigh (heel-first contact).
+    const frontLeg = legBar(legfeetN, front, p.thighLean, 1, true);
+    // Trailing leg: knee bent, shin folded back sharply toward the hip.
+    const backLeg = legBar(Math.max(1, legfeetN - LIFT), back, 0, -2, false);
     return mergeRows(backLeg, frontLeg);
   }
   if (pose === 'passing') {
-    const supportLeg = legBar(legfeetN, centre + 1, 0, 1, true);
-    const swingLeg = legBar(Math.max(1, legfeetN - HIGH_LIFT), centre - 1, 0, 1, false);
+    // Support leg: close to vertical, minimal knee offset.
+    const supportLeg = legBar(legfeetN, centre + 1, 0, 0, true);
+    // Swing leg: knee driving forward and up, shin tucked well ahead of the thigh.
+    const swingLeg = legBar(Math.max(1, legfeetN - HIGH_LIFT), centre - 1, 0, 3, false);
     return mergeRows(supportLeg, swingLeg);
   }
-  const driveLeg = legBar(Math.max(1, legfeetN - LIFT), back, 0, 1, false);
-  const reachLeg = legBar(Math.max(1, legfeetN - 1), front, p.jog, p.jogEvery, false);
+  // Drive leg: pushing off behind, shin trailing further back than the thigh.
+  const driveLeg = legBar(Math.max(1, legfeetN - LIFT), back, 0, -1, false);
+  // Reaching leg: extending forward for the next contact, shin just ahead of the thigh.
+  const reachLeg = legBar(Math.max(1, legfeetN - 1), front, p.thighLean, 1, false);
   return mergeRows(driveLeg, reachLeg);
 }
 
@@ -308,28 +328,40 @@ function assembleFrame(pose: Pose, p: FacingParams): { body: string[]; kit: stri
   body.push(NECK_ROW);
   kit.push(EMPTY_ROW);
 
+  // Shoulder cap: body draws the full-width outline; kit's collar sits one px inside it.
   const torsoStart = body.length;
+  const shoulderKit = inset(shoulderIndent, shoulderWidth);
   body.push(row(shoulderIndent, '5' + '2'.repeat(Math.max(0, shoulderWidth - 2)) + '5'));
-  kit.push(row(shoulderIndent, 'k' + 'P'.repeat(Math.max(0, shoulderWidth - 2)) + 'k'));
+  kit.push(row(shoulderKit.indent, 'k' + 'P'.repeat(Math.max(0, shoulderKit.width - 2)) + 'k'));
+
+  // Torso core: body's outer `5`s are the true silhouette edge; the whole jersey (torso *and*
+  // sleeve) is `P` per `src/art/README.md` §3, inset one px inside that outline on every row.
+  const torsoKit = inset(mainIndent, p.width);
   const coreRow = '51115' + '2'.repeat(Math.max(0, p.width - 10)) + '51115';
   for (let i = 0; i < 10; i++) {
     body.push(row(mainIndent, coreRow));
-    kit.push(row(mainIndent, 'P'.repeat(p.width)));
+    kit.push(row(torsoKit.indent, 'P'.repeat(torsoKit.width)));
   }
   body.push(row(mainIndent, coreRow));
-  kit.push(row(mainIndent, 'k'.repeat(p.width)));
+  kit.push(row(torsoKit.indent, 'k'.repeat(torsoKit.width)));
 
+  // Hip/shorts: same inset-inside-the-outline rule.
+  const hipKit = inset(mainIndent, p.width);
   const hipBody = row(mainIndent, '5' + '1'.repeat(Math.max(0, p.width - 2)) + '5');
-  const hipKitFill = row(mainIndent, 'K'.repeat(p.width));
-  const hipKitHem = row(mainIndent, 'k' + 'K'.repeat(Math.max(0, p.width - 2)) + 'k');
+  const hipKitFill = row(hipKit.indent, 'K'.repeat(hipKit.width));
+  const hipKitHem = row(hipKit.indent, 'k' + 'K'.repeat(Math.max(0, hipKit.width - 2)) + 'k');
   body.push(hipBody, hipBody, hipBody);
   kit.push(hipKitFill, hipKitFill, hipKitHem);
 
+  // Legs and feet: bare (no kit), and the band always ends at the ground row (46, `ay`) — the
+  // always-empty row pushed after it guarantees nothing, planted or lifted, ever draws on row 47.
   const legfeetN = layout.legfeetN;
   for (const l of padTo(legsFor(pose, p, legfeetN), legfeetN)) {
     body.push(l);
     kit.push(EMPTY_ROW);
   }
+  body.push(EMPTY_ROW);
+  kit.push(EMPTY_ROW);
 
   const armRow = torsoStart + 4;
   const eastCol = mainIndent + p.width;
