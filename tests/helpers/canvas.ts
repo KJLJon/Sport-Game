@@ -22,6 +22,19 @@ export interface RecordingCanvas extends Canvas2D {
   ofKind(name: string): RecordedCall[];
 }
 
+/**
+ * An `ImageData` without a DOM (T-13.2). The atlas builder only ever writes into one and hands it
+ * straight back to `putImageData`, so the shape it actually depends on is these three fields.
+ */
+export function fakeImageData(width: number, height: number): ImageData {
+  return {
+    width,
+    height,
+    data: new Uint8ClampedArray(width * height * 4),
+    colorSpace: 'srgb',
+  } as ImageData;
+}
+
 export function recordingCanvas(): RecordingCanvas {
   const calls: string[] = [];
   const recorded: RecordedCall[] = [];
@@ -53,12 +66,20 @@ export function recordingCanvas(): RecordingCanvas {
     'stroke',
     'fillText',
     'drawImage',
+    'putImageData',
   ] as const;
+
+  const createImageData = record('createImageData');
 
   const ctx: Record<string, unknown> = {
     calls,
     recorded,
     ofKind: (name: string) => recorded.filter((call) => call.name === name),
+    createImageData: (width: number, height: number) => {
+      createImageData(width, height);
+      return fakeImageData(width, height);
+    },
+    imageSmoothingEnabled: true,
     fillStyle: '',
     strokeStyle: '',
     lineWidth: 1,

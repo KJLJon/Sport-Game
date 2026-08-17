@@ -2,8 +2,11 @@
  * @spec    001-initial-dev
  * @phase   1 — Engine core
  * @task    T-1.7 — Canvas 2D renderer: layers, batching, LOD, off-screen static layers, debug overlay
+ * @task    T-13.2 — Asset pipeline (the `Canvas2D` slice sprites rasterise and blit through)
+ * @task    T-13.6 — Depth sorting and occlusion (the `entities` layer's sort key)
  * @story   US-2.3 — See the whole field on a small screen; US-2.5 — Run at a steady frame rate
- * @design  04-architecture.md §6 (rendering), §9 (mobile and performance)
+ * @design  04-architecture.md §6 (rendering), §9 (mobile and performance),
+ *          13-visual-overhaul.md §2.1, §2.3
  * @invariant INV-8 (rendering never feeds back into the simulation)
  *
  * Purpose: draws a frame. Nothing here may touch simulation state — the renderer receives an
@@ -17,7 +20,13 @@
  *
  * Everything works against `Canvas2D` — the subset of `CanvasRenderingContext2D` actually used —
  * so the layer and LOD policy is unit-tested against a recording double rather than a real canvas.
+ *
+ * T-13.6 adds one thing to that picture: an optional depth key on `submit`, applied to the
+ * `entities` layer only (see `depth.ts`). It is what lets sprites overlap correctly, and it costs
+ * the disc renderer — which never passes one — a single integer comparison per frame.
  */
+
+import { depthOrder } from './depth.ts';
 
 /** The slice of the 2D context this engine uses. Anything outside it is not available to sports. */
 export interface Canvas2D {
@@ -38,12 +47,32 @@ export interface Canvas2D {
   stroke(): void;
   fillText(text: string, x: number, y: number): void;
   drawImage(image: CanvasImageSource, dx: number, dy: number): void;
+  /** The sub-rectangle blit sprites draw through (T-13.2): source rect → destination rect. */
+  drawImage(
+    image: CanvasImageSource,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
+  ): void;
+  /** Sprite rasterisation writes pixels directly; both are off-screen-only (T-13.2, `13` §2.1). */
+  createImageData(width: number, height: number): ImageData;
+  putImageData(data: ImageData, dx: number, dy: number): void;
   fillStyle: string;
   strokeStyle: string;
   lineWidth: number;
   globalAlpha: number;
   font: string;
   textAlign: CanvasTextAlign;
+  /**
+   * Off for pixel art — a 32×48 sprite blown up to 40 world px is meant to have edges (T-13.2).
+   * The sprite renderer sets it once per frame rather than per sprite.
+   */
+  imageSmoothingEnabled: boolean;
 }
 
 /**
@@ -122,8 +151,17 @@ export interface OffscreenLayer {
 
 export type OffscreenFactory = (width: number, height: number) => OffscreenLayer;
 
+/**
+ * The one layer whose draw order is a question rather than a given (T-13.6). Sprites overlap, so
+ * within `entities` the athlete with the larger world y is nearer the viewer and draws last; every
+ * other layer is a flat stack where submission order is the answer.
+ */
+const SORTED_LAYER: LayerName = 'entities';
+
 export class Renderer {
   private readonly queues = new Map<LayerName, DrawCommand[]>();
+  /** Parallel to the `entities` queue. Kept as a plain array so an unkeyed frame costs nothing. */
+  private readonly entitySortKeys: (number | undefined)[] = [];
   private readonly options: Required<Omit<RendererOptions, 'reducedMotion'>> & {
     reducedMotion: boolean;
   };
@@ -157,9 +195,18 @@ export class Renderer {
     return this.options.reducedMotion;
   }
 
-  /** Queues a draw. Commands run in submission order within a layer, and layers run in `LAYERS` order. */
-  submit(layer: LayerName, command: DrawCommand): void {
+  /**
+   * Queues a draw. Commands run in submission order within a layer, and layers run in `LAYERS`
+   * order.
+   *
+   * `sortKey` is the depth key for the `entities` layer (T-13.6): the world y of whatever is being
+   * drawn — the feet, for a sprite. Keyed commands are drawn after keyless ones, in ascending key
+   * order, ties in submission order. On any other layer it is ignored, because a sport reordering
+   * the ball or the HUD by y is not a feature anyone asked for.
+   */
+  submit(layer: LayerName, command: DrawCommand, sortKey?: number): void {
     this.queues.get(layer)?.push(command);
+    if (layer === SORTED_LAYER) this.entitySortKeys.push(sortKey);
     this.commands++;
   }
 
@@ -296,7 +343,12 @@ export class Renderer {
         ctx.scale(view.scale, view.scale);
         ctx.translate(-view.x, -view.y);
       }
-      for (const command of queue) command(ctx, view);
+      const order = layer === SORTED_LAYER ? depthOrder(this.entitySortKeys) : null;
+      if (order === null) {
+        for (const command of queue) command(ctx, view);
+      } else {
+        for (const index of order) queue[index]?.(ctx, view);
+      }
       ctx.restore();
     }
 
@@ -316,6 +368,7 @@ export class Renderer {
   /** Clears the queues and per-frame counters. Called at the end of `render`. */
   private reset(): void {
     for (const queue of this.queues.values()) queue.length = 0;
+    this.entitySortKeys.length = 0;
     this.commands = 0;
     this.styleChanges = 0;
     this.detailCounts = [0, 0, 0];
