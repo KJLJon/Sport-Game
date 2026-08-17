@@ -40,11 +40,19 @@
   flex: none;
 }
 
-.button:active:not(:disabled, [aria-disabled='true']) {
+/*
+ * `data-force` is how the gallery shows a states matrix (`10` §5). A screenshot cannot hold a
+ * finger down or move focus, so the two transient states are also reachable as an attribute — and
+ * reachable through the *same* declarations, so the matrix cannot drift from the real thing.
+ * Nothing outside `#/dev/ui` sets it.
+ */
+.button:active:not(:disabled, [aria-disabled='true']),
+.button[data-force='pressed'] {
   transform: scale(0.97);
 }
 
-.button:focus-visible {
+.button:focus-visible,
+.button[data-force='focus'] {
   outline: 2px solid var(--info);
   outline-offset: 2px;
 }
@@ -576,6 +584,475 @@
   }
 }
 
+/* ── Tab bar (T-9.1) ──────────────────────────────────────────────────────── */
+
+/*
+ * Lifted out of the app shell, where it had lived since Phase 0 with no states matrix and no
+ * gallery entry. The shell keeps its placement rules; everything the bar *is* lives here.
+ */
+
+.tab-bar {
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  background: var(--surface-1);
+  border-top: 1px solid var(--surface-2);
+}
+
+.tab-bar__tab {
+  /* The active tab's marker is positioned against this. Without it the marker resolved against
+     whatever ancestor happened to be positioned and rendered nowhere near the tab — so the active
+     state was carried by colour alone, which is the one thing INV-11 forbids. Found by putting the
+     bar in the gallery (T-9.1); it had been that way since Phase 0. */
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* `10` §3.2 — minimum interactive target is 44 px. */
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  padding: var(--space-8) var(--space-4);
+  color: var(--text-lo);
+  text-decoration: none;
+  font-size: var(--text-12);
+}
+
+.tab-bar__tab svg {
+  width: 24px;
+  height: 24px;
+  fill: currentcolor;
+}
+
+.tab-bar__tab[aria-current='page'] {
+  color: var(--accent);
+}
+
+/*
+ * The active tab is also marked by a bar, so state is never colour alone (`10` §11). Pinned to the
+ * top edge: the original `translateY(-6px)` from the element's static position drew it across the
+ * icon, which is where it went the moment the marker started rendering at all.
+ */
+.tab-bar__tab[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentcolor;
+  transform: translateX(-50%);
+}
+
+.tab-bar__tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
+/* ── Athlete list row (T-9.1) ─────────────────────────────────────────────── */
+
+/*
+ * `10` §5's list form of the athlete. The compact card is the grid form; this is what a screen
+ * showing twenty athletes at once uses.
+ */
+
+.athlete-row {
+  display: flex;
+  align-items: center;
+  /* Wraps rather than squeezing: with a price and a button trailing it, the meta line on a 390 px
+     phone otherwise breaks over three lines and the row stops looking like a row. */
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  /* A list row is full width by definition. Without this, a shrink-to-fit parent combines with
+     `flex-wrap` to size the row to its widest single child, and it wraps against nothing. */
+  width: 100%;
+  /* `10` §3.2's floor: the whole row is the target when it carries a link. */
+  min-height: var(--target-min);
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+  list-style: none;
+}
+
+.athlete-row__portrait {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-lo);
+  font-size: var(--text-14);
+  font-weight: 650;
+}
+
+/* Rarity is an edge, and never the only signal — the card carries the word (`10` §6). */
+.athlete-row[data-rarity='rare'] .athlete-row__portrait {
+  box-shadow: inset 0 0 0 2px var(--info);
+}
+
+.athlete-row[data-rarity='epic'] .athlete-row__portrait {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--info) 55%, var(--danger));
+}
+
+.athlete-row[data-rarity='legendary'] .athlete-row__portrait {
+  box-shadow: inset 0 0 0 2px var(--accent-alt);
+}
+
+.athlete-row__text {
+  /* Shrinks to 6rem before the trailing block is pushed onto its own line — enough for a name to
+     stay readable, small enough that a row with a price *and* a button still fits at 390 px. */
+  flex: 1 1 6rem;
+  min-width: 0;
+}
+
+.athlete-row__headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+}
+
+.athlete-row__name {
+  font-size: var(--text-16);
+  font-weight: 650;
+  color: var(--text-hi);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.athlete-row__name:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+  border-radius: var(--radius-8);
+}
+
+.athlete-row__position {
+  flex: 0 0 auto;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-lo);
+  font-size: var(--text-12);
+}
+
+.athlete-row__meta,
+.athlete-row__warning {
+  margin: 2px 0 0;
+  font-size: var(--text-12);
+  color: var(--text-lo);
+}
+
+/* A blocked row says why. The dot is decoration on top of the sentence, not instead of it. */
+.athlete-row__warning {
+  color: var(--accent-alt);
+}
+
+.athlete-row__warning::before {
+  content: '● ';
+}
+
+.athlete-row__trailing {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  flex: 0 1 auto;
+  margin-left: auto;
+}
+
+.athlete-row__overall {
+  font-size: var(--text-20);
+  font-weight: 650;
+  font-variant-numeric: var(--font-numeric);
+}
+
+/* Selection is a rule and a tint, so it survives greyscale and colourblind viewing (INV-11). */
+.athlete-row[data-selected='true'] {
+  background: var(--surface-2);
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.athlete-row[data-disabled='true'] {
+  opacity: 0.72;
+}
+
+/* ── Onboarding coach-mark (T-9.1) ────────────────────────────────────────── */
+
+/*
+ * One instruction, pointed at one control (`10` §5, §8.1). It never covers the control it is about,
+ * and never takes pointer events away from anything but itself.
+ */
+
+.coach-mark {
+  position: relative;
+  max-width: 22rem;
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-12);
+  background: var(--info);
+  color: var(--on-info);
+  box-shadow: var(--elevation-2);
+  animation: coach-mark-in var(--dur-reveal) var(--ease-spring);
+}
+
+.coach-mark__arrow {
+  position: absolute;
+  left: var(--space-24);
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+.coach-mark[data-placement='below'] .coach-mark__arrow {
+  top: -6px;
+}
+
+.coach-mark[data-placement='above'] .coach-mark__arrow {
+  bottom: -6px;
+}
+
+.coach-mark__step {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-12);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.coach-mark__title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-16);
+  font-weight: 700;
+}
+
+.coach-mark__text {
+  margin: 0 0 var(--space-12);
+  font-size: var(--text-14);
+}
+
+/* The dismiss button inverts: it sits on the accent surface, not on a page surface. */
+.coach-mark__dismiss.button--primary {
+  min-height: var(--target-min);
+  background: var(--on-info);
+  color: var(--info);
+}
+
+@keyframes coach-mark-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+}
+
+/* ── Attribute radar (T-9.1) ──────────────────────────────────────────────── */
+
+/*
+ * `10` §6's radar. The polygon is decoration — the value list under it carries the numbers, and
+ * the two series are told apart by line style as well as by colour (INV-11).
+ */
+
+.attribute-radar {
+  display: grid;
+  gap: var(--space-12);
+  justify-items: center;
+  margin: 0;
+}
+
+.attribute-radar__plot {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+}
+
+.attribute-radar__ring,
+.attribute-radar__spoke {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.attribute-radar__ring {
+  fill: var(--surface-2);
+  fill-opacity: 0.25;
+}
+
+.attribute-radar__axis-label {
+  fill: var(--text-lo);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.attribute-radar__shape[data-role='primary'] {
+  fill: var(--accent);
+  fill-opacity: 0.28;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.attribute-radar__shape[data-role='compare'] {
+  fill: none;
+  stroke: var(--info);
+  stroke-width: 2;
+  /* The second shape is dashed, not merely a second colour. */
+  stroke-dasharray: 5 3;
+  stroke-linejoin: round;
+}
+
+.attribute-radar__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  font-size: var(--text-14);
+}
+
+.attribute-radar__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--text-lo);
+}
+
+.attribute-radar__key::before {
+  content: '';
+  width: 18px;
+  height: 0;
+  border-top-width: 2px;
+}
+
+.attribute-radar__key[data-role='primary']::before {
+  border-top-style: solid;
+  border-top-color: var(--accent);
+}
+
+.attribute-radar__key[data-role='compare']::before {
+  border-top-style: dashed;
+  border-top-color: var(--info);
+}
+
+.attribute-radar__values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4) var(--space-16);
+  width: 100%;
+  font-size: var(--text-14);
+}
+
+.attribute-radar__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.attribute-radar__name {
+  color: var(--text-lo);
+}
+
+.attribute-radar__value {
+  font-variant-numeric: var(--font-numeric);
+  font-weight: 650;
+}
+
+.attribute-radar__value[data-role='compare'] {
+  color: var(--info);
+}
+
+/* ── Stat table (T-9.1) ───────────────────────────────────────────────────── */
+
+.stat-table {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--surface-1);
+}
+
+.stat-table:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+
+.stat-table__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-14);
+}
+
+.stat-table__caption {
+  padding: var(--space-12) var(--space-12) var(--space-8);
+  font-size: var(--text-16);
+  font-weight: 650;
+  text-align: left;
+  color: var(--text-hi);
+}
+
+.stat-table__column-header,
+.stat-table__row-header,
+.stat-table__cell,
+.stat-table__corner,
+.stat-table__empty {
+  padding: var(--space-8) var(--space-12);
+  border-top: 1px solid var(--border);
+}
+
+.stat-table__column-header {
+  font-size: var(--text-12);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-lo);
+  white-space: nowrap;
+}
+
+.stat-table__row-header {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-hi);
+  white-space: nowrap;
+}
+
+.stat-table__column-header[data-numeric='true'],
+.stat-table__cell[data-numeric='true'] {
+  text-align: right;
+  font-variant-numeric: var(--font-numeric);
+}
+
+.stat-table__cell {
+  color: var(--text-hi);
+}
+
+/* The reader's own row. A left rule as well as a tint, so it survives a greyscale print. */
+.stat-table__row[data-emphasis='true'] {
+  background: var(--surface-2);
+}
+
+.stat-table__row[data-emphasis='true'] .stat-table__row-header {
+  box-shadow: inset 3px 0 0 var(--accent);
+  font-weight: 650;
+}
+
+.stat-table tfoot .stat-table__row-header,
+.stat-table tfoot .stat-table__cell {
+  font-weight: 650;
+  border-top-width: 2px;
+}
+
+.stat-table__empty {
+  padding: var(--space-24) var(--space-12);
+  text-align: center;
+  color: var(--text-lo);
+}
+
 /* ── Screen-level helpers ─────────────────────────────────────────────────── */
 
 .home {
@@ -729,7 +1206,7 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: var(--color-surface-sunken, #0b0d11);
+  background: var(--surface-0);
   touch-action: none;
 }
 
@@ -746,10 +1223,9 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  padding: calc(var(--safe-top, 0px) + var(--space-4, 16px))
-    calc(var(--safe-right, 0px) + var(--space-4, 16px))
-    calc(var(--safe-bottom, 0px) + var(--space-4, 16px))
-    calc(var(--safe-left, 0px) + var(--space-4, 16px));
+  padding: calc(var(--safe-top, 0px) + var(--space-16))
+    calc(var(--safe-right, 0px) + var(--space-16)) calc(var(--safe-bottom, 0px) + var(--space-16))
+    calc(var(--safe-left, 0px) + var(--space-16));
 }
 
 .live__overlay:empty {
@@ -761,29 +1237,29 @@
   max-width: min(46rem, 100%);
   max-height: 100%;
   overflow-y: auto;
-  padding: var(--space-5, 20px);
-  border-radius: var(--radius-lg, 16px);
-  background: var(--color-surface-raised, rgba(18, 21, 27, 0.96));
-  color: var(--color-text, #f2ede4);
-  box-shadow: var(--shadow-lg, 0 18px 48px rgb(0 0 0 / 45%));
+  padding: var(--space-24);
+  border-radius: var(--radius-20);
+  background: var(--surface-1);
+  color: var(--text-hi);
+  box-shadow: var(--elevation-2);
 }
 
 .live-panel__score {
-  font-size: var(--type-2xl, 2rem);
+  font-size: var(--text-32);
   font-weight: 700;
-  margin: var(--space-2, 8px) 0;
+  margin: var(--space-8) 0;
 }
 
 .live-panel__result {
-  color: var(--color-text-muted, #9aa3ad);
-  margin-bottom: var(--space-3, 12px);
+  color: var(--text-lo);
+  margin-bottom: var(--space-12);
 }
 
 .live-panel__actions {
   display: flex;
-  gap: var(--space-3, 12px);
+  gap: var(--space-12);
   flex-wrap: wrap;
-  margin: var(--space-4, 16px) 0;
+  margin: var(--space-16) 0;
 }
 
 /* Every action in here is a primary target, so none of them goes below the 44 px floor (INV-11). */
@@ -792,52 +1268,32 @@
   min-width: 44px;
 }
 
+/*
+ * Two stat tables side by side. Everything inside them belongs to `.stat-table` (T-9.1) — this
+ * block used to restate the table's own typography, borders, and alignment, which is how the box
+ * score and the rest of the app drifted apart in the first place.
+ */
 .live-panel__box {
   display: flex;
-  gap: var(--space-4, 16px);
+  gap: var(--space-16);
   flex-wrap: wrap;
 }
 
-.live-panel__box table {
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-  font-size: var(--type-sm, 0.875rem);
-}
-
-.live-panel__box caption {
-  text-align: left;
-  font-weight: 600;
-  padding-bottom: var(--space-1, 4px);
-}
-
-.live-panel__box th,
-.live-panel__box td {
-  padding: 2px var(--space-2, 8px);
-  text-align: right;
-}
-
-.live-panel__box th[scope='row'] {
-  text-align: left;
-  font-weight: 500;
-  color: var(--color-text-muted, #9aa3ad);
-}
-
-.live-panel__box tbody tr:last-child {
-  border-top: 1px solid var(--color-border, rgb(255 255 255 / 14%));
-  font-weight: 600;
+.live-panel__box .stat-table {
+  flex: 1 1 20rem;
 }
 
 .live-panel__settings {
-  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
-  border-radius: var(--radius-md, 10px);
-  padding: var(--space-3, 12px);
-  margin-bottom: var(--space-4, 16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  padding: var(--space-12);
+  margin-bottom: var(--space-16);
 }
 
 .live-panel__setting {
   display: flex;
   align-items: center;
-  gap: var(--space-2, 8px);
+  gap: var(--space-8);
   min-height: 44px;
 }
 
@@ -858,10 +1314,10 @@
 .live-panel__setting--wide select {
   flex: 1 1 12rem;
   min-height: 44px;
-  padding: 0 var(--space-2, 8px);
-  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
-  border-radius: var(--radius-sm, 6px);
-  background: var(--color-surface, rgb(255 255 255 / 6%));
+  padding: 0 var(--space-8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface-2);
   color: inherit;
   font: inherit;
 }
@@ -914,7 +1370,7 @@
   gap: var(--space-4);
   min-height: var(--target-primary);
   padding: var(--space-12);
-  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border: 1px solid var(--border);
   border-radius: var(--radius-12);
   background: var(--surface-1);
   cursor: pointer;
@@ -974,7 +1430,7 @@
   gap: var(--space-4);
   min-height: var(--target-primary);
   padding: var(--space-12);
-  border: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border: 1px solid var(--border);
   border-radius: var(--radius-12);
   background: var(--surface-1);
   color: var(--text-hi);
@@ -1089,7 +1545,7 @@
   flex-direction: column;
   gap: var(--space-12);
   padding: var(--space-16);
-  border-top: 1px solid var(--color-border, rgb(255 255 255 / 14%));
+  border-top: 1px solid var(--border);
 }
 
 .playbook-match__handover,
@@ -1361,7 +1817,7 @@
 /* In-match achievement toasts (T-8.9). Top-centre, above the HUD, out of the thumbs' way. */
 .live__toasts {
   position: absolute;
-  top: calc(var(--safe-top, 0px) + var(--space-12, 12px));
+  top: calc(var(--safe-top, 0px) + var(--space-12));
   left: 50%;
   transform: translateX(-50%);
   display: flex;

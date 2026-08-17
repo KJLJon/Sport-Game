@@ -12,22 +12,28 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** none. **Phase 8 is complete — all sixteen tasks done.** PR **#18** is open as a draft.
-- **Branch:** `claude/continue-session-c1lrpo`, off `main` at `956d3e9`.
-- **Suite:** 199 files, **3 407 unit tests**, typecheck and lint clean; the a11y + smoke E2E suite
-  runs green in Chromium across fourteen screens, six of them new this phase.
-- **What Phase 8 added:** the wallet and its ledger (T-8.10), the achievement engine and 79 defs
-  (T-8.6, T-8.7), arcade unlocks finally gating the hub (T-8.8), the gallery and in-match toast
-  (T-8.9), sell-back (T-8.13), packs (T-8.12), the transfer market (T-8.14), the economy balance
-  pass (T-8.16), and tournaments (T-8.3).
-- ⚠️ **One observed flake, unreproduced.** A single full-suite run failed one test; three
-  consecutive full runs afterwards were green and the failing name was not captured. Recorded rather
-  than ignored — if it recurs, that is the thread to pull.
-- **Next step:** **Gate 8 needs the user.** Every code criterion is met and recorded below; what is
-  missing is the same two things every gate since Gate 2 has been waiting on — the manual device
-  matrix (`12` §7) and a tagged deploy. After that, Phase 9 (UI/UX, accessibility, performance, data
-  safety) is the road to v1.0.
-- **Blockers:** none for the code. **Gates 2 through 12 are all held by the same two user actions.**
+- **Task:** none. **T-9.1 is done** — Phase 9 is 1 of 15. PR **#19** is open as a draft.
+- **Branch:** `claude/continuing-work-ugw53l`, off `main` at `288c642`.
+- **Suite:** 203 files, **3 442 unit tests**, typecheck and lint clean.
+- **What T-9.1 found**, beyond the four components `10` §5 named and nobody had built (attribute
+  radar, stat table, athlete list row, onboarding coach-mark):
+  - a **second, undeclared token vocabulary** across sixteen stylesheets, each use propped up by a
+    hardcoded fallback — including `var(--space-4, 16px)`, which had been rendering the Live
+    overlay's padding at a quarter of its intended size since Phase 2;
+  - **two element ids built from the clock** — two dialogs or two call sheets constructed in the
+    same millisecond collided, and two call sheets sharing a radio group means choosing in one
+    clears the other;
+  - the **tab bar's active marker had never rendered**, so the active tab was carried by colour and
+    `aria-current` alone since Phase 0 (INV-11).
+  All four are held by new tests that read the source as text or the gallery as a rendered page.
+- **Next step:** `pnpm -s next` — **T-9.3** (onboarding, which the coach-mark was built for) or
+  **T-9.5** (settings) are the ready ones worth taking next; T-9.2 unblocks the largest group but
+  is XL and wants the design system it now has.
+- **Blockers:** none for the code. **Gates 2 through 12 are all held by the same two user actions**
+  — the manual device matrix (`12` §7) and a tagged deploy.
+- ⚠️ **One observed flake, unreproduced** (carried from Phase 8). A single full-suite run failed one
+  test; every run since has been green and the failing name was never captured. If it recurs, that
+  is the thread to pull.
 
 ---
 
@@ -37,19 +43,19 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 |---|---|---|---|---|---|
 | 0 | Foundation, PWA shell, update & offline lifecycle | 18 | 18 | `done` | — |
 | 1 | Engine core | 13 | 13 | `done` | — |
-| 2 | Basketball · Live | 13 | 13 | `in_progress` | v0.1 |
+| 2 | Basketball · Live | 13 | 13 | `done` | v0.1 |
 | 3 | Athletes, cross-sport ratings, roster | 17 | 17 | `done` | v0.2 |
 | 4 | Arcade framework + basketball arcade set | 13 | 13 | `done` | v0.3 |
 | 5 | Playbook (turn-based) + basketball Playbook | 11 | 11 | `done` | v0.4 |
 | 6 | Soccer · all three modes | 30 | 30 | `done` | v0.5 |
-| 7 | CPU AI depth & difficulty ladder | 11 | 4 | `in_progress` | — |
+| 7 | CPU AI depth & difficulty ladder | 11 | 11 | `done` | — |
 | 8 | Modes hub, progression, achievements, economy | 16 | 16 | `done` | — |
-| 9 | UI/UX, accessibility, performance, data safety | 15 | 0 | `todo` | **v1.0** |
+| 9 | UI/UX, accessibility, performance, data safety | 15 | 1 | `in_progress` | **v1.0** |
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
-| 12 | Camera, framing, and readability (bonus) | 9 | 0 | `todo` | v1.2 |
+| 12 | Camera, framing, and readability (bonus) | 9 | 9 | `done` | v1.2 |
 | 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **203** | **150** | | |
+| | **Total** | **203** | **152** | | |
 
 ---
 
@@ -251,7 +257,7 @@ there; this file is read at every session start and the notes file only when you
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-9.1 | Design system completion: tokens, all components, full state matrices, dev gallery | L | `todo` | | | | |
+| T-9.1 | Design system completion: tokens, all components, full state matrices, dev gallery | L | `done` | | `tests/unit/ui/{gallery,tokens,data-components,shell-components}.test.ts` | `auto` — 3 442 unit tests; plus the gallery driven in Chromium at 390×844, both themes, 1.0× and 1.3× | Auditing `10` §5's inventory against the gallery found four components that had never been built, a second undeclared token vocabulary, two element ids built from the clock, and a tab-bar active marker that had never rendered. [notes](./notes/phase-9.md#t-91) |
 | T-9.2 | Screen-by-screen UX pass against the `10` §12 checklist | XL | `todo` | | | | |
 | T-9.3 | Onboarding: first launch → sport → mode → played match in under 60 seconds | L | `todo` | | | | |
 | T-9.4 | Interactive tutorials per sport per mode, replayable from Settings | L | `todo` | | | | |

@@ -38,56 +38,22 @@
   gap: var(--space-8);
 }
 
-.sell-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-12);
-  padding: var(--space-12);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-12);
-  background: var(--surface-1);
-}
+/* The row is the shared `.athlete-row` (T-9.1). What is left here is what the *sell* screen adds:
+ * the squad-lock guard's edge, and the trailing buttons' 44 px floor. */
 
-.sell-row[data-blocked='true'] {
+.athlete-row[data-blocked='true'] {
   border-color: var(--danger);
 }
 
-.sell-row__text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.sell-row__name {
-  margin: 0;
-  font-size: var(--text-16);
-  font-weight: 650;
-  color: var(--text-hi);
-}
-
-.sell-row__meta {
-  margin: 0;
-  font-size: var(--text-12);
-  color: var(--text-lo);
-  text-transform: capitalize;
-}
-
-.sell-row__warning {
-  margin: 0;
-  font-size: var(--text-12);
+.athlete-row[data-blocked='true'] .athlete-row__warning {
   color: var(--danger);
 }
 
-.sell-row__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  flex: none;
+.sell-list .athlete-row__meta {
+  text-transform: capitalize;
 }
 
-.sell-row__actions .button {
-  min-height: 44px;
-  min-width: 44px;
+.sell-list .athlete-row__trailing .button {
+  min-height: var(--target-min);
+  min-width: var(--target-min);
 }

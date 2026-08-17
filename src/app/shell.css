@@ -34,10 +34,10 @@ body {
 }
 
 body {
-  background: var(--surface-0, #0b0f14);
-  color: var(--text-hi, #f2f6fa);
-  font-family: var(--font-body, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
-  font-size: var(--text-16, 1rem);
+  background: var(--surface-0);
+  color: var(--text-hi);
+  font-family: var(--font-body);
+  font-size: var(--text-16);
   line-height: 1.45;
   /* Suppress double-tap zoom and text selection inside the app frame (`04` §9). */
   -webkit-text-size-adjust: 100%;
@@ -63,15 +63,15 @@ body {
 .shell__header {
   display: flex;
   align-items: center;
-  gap: var(--space-12, 12px);
+  gap: var(--space-12);
   min-height: var(--shell-header-h);
-  padding: var(--safe-top) var(--space-16, 16px) 0;
-  padding-top: calc(var(--safe-top) + var(--space-8, 8px));
+  padding: var(--safe-top) var(--space-16) 0;
+  padding-top: calc(var(--safe-top) + var(--space-8));
 }
 
 .shell__title {
   margin: 0;
-  font-size: var(--text-20, 1.25rem);
+  font-size: var(--text-20);
   font-weight: 650;
   letter-spacing: -0.01em;
 }
@@ -84,67 +84,24 @@ body {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--space-16, 16px);
+  padding: var(--space-16);
   -webkit-overflow-scrolling: touch;
 }
 
 .shell__main:focus-visible {
-  outline: 2px solid var(--accent, #3ddc91);
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
 /* ── Tab bar ──────────────────────────────────────────────────────────────── */
 
+/*
+ * The bar itself is `.tab-bar` in `ui/components.css` (T-9.1). What is left here is placement:
+ * the shell's height and the safe-area inset it sits above.
+ */
 .shell__tabs {
-  display: flex;
-  justify-content: space-around;
-  align-items: stretch;
   min-height: var(--shell-tabs-h);
   padding-bottom: var(--safe-bottom);
-  background: var(--surface-1, #131a22);
-  border-top: 1px solid var(--surface-2, #1c2530);
-}
-
-.shell__tab {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  /* `10` §2 — minimum interactive target is 44 px. */
-  min-width: 44px;
-  min-height: 44px;
-  padding: var(--space-8, 8px) var(--space-4, 4px);
-  color: var(--text-lo, #94a3b4);
-  text-decoration: none;
-  font-size: var(--text-12, 0.75rem);
-}
-
-.shell__tab svg {
-  width: 24px;
-  height: 24px;
-  fill: currentcolor;
-}
-
-.shell__tab[aria-current='page'] {
-  color: var(--accent, #3ddc91);
-}
-
-/* The active tab is also marked by a bar, so state is never colour alone (`10` §11). */
-.shell__tab[aria-current='page']::before {
-  content: '';
-  position: absolute;
-  width: 24px;
-  height: 3px;
-  border-radius: 2px;
-  background: currentcolor;
-  transform: translateY(-6px);
-}
-
-.shell__tab:focus-visible {
-  outline: 2px solid var(--accent, #3ddc91);
-  outline-offset: -3px;
 }
 
 /* ── Bare chrome: Live matches and full-screen arcade games ───────────────── */
@@ -182,10 +139,10 @@ body {
   z-index: 40;
   display: grid;
   place-content: center;
-  padding: var(--space-32, 32px);
+  padding: var(--space-32);
   text-align: center;
-  background: var(--surface-0, #0b0f14);
-  font-size: var(--text-20, 1.25rem);
+  background: var(--surface-0);
+  font-size: var(--text-20);
 }
 
 .shell__rotate[hidden] {
@@ -201,12 +158,12 @@ body {
 }
 
 .shell__skip:focus {
-  left: var(--space-16, 16px);
-  top: var(--space-16, 16px);
-  padding: var(--space-8, 8px) var(--space-12, 12px);
-  background: var(--surface-2, #1c2530);
-  color: var(--text-hi, #f2f6fa);
-  border-radius: var(--radius-8, 8px);
+  left: var(--space-16);
+  top: var(--space-16);
+  padding: var(--space-8) var(--space-12);
+  background: var(--surface-2);
+  color: var(--text-hi);
+  border-radius: var(--radius-8);
 }
 
 .sr-only {
@@ -223,7 +180,7 @@ body {
 
 .empty-state {
   display: grid;
-  gap: var(--space-12, 12px);
+  gap: var(--space-12);
   justify-items: start;
   max-width: 40ch;
 }

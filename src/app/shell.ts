@@ -11,6 +11,7 @@
 import type { RouteMatch, Router } from './router.ts';
 import type { ChromeMode, Screen, ScreenDefinition } from './screen.ts';
 import { readOrientation, shouldPromptRotate, type Orientation } from './orientation.ts';
+import { activeTab, tabBar } from '../ui/components/tab-bar.ts';
 
 export interface TabDefinition {
   readonly id: string;
@@ -155,10 +156,11 @@ export class AppShell {
   }
 
   #syncTabs(path: string): void {
+    // One definition of "which tab is this", shared with the component that first renders it.
+    const active = activeTab(this.#options.tabs, path);
     for (const anchor of this.#elements.tabBar.querySelectorAll('a[data-path]')) {
-      const tabPath = anchor.getAttribute('data-path') ?? '';
-      const active = path === tabPath || path.startsWith(`${tabPath}/`);
-      anchor.setAttribute('aria-current', active ? 'page' : 'false');
+      const tabPath = anchor.getAttribute('data-path');
+      anchor.setAttribute('aria-current', tabPath === active?.path ? 'page' : 'false');
     }
   }
 }
@@ -201,41 +203,11 @@ function buildChrome(options: ShellOptions): ShellElements {
   live.setAttribute('aria-live', 'polite');
   live.setAttribute('role', 'status');
 
-  const tabBar = buildTabBar(doc, options.tabs);
+  // The bar itself is `ui/components/tab-bar.ts` (T-9.1); the shell owns only where it sits.
+  const bar = tabBar(doc, { tabs: options.tabs, className: 'shell__tabs' });
 
-  frame.append(skip, header, banners, main, rotate, live, tabBar);
-  return { frame, header, title, main, banners, tabBar, rotate, live };
-}
-
-function buildTabBar(doc: Document, tabs: readonly TabDefinition[]): HTMLElement {
-  const nav = doc.createElement('nav');
-  nav.className = 'shell__tabs';
-  nav.setAttribute('aria-label', 'Main');
-
-  for (const tab of tabs) {
-    const anchor = doc.createElement('a');
-    anchor.className = 'shell__tab';
-    anchor.href = `#${tab.path}`;
-    anchor.setAttribute('data-path', tab.path);
-    anchor.setAttribute('aria-current', 'false');
-
-    const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.setAttribute('focusable', 'false');
-    const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', tab.icon);
-    svg.appendChild(path);
-
-    const label = doc.createElement('span');
-    label.className = 'shell__tab-label';
-    label.textContent = tab.label;
-
-    anchor.append(svg, label);
-    nav.appendChild(anchor);
-  }
-
-  return nav;
+  frame.append(skip, header, banners, main, rotate, live, bar);
+  return { frame, header, title, main, banners, tabBar: bar, rotate, live };
 }
 
 /** `10` §10 — the offline state, which is where a family-friendly app either holds up or not. */

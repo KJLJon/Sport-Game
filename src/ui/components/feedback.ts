@@ -12,6 +12,9 @@
 import { el } from '../dom.ts';
 import { button, type ButtonOptions } from './button.ts';
 
+/** Distinguishes one dialog's title id from another's. Never read for anything else. */
+let dialogCount = 0;
+
 export interface DialogAction {
   readonly label: string;
   readonly variant?: ButtonOptions['variant'];
@@ -33,7 +36,11 @@ export interface DialogOptions {
  */
 export function dialog(doc: Document, options: DialogOptions): HTMLDialogElement {
   const dismissible = options.dismissible ?? true;
-  const titleId = `dialog-title-${Math.trunc(performance.now())}`;
+  // A counter, not `performance.now()` (T-9.1): two dialogs built inside the same millisecond used
+  // to share an id, which points the second one's `aria-labelledby` at the first one's title. It
+  // also made the dev gallery — the visual-regression target — render differently on every load.
+  dialogCount += 1;
+  const titleId = `dialog-title-${dialogCount}`;
 
   const node = el(doc, 'dialog', {
     class: 'dialog',

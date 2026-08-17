@@ -29,6 +29,7 @@ import type { Athlete } from '../../athletes/types.ts';
 import type { Squad } from '../../teams/types.ts';
 import type { SportId } from '../../sports/types.ts';
 import { button } from '../components/button.ts';
+import { athleteRow } from '../components/athlete-row.ts';
 import { coinPill } from '../components/meters.ts';
 import { dialog } from '../components/feedback.ts';
 import { emptyState, errorState } from '../components/states.ts';
@@ -59,39 +60,32 @@ function overallFor(athlete: Athlete, tables: ReadonlyMap<SportId, SportRatingTa
   return table === undefined ? 0 : sportOverall(athlete, athlete.primarySport, table).overall;
 }
 
+/**
+ * One athlete, priced. The row itself is the shared `athleteRow` (T-9.1) — this screen used to
+ * build its own, which is how `10` §5's list row came to have four implementations and no
+ * component.
+ */
 function row(doc: Document, quote: SellQuote, onSell: (quote: SellQuote) => void): HTMLElement {
   const { athlete } = quote;
-  return el(doc, 'li', {
-    class: 'sell-row',
-    dataset: { blocked: quote.block === null ? 'false' : 'true' },
-    children: [
-      el(doc, 'div', {
-        class: 'sell-row__text',
-        children: [
-          el(doc, 'p', { class: 'sell-row__name', text: athlete.displayName }),
-          el(doc, 'p', {
-            class: 'sell-row__meta',
-            text: `${athlete.rarity} · ${playableSport(athlete.primarySport).displayName} · worth ${quote.value.toLocaleString('en-US')}`,
-          }),
-          quote.block === null
-            ? null
-            : el(doc, 'p', { class: 'sell-row__warning', text: quote.block.message }),
-        ],
-      }),
-      el(doc, 'div', {
-        class: 'sell-row__actions',
-        children: [
-          coinPill(doc, { amount: quote.coins }),
-          button(doc, {
-            label: 'Sell',
-            variant: quote.block === null ? 'secondary' : 'ghost',
-            disabled: quote.hard,
-            onClick: () => onSell(quote),
-          }),
-        ],
+  const node = athleteRow(doc, {
+    athlete,
+    meta: `${athlete.rarity} · ${playableSport(athlete.primarySport).displayName} · worth ${quote.value.toLocaleString('en-US')}`,
+    ...(quote.block === null ? {} : { warning: quote.block.message }),
+    disabled: quote.hard,
+    trailing: [
+      coinPill(doc, { amount: quote.coins }),
+      button(doc, {
+        label: 'Sell',
+        variant: quote.block === null ? 'secondary' : 'ghost',
+        disabled: quote.hard,
+        onClick: () => onSell(quote),
       }),
     ],
   });
+  // The sell screen's own tests and stylesheet key off this; the guard state is the screen's, not
+  // the row component's.
+  node.dataset.blocked = quote.block === null ? 'false' : 'true';
+  return node;
 }
 
 export function sellScreen(): Screen {

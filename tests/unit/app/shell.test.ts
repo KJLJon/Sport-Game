@@ -64,7 +64,9 @@ describe('AppShell', () => {
 
     expect(root.querySelector('.shell__header')).not.toBeNull();
     expect(root.querySelector('main.shell__main')).not.toBeNull();
-    expect(root.querySelectorAll('.shell__tab')).toHaveLength(2);
+    // The bar is the shared `.tab-bar` component (T-9.1); the shell only places it.
+    expect(root.querySelector('.tab-bar.shell__tabs')).not.toBeNull();
+    expect(root.querySelectorAll('.tab-bar__tab')).toHaveLength(2);
     expect(root.querySelector('[aria-live="polite"]')).not.toBeNull();
     expect(root.querySelector('.shell__skip')?.getAttribute('href')).toBe('#main');
   });
