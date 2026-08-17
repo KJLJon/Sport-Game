@@ -96,11 +96,24 @@ function overlayBlob(
   return out;
 }
 
-/** Reverses every row from `from` to the bottom, left-right — the mechanism behind "frames 3-5
- *  are frames 0-2 with the legs and arms swapped" (see the module Purpose). Rows above `from`
- *  (hair, face) are left untouched so the head keeps facing the same way in every frame. */
-function mirrorLower(rows: readonly string[], from: number): string[] {
-  return rows.map((r, y) => (y < from ? r : r.split('').reverse().join('')));
+/** Mirrors one row's columns around `axis` (`mx = 2*axis - x`) rather than around the sprite's
+ *  raw centre — reflecting around the facing's own leaned centreline instead of the unleaned one,
+ *  so a forward lean stays a forward lean in the mirrored frames instead of flipping to a lean
+ *  the wrong way. Columns whose mirror falls outside the grid are simply dropped (transparent). */
+function mirrorRowAroundAxis(r: string, axis: number): string {
+  const out = new Array<string>(WIDTH).fill('.');
+  for (let x = 0; x < WIDTH; x++) {
+    const mx = 2 * axis - x;
+    if (mx >= 0 && mx < WIDTH) out[mx] = r[x] as string;
+  }
+  return out.join('');
+}
+
+/** Mirrors every row from `from` to the bottom, left-right around `axis` — the mechanism behind
+ *  "frames 3-5 are frames 0-2 with the legs and arms swapped" (see the module Purpose). Rows above
+ *  `from` (hair, face) are left untouched so the head keeps facing the same way in every frame. */
+function mirrorLower(rows: readonly string[], from: number, axis: number): string[] {
+  return rows.map((r, y) => (y < from ? r : mirrorRowAroundAxis(r, axis)));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -206,28 +219,30 @@ interface FacingParams {
   readonly legOffset: number;
 }
 
-const FACINGS: ReadonlyArray<readonly [Facing, FacingParams]> = [
-  {
-    facing: 0,
-    p: { width: 13, skinFrom: 16, skinTo: 22, jog: 1, jogEvery: 2, lean: 2, legOffset: 4 },
-  }, // E
-  {
-    facing: 1,
-    p: { width: 16, skinFrom: 19, skinTo: 22, jog: 1, jogEvery: 3, lean: 1, legOffset: 4 },
-  }, // NE
-  {
-    facing: 2,
-    p: { width: 19, skinFrom: 22, skinTo: 22, jog: 0, jogEvery: 1, lean: 0, legOffset: 3 },
-  }, // N
-  {
-    facing: 6,
-    p: { width: 19, skinFrom: 10, skinTo: 22, jog: 0, jogEvery: 1, lean: 0, legOffset: 3 },
-  }, // S
-  {
-    facing: 7,
-    p: { width: 16, skinFrom: 12, skinTo: 22, jog: 1, jogEvery: 3, lean: 1, legOffset: 4 },
-  }, // SE
-].map(({ facing, p }) => [facing, p] as const);
+const FACINGS: ReadonlyArray<readonly [Facing, FacingParams]> = (
+  [
+    {
+      facing: 0,
+      p: { width: 13, skinFrom: 16, skinTo: 22, jog: 1, jogEvery: 2, lean: 2, legOffset: 4 },
+    }, // E
+    {
+      facing: 1,
+      p: { width: 16, skinFrom: 19, skinTo: 22, jog: 1, jogEvery: 3, lean: 1, legOffset: 4 },
+    }, // NE
+    {
+      facing: 2,
+      p: { width: 19, skinFrom: 22, skinTo: 22, jog: 0, jogEvery: 1, lean: 0, legOffset: 3 },
+    }, // N
+    {
+      facing: 6,
+      p: { width: 19, skinFrom: 10, skinTo: 22, jog: 0, jogEvery: 1, lean: 0, legOffset: 3 },
+    }, // S
+    {
+      facing: 7,
+      p: { width: 16, skinFrom: 12, skinTo: 22, jog: 1, jogEvery: 3, lean: 1, legOffset: 4 },
+    }, // SE
+  ] satisfies ReadonlyArray<{ facing: Facing; p: FacingParams }>
+).map(({ facing, p }) => [facing, p] as const);
 
 type Pose = 'contact' | 'passing' | 'extension';
 
@@ -296,8 +311,7 @@ function assembleFrame(pose: Pose, p: FacingParams): { body: string[]; kit: stri
   const torsoStart = body.length;
   body.push(row(shoulderIndent, '5' + '2'.repeat(Math.max(0, shoulderWidth - 2)) + '5'));
   kit.push(row(shoulderIndent, 'k' + 'P'.repeat(Math.max(0, shoulderWidth - 2)) + 'k'));
-  const coreRow =
-    LEG_SEG.length /* keep 5 */ && '51115' + '2'.repeat(Math.max(0, p.width - 10)) + '51115';
+  const coreRow = '51115' + '2'.repeat(Math.max(0, p.width - 10)) + '51115';
   for (let i = 0; i < 10; i++) {
     body.push(row(mainIndent, coreRow));
     kit.push(row(mainIndent, 'P'.repeat(p.width)));
@@ -349,9 +363,10 @@ for (const [facing, p] of FACINGS) {
 
   const bodyHalf = [contact.body, passing.body, extension.body];
   const kitHalf = [contact.kit, passing.kit, extension.kit];
+  const axis = 16 + p.lean;
 
-  const bodySix = [...bodyHalf, ...bodyHalf.map((r) => mirrorLower(r, SWAP_FROM))];
-  const kitSix = [...kitHalf, ...kitHalf.map((r) => mirrorLower(r, SWAP_FROM))];
+  const bodySix = [...bodyHalf, ...bodyHalf.map((r) => mirrorLower(r, SWAP_FROM, axis))];
+  const kitSix = [...kitHalf, ...kitHalf.map((r) => mirrorLower(r, SWAP_FROM, axis))];
 
   bodySheet[poseKey('run', facing)] = bodySix.map(toGrid);
   kitSheet[poseKey('run', facing)] = kitSix.map(toGrid);
