@@ -155,3 +155,13 @@ T-13.2 leaves behind, visible on `#/dev/ui`.
    is their only consumer — rather than lowering the ceiling.
 5. **Art is imported lazily.** Only route-level dynamic imports may reach `src/art/**`, so none of
    it lands in the initial JS chunk.
+6. **A pose file may compose its frames, as long as what it exports is grids.** Sixty hand-typed
+   48-row frames is where transcription errors live, so a file is allowed to build its rows from
+   pure local helpers — `run.ts` does, from a keyframe per facing plus a mirror for the second half
+   of the cycle. The rules that do not bend: the helpers are pure and local to the file, the module
+   still imports nothing but `atlas.ts`'s types (and `idle.ts`'s `ATHLETE_FRAME`), the exported
+   value is still `SpriteSheet` of ordinary `SpriteGrid`s, and the same input still produces the
+   same bytes every load (INV-8). What is lost is the "diff is the picture" property, which is why
+   this is a licence rather than the default: **render the frames as text and look at them** before
+   claiming a pose is done. `tools/` has no viewer yet; the two-minute script in `notes/phase-13.md`
+   under T-13.3 is what the review of this phase's art used.

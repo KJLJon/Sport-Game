@@ -22,11 +22,17 @@ import {
 import type { OffscreenFactory } from '../../engine/render/renderer.ts';
 import { tintKitSheet, type KitPattern, type KitSpec } from '../../engine/render/tint.ts';
 import { IDLE_BODY, IDLE_KIT } from './idle.ts';
+import { PLANT_BODY, PLANT_KIT } from './plant.ts';
+import { RUN_BODY, RUN_KIT } from './run.ts';
 import { ATHLETE_BODY_PALETTE, kitPalette } from './palette.ts';
 
-/** Later poses (run, kick, throw, …) land beside `idle` here as T-13.3 and T-13.7 author them. */
-const BODY_SHEETS: readonly SpriteSheet[] = [IDLE_BODY];
-const KIT_SHEETS: readonly SpriteSheet[] = [IDLE_KIT];
+/**
+ * Every authored pose. T-13.3 brings `idle`, `run` and `plant` across the five authored facings;
+ * the action poses of `13` §3.1 — kick, throw, tackle, fall, celebrate, dejected — land here the
+ * same way when T-13.7 authors them, one import and one array entry each.
+ */
+const BODY_SHEETS: readonly SpriteSheet[] = [IDLE_BODY, RUN_BODY, PLANT_BODY];
+const KIT_SHEETS: readonly SpriteSheet[] = [IDLE_KIT, RUN_KIT, PLANT_KIT];
 
 /** Merges pose sheets into one. A key authored twice is an authoring bug, so it throws. */
 export function mergeSheets(sheets: readonly SpriteSheet[]): SpriteSheet {
