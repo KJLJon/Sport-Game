@@ -37,6 +37,27 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
   Phase 13 is bonus work the user asked to advance.
 - **Blockers:** none for the code. **Gates 2 through 12 are all held by the same two user actions**
   — the manual device matrix (`12` §7) and a tagged deploy.
+- 🔴 **`pnpm test:coverage` fails its own thresholds, and has done for a long time. This blocks
+  every remaining gate, and it is a decision for the user, not a task.** The suite is green — 3600
+  of 3600 — and overall coverage is 90.3% lines / 91.8% branches, but two per-area floors from
+  `12` §2 are not met:
+
+  | Area | Floor (`12` §2) | Actual |
+  |---|---|---|
+  | `src/economy/**` | 95% lines/statements, 95% functions | 78.1% / 90.9% |
+  | `src/achievements/**` | 95% lines/statements, 85% branches | 86.0% / 64.3% functions / 77.9% branches |
+
+  **Not caused by Phase 13.** Measured at the merge-base `ce3be44`, before session B, the same
+  seven errors appear with *identical* numbers; session B added 94 tests (3506 → 3600) and moved
+  overall coverage 89.5% → 90.3%. CI on `main` has been red at the
+  "Unit, determinism, property, and invariant tests" step — which runs `pnpm test:coverage` — on
+  every run back to at least 2026-07-31, i.e. since before Phase 12. Earlier sessions ran
+  `pnpm test` (no coverage) and read green.
+
+  `CLAUDE.md` §5 makes the floors a gate condition and §8 forbids lowering them, so the options are
+  to write `src/economy/**` and `src/achievements/**` back up to 95%, or to revisit `12` §2 with
+  the user. **Do not lower a threshold to make a build pass**, and do not open Gate 13 without
+  resolving this.
 - ⚠️ **One observed flake, unreproduced** (carried from Phase 8). A single full-suite run failed one
   test; every run since has been green and the failing name was never captured. If it recurs, that
   is the thread to pull.
