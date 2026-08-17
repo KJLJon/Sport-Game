@@ -82,10 +82,18 @@ The frame is stiff: one idle frame per pose is a mannequin, the arms are stubby,
 large even for the readability the size demands. All three are T-13.3's to fix, and worth knowing
 before 340 frames are authored against the proportions.
 
-**Verified in a browser, not on a device.** The screenshot above is the check that the pipeline
-works end to end — grids, palettes, compositing, packing, blit. The atlas is built once per kit at
-load and every frame is one `drawImage`; whether that holds the `12` §6 budget on real hardware is
-T-13.9's measurement, not a claim made here.
+**Verified in a browser, not on a device.** Rendering `#/dev/ui` in Chromium is the check that the
+pipeline works end to end — grids, palettes, compositing, packing, blit. The atlas is built once
+per kit at load and every frame is one `drawImage`; whether that holds the `12` §6 budget on real
+hardware is T-13.9's measurement, not a claim made here.
+
+**Nothing of `src/art/**` is in the production bundle yet, by design.** Its only consumer today is
+the dev gallery, and that route is behind `import.meta.env.DEV`, so it tree-shakes away entirely:
+`pnpm budget` reads 67.7 KB gzip initial JS of 200 KB and 678.8 KB install of 6 MB, unchanged in
+substance from Gate 12. Art enters the production graph with T-13.3's `sprite-art.ts`, behind the
+Live/Arcade route imports — which is the point at which T-13.10's art line has something to
+measure. Until then a green `pnpm budget` says nothing about the art budget, and should not be
+quoted as if it did.
 
 ### T-13.6
 
