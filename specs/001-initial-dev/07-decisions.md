@@ -353,3 +353,63 @@ task class.
 Not delegated: engine core, determinism, netcode, rating and economy math, anything crossing the
 sport-module seam, and anything where two agents would touch the same files. The main session always
 reviews, runs the suite, and owns the commit. Protocol in `CLAUDE.md` §7.
+
+---
+
+## D-24 — The visual overhaul is sprites, not pseudo-3D
+
+**Decided 2026-08-17 (T-13.1).** Phase 13 replaces the coloured-disc athletes with layered,
+runtime-tinted **top-down sprites**, y-sorted for depth. Pseudo-3D (isometric or raised-perspective
+projection) is rejected. The full implementation design is
+[`13-visual-overhaul.md`](./13-visual-overhaul.md).
+
+### Why not pseudo-3D
+
+- **It re-opens Phase 12.** The camera, director, and framing stack (9 tasks, done, v1.2) is built
+  on an orthographic top-down `ViewTransform { x, y, scale }` — spans measured in world units of
+  the viewport axis, `legibleSpan`, the LOD policy, and every hit test assume screen distance is a
+  scalar multiple of world distance. An isometric projection breaks that assumption everywhere at
+  once: field renderers, playbook diagrams, pointer→world mapping, all visual snapshots, and the
+  spans arithmetic the whole framing system is tested against.
+- **It doesn't remove the sprite cost — it adds to it.** Isometric athletes still need directional
+  sprite art (a projected disc looks worse, not better). So pseudo-3D = the whole sprite bill
+  *plus* the projection churn, for a perspective gain the sprite art itself can carry (see below).
+- **The floor requirement favours the smaller diff.** Gate 13 keeps the disc renderer selectable as
+  the performance floor. Sprites are a pure alternative implementation behind the existing
+  `SportRenderer` seam — same signatures, same camera, same field geometry. Pseudo-3D would need
+  *two* camera/projection stacks kept alive simultaneously.
+- **The "3-D feel" is mostly recoverable inside sprite art.** Athletes drawn with a slight
+  top-down tilt (head above shoulders above feet), a feet-anchored shadow, ball height already
+  carried by shadow offset (T-13.4), and y-sorted overlap (T-13.6) read as depth without any
+  projection change.
+
+### Budget arithmetic
+
+Recorded at Gate 12: initial JS **70.8 KB gzip** of a 200 KB budget; total precache
+**544.5 KB** of a 6 MB budget (`pnpm budget`). Headroom ≈ **5.46 MB precache, ~129 KB gzip JS**.
+
+Sprite bill (design in `13-visual-overhaul.md` §2–3; frames are 32×48 px, authored as text pixel
+grids and rasterised at load — no image files, no fetch path, INV-4 by construction):
+
+| Item | Arithmetic | Raw | Expected gzip |
+|---|---|---|---|
+| Shared humanoid base sheet | 17 poses × 5 authored facings (8 via mirroring) × ~4 frames avg ≈ 340 frames × 1 536 px ≈ 522 k chars, × 2 layers (body + kit mask) | ~1.0 MB | ~100 KB |
+| Per-sport prop/pose layer × 4 sports | ~60 frames × 1 536 px × 4 | ~370 KB | ~40 KB |
+| Ball sheets, nets, dressing | small | ~60 KB | ~8 KB |
+| **Ceiling** | | **~1.5 MB** | **~150 KB** |
+
+Even at the ceiling that is **<28% of the precache headroom**, and none of it lands in the initial
+JS chunk — art modules are code-split behind the Live/Arcade routes and rasterised once at load.
+Runtime kit tinting composites each (team × pattern) atlas **once per match load** into an
+off-screen canvas; per-frame drawing is plain `drawImage` blits of pre-composited sprites — the
+cheapest per-frame operation a 2D canvas has — so the `12` §6 16 ms p95 at 22 entities is held by
+construction, and verified by T-13.9.
+
+### Constraints carried forward
+
+- Kit **pattern is geometry, not colour**: the pattern (solid / stripes / hoops / halves, `10`
+  §3.1) is a separate authored mask layer, so team identity survives every colour-vision
+  simulation (`10` §11, Gate 13).
+- The disc renderer is untouched and remains the floor (T-13.11); sprites are additive.
+- No `Math.random()` anywhere in the render path (INV-2): run-cycle phase derives from
+  per-entity distance travelled, ambient variation from `fork`-labelled seeds.

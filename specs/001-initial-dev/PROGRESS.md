@@ -12,23 +12,15 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 
 ## In-flight
 
-- **Task:** none. **T-9.1 is done** — Phase 9 is 1 of 15. PR **#19** is open as a draft.
-- **Branch:** `claude/continuing-work-ugw53l`, off `main` at `288c642`.
-- **Suite:** 203 files, **3 442 unit tests**, typecheck and lint clean.
-- **What T-9.1 found**, beyond the four components `10` §5 named and nobody had built (attribute
-  radar, stat table, athlete list row, onboarding coach-mark):
-  - a **second, undeclared token vocabulary** across sixteen stylesheets, each use propped up by a
-    hardcoded fallback — including `var(--space-4, 16px)`, which had been rendering the Live
-    overlay's padding at a quarter of its intended size since Phase 2;
-  - **two element ids built from the clock** — two dialogs or two call sheets constructed in the
-    same millisecond collided, and two call sheets sharing a radio group means choosing in one
-    clears the other;
-  - the **tab bar's active marker had never rendered**, so the active tab was carried by colour and
-    `aria-current` alone since Phase 0 (INV-11).
-  All four are held by new tests that read the source as text or the gallery as a rendered page.
-- **Next step:** `pnpm -s next` — **T-9.3** (onboarding, which the coach-mark was built for) or
-  **T-9.5** (settings) are the ready ones worth taking next; T-9.2 unblocks the largest group but
-  is XL and wants the design system it now has.
+- **Task:** none. **T-13.1 is done** — Phase 13 is 1 of 12, and the other 11 tasks now have a full
+  execution design in [`13-visual-overhaul.md`](./13-visual-overhaul.md) (decision: **sprites**,
+  D-24). Docs-only session; no `src/` change, suite untouched.
+- **Branch:** `claude/phase-13-hmvvlf`, off `main` at `d9bdf79`.
+- **Next step for Phase 13:** T-13.2 (asset pipeline — main-session work, it is the seam) per
+  `13-visual-overhaul.md` §4 and the four-session plan in §6. Sessions should read D-24 + their
+  task's section of that doc, not re-derive the design.
+- **Phase 9 remains the v1.0 path** (1 of 15, next: T-9.3 or T-9.5 — see the Phase 9 table);
+  Phase 13 is bonus work the user asked to advance.
 - **Blockers:** none for the code. **Gates 2 through 12 are all held by the same two user actions**
   — the manual device matrix (`12` §7) and a tagged deploy.
 - ⚠️ **One observed flake, unreproduced** (carried from Phase 8). A single full-suite run failed one
@@ -54,8 +46,8 @@ Statuses: `todo` · `in_progress` · `blocked` · `done` · `cut`
 | 10 | P2P (bonus) | 11 | 0 | `todo` | v1.0.x |
 | 11 | Hockey & American Football | 14 | 0 | `todo` | v1.1 |
 | 12 | Camera, framing, and readability (bonus) | 9 | 9 | `done` | v1.2 |
-| 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 0 | `todo` | v1.3 |
-| | **Total** | **203** | **152** | | |
+| 13 | Visual overhaul: sprites and pseudo-3D (bonus) | 12 | 1 | `in_progress` | v1.3 |
+| | **Total** | **203** | **153** | | |
 
 ---
 
@@ -338,7 +330,7 @@ is never the only signal, so kit pattern and silhouette keep carrying team ident
 
 | Task | Description | Size | Status | Commits | Tests | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| T-13.1 | Decide sprites vs pseudo-3D; record in `07-decisions.md` with the budget arithmetic | M | `todo` | | | | |
+| T-13.1 | Decide sprites vs pseudo-3D; record in `07-decisions.md` with the budget arithmetic | M | `done` | | — | `auto` (`progress:check`; docs-only) | **Sprites** (D-24); full execution design for T-13.2–13.12 written as `13-visual-overhaul.md`. [notes](./notes/phase-13.md#t-131) |
 | T-13.2 | Asset pipeline: authored source → packed atlas → typed accessors, all offline and in-bundle | L | `todo` | | | | |
 | T-13.3 | Athlete rendering: facings, run cycle, kit tint, and pattern that survives colour blindness | XL | `todo` | | | | |
 | T-13.4 | Ball rendering with height, spin, and a shadow that reads as altitude | M | `todo` | | | | |
